@@ -589,6 +589,10 @@ else
 KBUILD_CFLAGS	+= -O2 -mcpu=cortex-a53
 endif
 
+# conserve stack if available
+# do this early so that an architecture can override it.
+KBUILD_CFLAGS   += $(call cc-option,-fconserve-stack)
+
 include $(srctree)/arch/$(SRCARCH)/Makefile
 
 # Tell gcc to never replace conditional load with a non-conditional one
