@@ -285,6 +285,17 @@ static inline void __list_splice(const struct list_head *list,
 }
 
 /**
+ * list_last_entry - get the last element from a list
+ * @head: the list head to take the element from.
+ * @type: the type of the struct this is embedded in.
+ * @member: the name of the list_struct within the struct.
+ *
+ * Note, that list is expected to be not empty.
+ */
+#define list_last_entry(head, type, member) \
+	list_entry((head)->prev, type, member)
+
+/**
  * list_splice - join two lists, this is designed for stacks
  * @list: the new list to add.
  * @head: the place to add it in the first list.
