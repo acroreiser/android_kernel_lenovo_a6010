@@ -2280,31 +2280,6 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 		mdwc->current_max = val->intval;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
-		psy->type = val->intval;
-
-		switch (psy->type) {
-		case POWER_SUPPLY_TYPE_USB:
-			mdwc->charger.chg_type = DWC3_SDP_CHARGER;
-			break;
-		case POWER_SUPPLY_TYPE_USB_DCP:
-			mdwc->charger.chg_type = DWC3_DCP_CHARGER;
-			break;
-		case POWER_SUPPLY_TYPE_USB_CDP:
-			mdwc->charger.chg_type = DWC3_CDP_CHARGER;
-			break;
-		case POWER_SUPPLY_TYPE_USB_ACA:
-			mdwc->charger.chg_type = DWC3_PROPRIETARY_CHARGER;
-			break;
-		default:
-			mdwc->charger.chg_type = DWC3_INVALID_CHARGER;
-			break;
-		}
-
-		if (mdwc->charger.chg_type != DWC3_INVALID_CHARGER)
-			mdwc->chg_state = USB_CHG_STATE_DETECTED;
-
-		dev_dbg(mdwc->dev, "%s: charger type: %s\n", __func__,
-				chg_to_string(mdwc->charger.chg_type));
 		break;
 	default:
 		return -EINVAL;
