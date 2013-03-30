@@ -59,6 +59,7 @@ struct mnt_namespace;
 #define MNT_LOCK_NODEV		0x200000
 #define MNT_LOCK_READONLY	0x400000
 #define MNT_MARKED		0x4000000
+#define MNT_LOCKED		0x800000
 
 struct vfsmount {
 	struct dentry *mnt_root;	/* root of the mounted tree */
