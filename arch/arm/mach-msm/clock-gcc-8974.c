@@ -2386,8 +2386,10 @@ static struct clk_lookup msm_clocks_gcc_8974[] = {
 	CLK_LOOKUP_OF("iface_clk", gcc_blsp1_ahb_clk, "f9923000.i2c"),
 	CLK_LOOKUP_OF("core_clk", gcc_blsp1_qup2_i2c_apps_clk, "f9924000.i2c"),
 	CLK_LOOKUP_OF("core_clk", gcc_blsp1_qup2_spi_apps_clk, ""),
+#ifndef CONFIG_MAX17048_FUELGAUGE
 	CLK_LOOKUP_OF("core_clk", gcc_blsp1_qup1_spi_apps_clk, "f9923000.spi"),
 	CLK_LOOKUP_OF("iface_clk", gcc_blsp1_ahb_clk, "f9923000.spi"),
+#endif
 	CLK_LOOKUP_OF("core_clk", gcc_blsp1_qup3_i2c_apps_clk, ""),
 	CLK_LOOKUP_OF("core_clk", gcc_blsp1_qup3_spi_apps_clk, ""),
 	CLK_LOOKUP_OF("core_clk", gcc_blsp1_qup4_i2c_apps_clk, ""),
