@@ -365,7 +365,7 @@ void __init early_print(const char *str, ...)
 
 static void __init cpuid_init_hwcaps(void)
 {
-	unsigned int divide_instrs;
+	unsigned int divide_instrs, vmsa;
 
 	if (cpu_architecture() < CPU_ARCH_ARMv7)
 		return;
@@ -378,6 +378,11 @@ static void __init cpuid_init_hwcaps(void)
 	case 1:
 		elf_hwcap |= HWCAP_IDIVT;
 	}
+
+	/* LPAE implies atomic ldrd/strd instructions */
+	vmsa = (read_cpuid_ext(CPUID_EXT_MMFR0) & 0xf) >> 0;
+	if (vmsa >= 5)
+		elf_hwcap |= HWCAP_LPAE;
 }
 
 static void __init elf_hwcap_fixup(void)
@@ -991,8 +996,8 @@ static const char *hwcap_str[] = {
 	"vfpv4",
 	"idiva",
 	"idivt",
-	"vfpd32",
 	"lpae",
+	"vfpd32",
 	"evtstrm",
 	NULL
 };
