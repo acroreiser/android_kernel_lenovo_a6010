@@ -82,5 +82,6 @@ obj-$(CONFIG_RT9428_FG)	+= rt9428_battery.o
 #lenovo-sw weiweij added for rt9428 end
 obj-$(CONFIG_MAX17048_FUELGAUGE)+= max17048_battery.o
 obj-$(CONFIG_BQ51013B_CHARGER)	+= bq51013b_charger.o
+obj-$(CONFIG_BQ24192_CHARGER)	+= bq24192_charger.o
 obj-$(CONFIG_POWER_RESET)	+= reset/
 obj-y				+= qcom/
