@@ -1356,6 +1356,10 @@ static void l2cap_le_conn_ready(struct l2cap_conn *conn)
 	if (!pchan)
 		return;
 
+	/* Client ATT sockets should override the server one */
+	if (__l2cap_get_chan_by_dcid(conn, L2CAP_CID_ATT))
+		return;
+
 	parent = pchan->sk;
 
 	lock_sock(parent);
@@ -1369,7 +1373,7 @@ static void l2cap_le_conn_ready(struct l2cap_conn *conn)
 	bacpy(&bt_sk(chan->sk)->src, conn->src);
 	bacpy(&bt_sk(chan->sk)->dst, conn->dst);
 
-	l2cap_chan_add(conn, chan);
+	__l2cap_chan_add(conn, chan);
 
 clean:
 	release_sock(parent);
@@ -1382,9 +1386,6 @@ static void l2cap_conn_ready(struct l2cap_conn *conn)
 
 	BT_DBG("conn %pK", conn);
 
-	if (!hcon->out && hcon->type == LE_LINK)
-		l2cap_le_conn_ready(conn);
-
 	/* For outgoing pairing which doesn't necessarily have an
 	 * associated socket (e.g. mgmt_pair_device).
 	 */
@@ -1392,6 +1393,9 @@ static void l2cap_conn_ready(struct l2cap_conn *conn)
 		smp_conn_security(hcon, hcon->pending_sec_level);
 
 	mutex_lock(&conn->chan_lock);
+
+	if (hcon->type == LE_LINK)
+		l2cap_le_conn_ready(conn);
 
 	list_for_each_entry(chan, &conn->chan_l, list) {
 
