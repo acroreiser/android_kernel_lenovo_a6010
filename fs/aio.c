@@ -240,8 +240,7 @@ void kiocb_set_cancel_fn(struct kiocb *req, kiocb_cancel_fn *cancel)
 }
 EXPORT_SYMBOL(kiocb_set_cancel_fn);
 
-static int kiocb_cancel(struct kioctx *ctx, struct kiocb *kiocb,
-			struct io_event *res)
+static int kiocb_cancel(struct kioctx *ctx, struct kiocb *kiocb)
 {
 	kiocb_cancel_fn *old, *cancel;
 	int ret = -EINVAL;
@@ -263,12 +262,10 @@ static int kiocb_cancel(struct kioctx *ctx, struct kiocb *kiocb,
 	atomic_inc(&kiocb->ki_users);
 	spin_unlock_irq(&ctx->ctx_lock);
 
-	memset(res, 0, sizeof(*res));
-	res->obj = (u64)(unsigned long)kiocb->ki_obj.user;
-	res->data = kiocb->ki_user_data;
-	ret = cancel(kiocb, res);
+	ret = cancel(kiocb);
 
 	spin_lock_irq(&ctx->ctx_lock);
+	aio_put_req(kiocb);
 
 	return ret;
 }
@@ -287,7 +284,6 @@ static void free_ioctx_rcu(struct rcu_head *head)
 static void free_ioctx(struct kioctx *ctx)
 {
 	struct aio_ring *ring;
-	struct io_event res;
 	struct kiocb *req;
 	unsigned head, avail;
 
@@ -298,7 +294,7 @@ static void free_ioctx(struct kioctx *ctx)
 				       struct kiocb, ki_list);
 
 		list_del_init(&req->ki_list);
-		kiocb_cancel(ctx, req, &res);
+		kiocb_cancel(ctx, req);
 	}
 
 	spin_unlock_irq(&ctx->ctx_lock);
@@ -616,17 +612,6 @@ void aio_complete(struct kiocb *iocb, long res, long res2)
 	}
 
 	/*
-	 * cancelled requests don't get events, userland was given one
-	 * when the event got cancelled.
-	 */
-	if (unlikely(xchg(&iocb->ki_cancel,
-			  KIOCB_CANCELLED) == KIOCB_CANCELLED)) {
-		atomic_dec(&ctx->reqs_active);
-		/* Still need the wake_up in case free_ioctx is waiting */
-		goto put_rq;
-	}
-
-	/*
 	 * Add a completion event to the ring buffer. Must be done holding
 	 * ctx->completion_lock to prevent other code from messing with the tail
 	 * pointer since we might be called from irq context.
@@ -678,7 +663,6 @@ void aio_complete(struct kiocb *iocb, long res, long res2)
 	if (iocb->ki_eventfd != NULL)
 		eventfd_signal(iocb->ki_eventfd, 1);
 
-put_rq:
 	/* everything turned out well, dispose of the aiocb. */
 	aio_put_req(iocb);
 	atomic_dec(&ctx->reqs_active);
@@ -1257,7 +1241,6 @@ static struct kiocb *lookup_kiocb(struct kioctx *ctx, struct iocb __user *iocb,
 SYSCALL_DEFINE3(io_cancel, aio_context_t, ctx_id, struct iocb __user *, iocb,
 		struct io_event __user *, result)
 {
-	struct io_event res;
 	struct kioctx *ctx;
 	struct kiocb *kiocb;
 	u32 key;
@@ -1275,18 +1258,19 @@ SYSCALL_DEFINE3(io_cancel, aio_context_t, ctx_id, struct iocb __user *, iocb,
 
 	kiocb = lookup_kiocb(ctx, iocb, key);
 	if (kiocb)
-		ret = kiocb_cancel(ctx, kiocb, &res);
+		ret = kiocb_cancel(ctx, kiocb);
 	else
 		ret = -EINVAL;
 
 	spin_unlock_irq(&ctx->ctx_lock);
 
 	if (!ret) {
-		/* Cancellation succeeded -- copy the result
-		 * into the user's buffer.
+		/*
+		 * The result argument is no longer used - the io_event is
+		 * always delivered via the ring buffer. -EINPROGRESS indicates
+		 * cancellation is progress:
 		 */
-		if (copy_to_user(result, &res, sizeof(res)))
-			ret = -EFAULT;
+		ret = -EINPROGRESS;
 	}
 
 	put_ioctx(ctx);
