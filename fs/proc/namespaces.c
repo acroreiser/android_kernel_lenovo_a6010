@@ -185,13 +185,12 @@ static const struct inode_operations proc_ns_link_inode_operations = {
 	.setattr	= proc_setattr,
 };
 
-static struct dentry *proc_ns_instantiate(struct inode *dir,
+static int proc_ns_instantiate(struct inode *dir,
 	struct dentry *dentry, struct task_struct *task, const void *ptr)
 {
 	const struct proc_ns_operations *ns_ops = ptr;
 	struct inode *inode;
 	struct proc_inode *ei;
-	struct dentry *error = ERR_PTR(-ENOENT);
 
 	inode = proc_pid_make_inode(dir->i_sb, task);
 	if (!inode)
@@ -206,9 +205,9 @@ static struct dentry *proc_ns_instantiate(struct inode *dir,
 	d_add(dentry, inode);
 	/* Close the race of the process dying before we return the dentry */
 	if (pid_revalidate(dentry, 0))
-		error = NULL;
+		return 0;
 out:
-	return error;
+	return -ENOENT;
 }
 
 static int proc_ns_dir_readdir(struct file *file, struct dir_context *ctx)
@@ -246,12 +245,12 @@ const struct file_operations proc_ns_dir_operations = {
 static struct dentry *proc_ns_dir_lookup(struct inode *dir,
 				struct dentry *dentry, unsigned int flags)
 {
-	struct dentry *error;
+	int error;
 	struct task_struct *task = get_proc_task(dir);
 	const struct proc_ns_operations **entry, **last;
 	unsigned int len = dentry->d_name.len;
 
-	error = ERR_PTR(-ENOENT);
+	error = -ENOENT;
 
 	if (!task)
 		goto out_no_task;
@@ -270,7 +269,7 @@ static struct dentry *proc_ns_dir_lookup(struct inode *dir,
 out:
 	put_task_struct(task);
 out_no_task:
-	return error;
+	return ERR_PTR(error);
 }
 
 const struct inode_operations proc_ns_dir_inode_operations = {
