@@ -458,7 +458,7 @@ const struct kernel_symbol *find_symbol(const char *name,
 EXPORT_SYMBOL_GPL(find_symbol);
 
 /* Search for module by name: must hold module_mutex. */
-static struct module *find_module_all(const char *name,
+static struct module *find_module_all(const char *name, size_t len,
 				      bool even_unformed)
 {
 	struct module *mod;
@@ -466,7 +466,7 @@ static struct module *find_module_all(const char *name,
 	list_for_each_entry(mod, &modules, list) {
 		if (!even_unformed && mod->state == MODULE_STATE_UNFORMED)
 			continue;
-		if (strcmp(mod->name, name) == 0)
+		if (strlen(mod->name) == len && !memcmp(mod->name, name, len))
 			return mod;
 	}
 	return NULL;
@@ -474,7 +474,7 @@ static struct module *find_module_all(const char *name,
 
 struct module *find_module(const char *name)
 {
-	return find_module_all(name, false);
+	return find_module_all(name, strlen(name), false);
 }
 EXPORT_SYMBOL_GPL(find_module);
 
@@ -3048,7 +3048,7 @@ static bool finished_loading(const char *name)
 	bool ret;
 
 	mutex_lock(&module_mutex);
-	mod = find_module_all(name, true);
+	mod = find_module_all(name, strlen(name), true);
 	ret = !mod || mod->state == MODULE_STATE_LIVE
 		|| mod->state == MODULE_STATE_GOING;
 	mutex_unlock(&module_mutex);
@@ -3215,7 +3215,8 @@ static int add_unformed_module(struct module *mod)
 
 again:
 	mutex_lock(&module_mutex);
-	if ((old = find_module_all(mod->name, true)) != NULL) {
+	old = find_module_all(mod->name, strlen(mod->name), true);
+	if (old != NULL) {
 		if (old->state == MODULE_STATE_COMING
 		    || old->state == MODULE_STATE_UNFORMED) {
 			/* Wait in case it fails to load. */
@@ -3654,10 +3655,8 @@ unsigned long module_kallsyms_lookup_name(const char *name)
 	/* Don't lock: we're in enough trouble already. */
 	preempt_disable();
 	if ((colon = strchr(name, ':')) != NULL) {
-		*colon = '\0';
-		if ((mod = find_module(name)) != NULL)
+		if ((mod = find_module_all(name, colon - name, false)) != NULL)
 			ret = mod_find_symname(mod, colon+1);
-		*colon = ':';
 	} else {
 		list_for_each_entry_rcu(mod, &modules, list) {
 			if (mod->state == MODULE_STATE_UNFORMED)
