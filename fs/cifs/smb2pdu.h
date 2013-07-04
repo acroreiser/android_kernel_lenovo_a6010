@@ -477,6 +477,12 @@ struct create_lease {
 	struct lease_context lcontext;
 } __packed;
 
+struct create_durable {
+	struct create_context ccontext;
+	__u8   Name[8];
+	__u8   Reserved[16];
+} __packed;
+
 /* Currently defined values for close flags */
 #define SMB2_CLOSE_FLAG_POSTQUERY_ATTRIB	cpu_to_le16(0x0001)
 struct smb2_close_req {
