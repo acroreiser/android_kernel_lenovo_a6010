@@ -305,6 +305,12 @@ void fput(struct file *file)
 			init_task_work(&file->f_u.fu_rcuhead, ____fput);
 			if (!task_work_add(task, &file->f_u.fu_rcuhead, true))
 				return;
+			/*
+			 * After this task has run exit_task_work(),
+			 * task_work_add() will fail.  free_ipc_ns()->
+			 * shm_destroy() can do this.  Fall through to delayed
+			 * fput to avoid leaking *file.
+			 */
 		}
 
 		if (llist_add(&file->f_u.fu_llist, &delayed_fput_list))
