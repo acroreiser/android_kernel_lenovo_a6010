@@ -165,6 +165,9 @@ static inline struct llist_node *llist_next(struct llist_node *node)
 	return node->next;
 }
 
+extern bool llist_add_batch(struct llist_node *new_first,
+			    struct llist_node *new_last,
+			    struct llist_head *head);
 /**
  * llist_add - add a new entry
  * @new:	new entry to be added
@@ -174,13 +177,7 @@ static inline struct llist_node *llist_next(struct llist_node *node)
  */
 static inline bool llist_add(struct llist_node *new, struct llist_head *head)
 {
-	struct llist_node *first;
-
-	do {
-		new->next = first = ACCESS_ONCE(head->first);
-	} while (cmpxchg(&head->first, first, new) != first);
-
-	return !first;
+	return llist_add_batch(new, new, head);
 }
 
 /**
@@ -196,9 +193,6 @@ static inline struct llist_node *llist_del_all(struct llist_head *head)
 	return xchg(&head->first, NULL);
 }
 
-extern bool llist_add_batch(struct llist_node *new_first,
-			    struct llist_node *new_last,
-			    struct llist_head *head);
 extern struct llist_node *llist_del_first(struct llist_head *head);
 
 #endif /* LLIST_H */
