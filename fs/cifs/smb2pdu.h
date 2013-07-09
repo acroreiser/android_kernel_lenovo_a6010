@@ -480,7 +480,13 @@ struct create_lease {
 struct create_durable {
 	struct create_context ccontext;
 	__u8   Name[8];
-	__u8   Reserved[16];
+	union {
+		__u8  Reserved[16];
+		struct {
+			__u64 PersistentFileId;
+			__u64 VolatileFileId;
+		} Fid;
+	} Data;
 } __packed;
 
 /* Currently defined values for close flags */
