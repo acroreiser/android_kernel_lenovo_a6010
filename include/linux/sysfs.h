@@ -94,6 +94,8 @@ struct attribute_group {
 	.store	= _name##_store,					\
 }
 
+#define __ATTR_RW(_name) __ATTR(_name, 0644, _name##_show, _name##_store)
+
 #define __ATTR_NULL { .attr = { .name = NULL } }
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
