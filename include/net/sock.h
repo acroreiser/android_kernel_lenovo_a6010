@@ -2285,6 +2285,8 @@ static inline bool sk_fullsock(const struct sock *sk)
 extern void sock_enable_timestamp(struct sock *sk, int flag);
 extern int sock_get_timestamp(struct sock *, struct timeval __user *);
 extern int sock_get_timestampns(struct sock *, struct timespec __user *);
+extern int sock_recv_errqueue(struct sock *sk, struct msghdr *msg, int len,
+			      int level, int type);
 
 bool sk_ns_capable(const struct sock *sk,
 		   struct user_namespace *user_ns, int cap);
