@@ -69,6 +69,9 @@
 #define IFF_ATTACH_QUEUE 0x0200
 #define IFF_DETACH_QUEUE 0x0400
 
+/* Socket options */
+#define TUN_TX_TIMESTAMP 1
+
 /* Features for GSO (TUNSETOFFLOAD). */
 #define TUN_F_CSUM	0x01	/* You can hand me unchecksummed packets. */
 #define TUN_F_TSO4	0x02	/* I can handle TSO for IPv4 packets */
