@@ -83,5 +83,6 @@ obj-$(CONFIG_RT9428_FG)	+= rt9428_battery.o
 obj-$(CONFIG_MAX17048_FUELGAUGE)+= max17048_battery.o
 obj-$(CONFIG_BQ51013B_CHARGER)	+= bq51013b_charger.o
 obj-$(CONFIG_BQ24192_CHARGER)	+= bq24192_charger.o
+obj-$(CONFIG_BATTERY_TEMP_CONTROL) += battery_temp_ctrl.o
 obj-$(CONFIG_POWER_RESET)	+= reset/
 obj-y				+= qcom/
