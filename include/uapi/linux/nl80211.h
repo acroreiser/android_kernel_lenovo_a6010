@@ -2080,6 +2080,7 @@ enum nl80211_attrs {
     NL80211_ATTR_EXTERNAL_AUTH_ACTION,
     NL80211_ATTR_EXTERNAL_AUTH_SUPPORT,
 
+
 	/* add attributes here, update the policy in nl80211.c */
 
 	__NL80211_ATTR_AFTER_LAST,
@@ -4288,6 +4289,17 @@ enum nl80211_tdls_peer_capability {
 enum nl80211_external_auth_action {
 	NL80211_EXTERNAL_AUTH_START,
 	NL80211_EXTERNAL_AUTH_ABORT,
+};
+
+/**
+ * enum nl80211_rxmgmt_flags - flags for received management frame.
+ *
+ * Used by cfg80211_rx_mgmt()
+ *
+ * @NL80211_RXMGMT_FLAG_ANSWERED: frame was answered by device/driver.
+ */
+enum nl80211_rxmgmt_flags {
+	NL80211_RXMGMT_FLAG_ANSWERED = 1 << 0,
 };
 
 #endif /* __LINUX_NL80211_H */
