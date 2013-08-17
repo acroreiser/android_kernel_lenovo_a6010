@@ -3706,6 +3706,18 @@ int ext4_punch_hole(struct inode *inode, loff_t offset, loff_t length)
 		   offset;
 	}
 
+	if (offset & (sb->s_blocksize - 1) ||
+	    (offset + length) & (sb->s_blocksize - 1)) {
+		/*
+		 * Attach jinode to inode for jbd2 if we do any zeroing of
+		 * partial block
+		 */
+		ret = ext4_inode_attach_jinode(inode);
+		if (ret < 0)
+			goto out_mutex;
+
+	}
+
 	first_page = (offset + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	last_page = (offset + length) >> PAGE_CACHE_SHIFT;
 
@@ -3844,6 +3856,31 @@ out_mutex:
 #endif
 }
 
+int ext4_inode_attach_jinode(struct inode *inode)
+{
+	struct ext4_inode_info *ei = EXT4_I(inode);
+	struct jbd2_inode *jinode;
+
+	if (ei->jinode || !EXT4_SB(inode->i_sb)->s_journal)
+		return 0;
+
+	jinode = jbd2_alloc_inode(GFP_KERNEL);
+	spin_lock(&inode->i_lock);
+	if (!ei->jinode) {
+		if (!jinode) {
+			spin_unlock(&inode->i_lock);
+			return -ENOMEM;
+		}
+		ei->jinode = jinode;
+		jbd2_journal_init_jbd_inode(ei->jinode, inode);
+		jinode = NULL;
+	}
+	spin_unlock(&inode->i_lock);
+	if (unlikely(jinode != NULL))
+		jbd2_free_inode(jinode);
+	return 0;
+}
+
 /*
  * ext4_truncate()
  *
@@ -3910,6 +3947,12 @@ void ext4_truncate(struct inode *inode)
 	 * converting any truncated blocks to initialized later
 	 */
 	ext4_flush_unwritten_io(inode);
+
+	/* If we zero-out tail of the page, we have to create jinode for jbd2 */
+	if (inode->i_size & (inode->i_sb->s_blocksize - 1)) {
+		if (ext4_inode_attach_jinode(inode) < 0)
+			return;
+	}
 
 	if (ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS))
 		credits = ext4_writepage_trans_blocks(inode);
