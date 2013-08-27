@@ -170,6 +170,9 @@ void gov_queue_work(struct dbs_data *dbs_data, struct cpufreq_policy *policy,
 	if (!policy->governor_enabled)
 		goto out_unlock;
 
+	if (!policy->governor_enabled)
+		return;
+
 	if (!all_cpus) {
 		/*
 		 * Use raw_smp_processor_id() to avoid preemptible warnings.
