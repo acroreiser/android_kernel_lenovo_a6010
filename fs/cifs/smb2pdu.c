@@ -507,6 +507,7 @@ SMB2_sess_setup(const unsigned int xid, struct cifs_ses *ses,
 	ses->ntlmssp = kmalloc(sizeof(struct ntlmssp_auth), GFP_KERNEL);
 	if (!ses->ntlmssp)
 		return -ENOMEM;
+	ses->ntlmssp->sesskey_per_smbsess = true;
 
 	ses->server->secType = RawNTLMSSP;
 
