@@ -164,12 +164,6 @@ static unsigned int g_wifi_detect;
 static void *sdc_dev;
 void (*sdc_status_cb)(int card_present, void *dev);
 
-#ifdef CONFIG_BCM4335BT
-void __init bcm_bt_devs_init(void);
-int bcm_bt_lock(int cookie);
-void bcm_bt_unlock(int cookie);
-#endif /* CONFIG_BCM4335BT */
-
 int wcf_status_register(void (*cb)(int card_present, void *dev), void *dev)
 {
 	pr_info("%s\n", __func__);
@@ -194,19 +188,8 @@ int bcm_wifi_set_power(int enable)
 	int ret = 0;
 
 	if (enable) {
-#ifdef CONFIG_BCM4335BT
-		int lock_cookie_wifi = 'W' | 'i'<<8 | 'F'<<16 | 'i'<<24;	/* cookie is "WiFi" */
-
-		printk("WiFi: trying to acquire BT lock\n");
-		if (bcm_bt_lock(lock_cookie_wifi) != 0)
-			printk("** WiFi: timeout in acquiring bt lock**\n");
-		pr_err("%s: btlock acquired\n",__FUNCTION__);
-#endif /* CONFIG_BCM4335BT */
 		ret = gpio_direction_output(gpio_power, 1);
 
-#ifdef CONFIG_BCM4335BT
-		bcm_bt_unlock(lock_cookie_wifi);
-#endif /* CONFIG_BCM4335BT */
 		if (ret) {
 			pr_err("%s: WL_REG_ON  failed to pull up (%d)\n",
 					__func__, ret);
@@ -217,18 +200,8 @@ int bcm_wifi_set_power(int enable)
 		mdelay(150);
 		pr_info("%s: wifi power successed to pull up\n", __func__);
 	} else {
-#ifdef CONFIG_BCM4335BT
-		int lock_cookie_wifi = 'W' | 'i'<<8 | 'F'<<16 | 'i'<<24;	/* cookie is "WiFi" */
-
-		printk("WiFi: trying to acquire BT lock\n");
-		if (bcm_bt_lock(lock_cookie_wifi) != 0)
-			printk("** WiFi: timeout in acquiring bt lock**\n");
-		pr_err("%s: btlock acquired\n",__FUNCTION__);
-#endif /* CONFIG_BCM4335BT */
 		ret = gpio_direction_output(gpio_power, 0);
-#ifdef CONFIG_BCM4335BT
-		bcm_bt_unlock(lock_cookie_wifi);
-#endif /* CONFIG_BCM4335BT */
+
 		if (ret) {
 			pr_err("%s:  WL_REG_ON  failed to pull down (%d)\n",
 					__func__, ret);
