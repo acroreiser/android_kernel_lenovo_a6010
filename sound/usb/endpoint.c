@@ -724,8 +724,7 @@ out_of_memory:
 /*
  * configure a sync endpoint
  */
-static int sync_ep_set_params(struct snd_usb_endpoint *ep,
-			      struct audioformat *fmt)
+static int sync_ep_set_params(struct snd_usb_endpoint *ep)
 {
 	int i;
 
@@ -822,7 +821,7 @@ int snd_usb_endpoint_set_params(struct snd_usb_endpoint *ep,
 					 buffer_periods, fmt, sync_ep);
 		break;
 	case  SND_USB_ENDPOINT_TYPE_SYNC:
-		err = sync_ep_set_params(ep, fmt);
+		err = sync_ep_set_params(ep);
 		break;
 	default:
 		err = -EINVAL;
