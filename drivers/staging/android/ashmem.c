@@ -734,7 +734,7 @@ static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				.gfp_mask = GFP_KERNEL,
 				.nr_to_scan = 0,
 			};
-
+			ret = ashmem_shrink_count(&ashmem_shrinker, &sc);
 			nodes_setall(sc.nodes_to_scan);
 
 			ret = ashmem_shrink(&ashmem_shrinker, &sc);
