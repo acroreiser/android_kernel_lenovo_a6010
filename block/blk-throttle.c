@@ -178,6 +178,12 @@ static inline unsigned int total_nr_queued(struct throtl_data *td)
 	return td->nr_queued[0] + td->nr_queued[1];
 }
 
+static void tg_stats_init(struct tg_stats_cpu *tg_stats)
+{
+	blkg_rwstat_init(&tg_stats->service_bytes);
+	blkg_rwstat_init(&tg_stats->serviced);
+}
+
 /*
  * Worker for allocating per cpu stat for tgs. This is scheduled on the
  * system_wq once there are some groups on the alloc_list waiting for
@@ -191,12 +197,16 @@ static void tg_stats_alloc_fn(struct work_struct *work)
 
 alloc_stats:
 	if (!stats_cpu) {
+		int cpu;
+
 		stats_cpu = alloc_percpu(struct tg_stats_cpu);
 		if (!stats_cpu) {
 			/* allocation failed, try again after some time */
 			schedule_delayed_work(dwork, msecs_to_jiffies(10));
 			return;
 		}
+		for_each_possible_cpu(cpu)
+			tg_stats_init(per_cpu_ptr(stats_cpu, cpu));
 	}
 
 	spin_lock_irq(&tg_stats_alloc_lock);
