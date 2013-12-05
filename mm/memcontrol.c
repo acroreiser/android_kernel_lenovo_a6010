@@ -2999,10 +2999,9 @@ static struct kmem_cache *memcg_params_to_cache(struct memcg_cache_params *p)
 }
 
 #ifdef CONFIG_SLABINFO
-static int mem_cgroup_slabinfo_read(struct cgroup_subsys_state *css,
-				    struct cftype *cft, struct seq_file *m)
+static int mem_cgroup_slabinfo_read(struct seq_file *m, void *v)
 {
-	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
+	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
 	struct memcg_cache_params *params;
 
 	if (!memcg_can_account_kmem(memcg))
@@ -5407,13 +5406,12 @@ static int mem_cgroup_move_charge_write(struct cgroup_subsys_state *css,
 #endif
 
 #ifdef CONFIG_NUMA
-static int memcg_numa_stat_show(struct cgroup_subsys_state *css,
-				struct cftype *cft, struct seq_file *m)
+static int memcg_numa_stat_show(struct seq_file *m, void *v)
 {
 	int nid;
 	unsigned long total_nr, file_nr, anon_nr, unevictable_nr;
 	unsigned long node_nr;
-	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
+	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
 
 	total_nr = mem_cgroup_nr_lru_pages(memcg, LRU_ALL);
 	seq_printf(m, "total=%lu", total_nr);
@@ -5458,10 +5456,9 @@ static inline void mem_cgroup_lru_names_not_uptodate(void)
 	BUILD_BUG_ON(ARRAY_SIZE(mem_cgroup_lru_names) != NR_LRU_LISTS);
 }
 
-static int memcg_stat_show(struct cgroup_subsys_state *css, struct cftype *cft,
-				 struct seq_file *m)
+static int memcg_stat_show(struct seq_file *m, void *v)
 {
-	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
+	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
 	struct mem_cgroup *mi;
 	unsigned int i;
 
@@ -5896,10 +5893,9 @@ static void mem_cgroup_oom_unregister_event(struct cgroup_subsys_state *css,
 	spin_unlock(&memcg_oom_lock);
 }
 
-static int mem_cgroup_oom_control_read(struct cgroup_subsys_state *css,
-				       struct cftype *cft, struct seq_file *sf)
+static int mem_cgroup_oom_control_read(struct seq_file *sf, void *v)
 {
-	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
+	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(sf));
 
 	seq_printf(sf, "oom_kill_disable %d\n", memcg->oom_kill_disable);
 	seq_printf(sf, "under_oom %d\n", (bool)atomic_read(&memcg->under_oom));
@@ -6232,7 +6228,7 @@ static struct cftype mem_cgroup_files[] = {
 	},
 	{
 		.name = "stat",
-		.read_seq_string = memcg_stat_show,
+		.seq_show = memcg_stat_show,
 	},
 	{
 		.name = "force_empty",
@@ -6262,7 +6258,7 @@ static struct cftype mem_cgroup_files[] = {
 	},
 	{
 		.name = "oom_control",
-		.read_seq_string = mem_cgroup_oom_control_read,
+		.seq_show = mem_cgroup_oom_control_read,
 		.write_u64 = mem_cgroup_oom_control_write,
 		.private = MEMFILE_PRIVATE(_OOM_TYPE, OOM_CONTROL),
 	},
@@ -6272,7 +6268,7 @@ static struct cftype mem_cgroup_files[] = {
 #ifdef CONFIG_NUMA
 	{
 		.name = "numa_stat",
-		.read_seq_string = memcg_numa_stat_show,
+		.seq_show = memcg_numa_stat_show,
 	},
 #endif
 #ifdef CONFIG_MEMCG_KMEM
@@ -6302,7 +6298,7 @@ static struct cftype mem_cgroup_files[] = {
 #ifdef CONFIG_SLABINFO
 	{
 		.name = "kmem.slabinfo",
-		.read_seq_string = mem_cgroup_slabinfo_read,
+		.seq_show = mem_cgroup_slabinfo_read,
 	},
 #endif
 #endif

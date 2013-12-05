@@ -2219,10 +2219,9 @@ static int cgroup_release_agent_write(struct cgroup_subsys_state *css,
 	return 0;
 }
 
-static int cgroup_release_agent_show(struct cgroup_subsys_state *css,
-				     struct cftype *cft, struct seq_file *seq)
+static int cgroup_release_agent_show(struct seq_file *seq, void *v)
 {
-	struct cgroup *cgrp = css->cgroup;
+	struct cgroup *cgrp = seq_css(seq)->cgroup;
 
 	if (!cgroup_lock_live_group(cgrp))
 		return -ENODEV;
@@ -2232,10 +2231,11 @@ static int cgroup_release_agent_show(struct cgroup_subsys_state *css,
 	return 0;
 }
 
-static int cgroup_sane_behavior_show(struct cgroup_subsys_state *css,
-				     struct cftype *cft, struct seq_file *seq)
+static int cgroup_sane_behavior_show(struct seq_file *seq, void *v)
 {
-	seq_printf(seq, "%d\n", cgroup_sane_behavior(css->cgroup));
+	struct cgroup *cgrp = seq_css(seq)->cgroup;
+
+	seq_printf(seq, "%d\n", cgroup_sane_behavior(cgrp));
 	return 0;
 }
 
@@ -2298,8 +2298,8 @@ static int cgroup_seqfile_show(struct seq_file *m, void *arg)
 	struct cftype *cft = seq_cft(m);
 	struct cgroup_subsys_state *css = seq_css(m);
 
-	if (cft->read_seq_string)
-		return cft->read_seq_string(css, cft, m);
+	if (cft->seq_show)
+		return cft->seq_show(m, arg);
 
 	if (cft->read_u64)
 		seq_printf(m, "%llu\n", cft->read_u64(css, cft));
@@ -2566,7 +2566,7 @@ static umode_t cgroup_file_mode(const struct cftype *cft)
 	if (cft->mode)
 		return cft->mode;
 
-	if (cft->read_u64 || cft->read_s64 || cft->read_seq_string)
+	if (cft->read_u64 || cft->read_s64 || cft->seq_show)
 		mode |= S_IRUGO;
 
 	if (cft->write_u64 || cft->write_s64 || cft->write_string ||
@@ -3881,7 +3881,7 @@ static struct cftype cgroup_base_files[] = {
 	{
 		.name = "cgroup.sane_behavior",
 		.flags = CFTYPE_ONLY_ON_ROOT,
-		.read_seq_string = cgroup_sane_behavior_show,
+		.seq_show = cgroup_sane_behavior_show,
 	},
 
 	/*
@@ -3906,7 +3906,7 @@ static struct cftype cgroup_base_files[] = {
 	{
 		.name = "release_agent",
 		.flags = CFTYPE_INSANE | CFTYPE_ONLY_ON_ROOT,
-		.read_seq_string = cgroup_release_agent_show,
+		.seq_show = cgroup_release_agent_show,
 		.write_string = cgroup_release_agent_write,
 		.max_write_len = PATH_MAX,
 	},
@@ -5281,9 +5281,7 @@ static u64 current_css_set_refcount_read(struct cgroup_subsys_state *css,
 	return count;
 }
 
-static int current_css_set_cg_links_read(struct cgroup_subsys_state *css,
-					 struct cftype *cft,
-					 struct seq_file *seq)
+static int current_css_set_cg_links_read(struct seq_file *seq, void *v)
 {
 	struct cgrp_cset_link *link;
 	struct css_set *cset;
@@ -5308,9 +5306,9 @@ static int current_css_set_cg_links_read(struct cgroup_subsys_state *css,
 }
 
 #define MAX_TASKS_SHOWN_PER_CSS 25
-static int cgroup_css_links_read(struct cgroup_subsys_state *css,
-				 struct cftype *cft, struct seq_file *seq)
+static int cgroup_css_links_read(struct seq_file *seq, void *v)
 {
+	struct cgroup_subsys_state *css = seq_css(seq);
 	struct cgrp_cset_link *link;
 
 	read_lock(&css_set_lock);
@@ -5356,12 +5354,12 @@ static struct cftype debug_files[] =  {
 
 	{
 		.name = "current_css_set_cg_links",
-		.read_seq_string = current_css_set_cg_links_read,
+		.seq_show = current_css_set_cg_links_read,
 	},
 
 	{
 		.name = "cgroup_css_links",
-		.read_seq_string = cgroup_css_links_read,
+		.seq_show = cgroup_css_links_read,
 	},
 
 	{
