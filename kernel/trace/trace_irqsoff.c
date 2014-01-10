@@ -162,7 +162,8 @@ static struct ftrace_ops trace_ops __read_mostly =
 #endif /* CONFIG_FUNCTION_TRACER */
 
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
-static int irqsoff_set_flag(u32 old_flags, u32 bit, int set)
+static int
+irqsoff_set_flag(struct trace_array *tr, u32 old_flags, u32 bit, int set)
 {
 	int cpu;
 
@@ -268,7 +269,8 @@ __trace_function(struct trace_array *tr,
 #else
 #define __trace_function trace_function
 
-static int irqsoff_set_flag(u32 old_flags, u32 bit, int set)
+static int
+irqsoff_set_flag(struct trace_array *tr, u32 old_flags, u32 bit, int set)
 {
 	return -EINVAL;
 }
