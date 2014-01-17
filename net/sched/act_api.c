@@ -158,7 +158,7 @@ static int tcf_generic_walker(struct sk_buff *skb, struct netlink_callback *cb,
 	}
 }
 
-struct tcf_common *tcf_hash_lookup(u32 index, struct tcf_hashinfo *hinfo)
+static struct tcf_common *tcf_hash_lookup(u32 index, struct tcf_hashinfo *hinfo)
 {
 	struct tcf_common *p = NULL;
 	struct hlist_head *head;
@@ -172,7 +172,6 @@ struct tcf_common *tcf_hash_lookup(u32 index, struct tcf_hashinfo *hinfo)
 
 	return p;
 }
-EXPORT_SYMBOL(tcf_hash_lookup);
 
 u32 tcf_hash_new_index(struct tcf_hashinfo *hinfo)
 {
@@ -188,7 +187,7 @@ u32 tcf_hash_new_index(struct tcf_hashinfo *hinfo)
 }
 EXPORT_SYMBOL(tcf_hash_new_index);
 
-static int tcf_hash_search(struct tc_action *a, u32 index)
+int tcf_hash_search(struct tc_action *a, u32 index)
 {
 	struct tcf_hashinfo *hinfo = a->ops->hinfo;
 	struct tcf_common *p = tcf_hash_lookup(index, hinfo);
@@ -199,6 +198,7 @@ static int tcf_hash_search(struct tc_action *a, u32 index)
 	}
 	return 0;
 }
+EXPORT_SYMBOL(tcf_hash_search);
 
 struct tcf_common *tcf_hash_check(u32 index, struct tc_action *a, int bind)
 {
