@@ -1540,7 +1540,7 @@ static int try_to_unmap_file(struct page *page, enum ttu_flags flags,
 				struct vm_area_struct *target_vma)
 {
 	struct address_space *mapping = page->mapping;
-	pgoff_t pgoff = page->index << (PAGE_CACHE_SHIFT - PAGE_SHIFT);
+	pgoff_t pgoff = page->index << compound_order(page);
 	struct vm_area_struct *vma;
 	int ret = SWAP_AGAIN;
 	unsigned long cursor;
@@ -1548,9 +1548,6 @@ static int try_to_unmap_file(struct page *page, enum ttu_flags flags,
 	unsigned long max_nl_size = 0;
 	unsigned int mapcount;
 	unsigned long address;
-
-	if (PageHuge(page))
-		pgoff = page->index << compound_order(page);
 
 	mutex_lock(&mapping->i_mmap_mutex);
 	if (target_vma) {
@@ -1753,7 +1750,7 @@ static int rmap_walk_file(struct page *page, int (*rmap_one)(struct page *,
 		struct vm_area_struct *, unsigned long, void *), void *arg)
 {
 	struct address_space *mapping = page->mapping;
-	pgoff_t pgoff = page->index << (PAGE_CACHE_SHIFT - PAGE_SHIFT);
+	pgoff_t pgoff = page->index << compound_order(page);
 	struct vm_area_struct *vma;
 	int ret = SWAP_AGAIN;
 
