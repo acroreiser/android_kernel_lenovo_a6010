@@ -102,9 +102,6 @@ void show_mem(unsigned int filter)
 	printk("Mem-info:\n");
 	show_free_areas(filter);
 
-	if (filter & SHOW_MEM_FILTER_PAGE_COUNT)
-		return;
-
 	for_each_memblock(memory, reg) {
 		unsigned int pfn1, pfn2;
 		struct page *page, *end;
