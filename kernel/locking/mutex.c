@@ -164,6 +164,9 @@ static inline int mutex_can_spin_on_owner(struct mutex *lock)
 {
 	int retval = 1;
 
+	if (need_resched())
+		return 0;
+
 	rcu_read_lock();
 	if (lock->owner)
 		retval = lock->owner->on_cpu;
