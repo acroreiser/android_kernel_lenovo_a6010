@@ -52,7 +52,7 @@ __mutex_init(struct mutex *lock, const char *name, struct lock_class_key *key)
 	INIT_LIST_HEAD(&lock->wait_list);
 	mutex_clear_owner(lock);
 #ifdef CONFIG_MUTEX_SPIN_ON_OWNER
-	lock->mcs_lock = NULL;
+	lock->osq = NULL;
 #endif
 
 	debug_mutex_init(lock, name, key);
@@ -251,7 +251,9 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	if (!mutex_can_spin_on_owner(lock))
 		goto slowpath;
 
-	mcs_spin_lock(&lock->mcs_lock, &node);
+	if (!osq_lock(&lock->osq))
+		goto slowpath;
+
 	for (;;) {
 		struct task_struct *owner;
 
@@ -267,7 +269,7 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		    (atomic_cmpxchg(&lock->count, 1, 0) == 1)) {
 			lock_acquired(&lock->dep_map, ip);
 			mutex_set_owner(lock);
-			mcs_spin_unlock(&lock->mcs_lock, &node);
+			osq_unlock(&lock->osq);
 			preempt_enable();
 			return 0;
 		}
@@ -289,7 +291,7 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		 */
 		arch_mutex_cpu_relax();
 	}
-	mcs_spin_unlock(&lock->mcs_lock, &node);
+	osq_unlock(&lock->osq);
 slowpath:
 #endif
 	spin_lock_mutex(&lock->wait_lock, flags);
