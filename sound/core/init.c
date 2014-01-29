@@ -180,7 +180,8 @@ static inline int init_info_for_card(struct snd_card *card)
 #endif
 
 /**
- *  snd_card_create - create and initialize a soundcard structure
+ *  snd_card_new - create and initialize a soundcard structure
+ *  @parent: the parent device object
  *  @idx: card index (address) [0 ... (SNDRV_CARDS-1)]
  *  @xid: card identification (ASCII string)
  *  @module: top level module for locking
@@ -195,7 +196,7 @@ static inline int init_info_for_card(struct snd_card *card)
  *
  *  Return: Zero if successful or a negative error code.
  */
-int snd_card_create(int idx, const char *xid,
+int snd_card_new(struct device *parent, int idx, const char *xid,
 		    struct module *module, int extra_size,
 		    struct snd_card **card_ret)
 {
@@ -252,6 +253,7 @@ int snd_card_create(int idx, const char *xid,
 	if (idx >= snd_ecards_limit)
 		snd_ecards_limit = idx + 1; /* increase the limit */
 	mutex_unlock(&snd_card_mutex);
+	card->dev = parent;
 	card->number = idx;
 	card->module = module;
 	INIT_LIST_HEAD(&card->devices);
@@ -292,7 +294,7 @@ int snd_card_create(int idx, const char *xid,
 	kfree(card);
   	return err;
 }
-EXPORT_SYMBOL(snd_card_create);
+EXPORT_SYMBOL(snd_card_new);
 
 /* return non-zero if a card is already locked */
 int snd_card_locked(int card)
