@@ -1738,6 +1738,12 @@ int fcntl_getlk(struct file *filp, unsigned int cmd, struct flock __user *l)
 	if (error)
 		goto out;
 
+	if (cmd == F_GETLKP) {
+		cmd = F_GETLK;
+		file_lock.fl_flags |= FL_FILE_PVT;
+		file_lock.fl_owner = (fl_owner_t)filp;
+	}
+
 	error = vfs_test_lock(filp, &file_lock);
 	if (error)
 		goto out;
@@ -1856,10 +1862,26 @@ int fcntl_setlk(unsigned int fd, struct file *filp, unsigned int cmd,
 	error = flock_to_posix_lock(filp, file_lock, &flock);
 	if (error)
 		goto out;
-	if (cmd == F_SETLKW) {
+
+	/*
+	 * If the cmd is requesting file-private locks, then set the
+	 * FL_FILE_PVT flag and override the owner.
+	 */
+	switch (cmd) {
+	case F_SETLKP:
+		cmd = F_SETLK;
+		file_lock->fl_flags |= FL_FILE_PVT;
+		file_lock->fl_owner = (fl_owner_t)filp;
+		break;
+	case F_SETLKPW:
+		cmd = F_SETLKW;
+		file_lock->fl_flags |= FL_FILE_PVT;
+		file_lock->fl_owner = (fl_owner_t)filp;
+		/* Fallthrough */
+	case F_SETLKW:
 		file_lock->fl_flags |= FL_SLEEP;
 	}
-	
+
 	error = -EBADF;
 	switch (flock.l_type) {
 	case F_RDLCK:
@@ -1925,6 +1947,12 @@ int fcntl_getlk64(struct file *filp, unsigned int cmd, struct flock64 __user *l)
 	if (error)
 		goto out;
 
+	if (cmd == F_GETLKP) {
+		cmd = F_GETLK64;
+		file_lock.fl_flags |= FL_FILE_PVT;
+		file_lock.fl_owner = (fl_owner_t)filp;
+	}
+
 	error = vfs_test_lock(filp, &file_lock);
 	if (error)
 		goto out;
@@ -1976,10 +2004,26 @@ int fcntl_setlk64(unsigned int fd, struct file *filp, unsigned int cmd,
 	error = flock64_to_posix_lock(filp, file_lock, &flock);
 	if (error)
 		goto out;
-	if (cmd == F_SETLKW64) {
+
+	/*
+	 * If the cmd is requesting file-private locks, then set the
+	 * FL_FILE_PVT flag and override the owner.
+	 */
+	switch (cmd) {
+	case F_SETLKP:
+		cmd = F_SETLK64;
+		file_lock->fl_flags |= FL_FILE_PVT;
+		file_lock->fl_owner = (fl_owner_t)filp;
+		break;
+	case F_SETLKPW:
+		cmd = F_SETLKW64;
+		file_lock->fl_flags |= FL_FILE_PVT;
+		file_lock->fl_owner = (fl_owner_t)filp;
+		/* Fallthrough */
+	case F_SETLKW64:
 		file_lock->fl_flags |= FL_SLEEP;
 	}
-	
+
 	error = -EBADF;
 	switch (flock.l_type) {
 	case F_RDLCK:
@@ -2071,6 +2115,8 @@ void locks_remove_file(struct file *filp)
 
 	if (!inode->i_flock)
 		return;
+
+	locks_remove_posix(filp, (fl_owner_t)filp);
 
 	if (filp->f_op && filp->f_op->flock) {
 		struct file_lock fl = {
