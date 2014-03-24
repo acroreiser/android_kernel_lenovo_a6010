@@ -1597,6 +1597,10 @@ enum nl80211_commands {
  *     authentication processing to user space if this capability is indicated
  *     in NL80211_CMD_CONNECT requests from the user space.
  *
+ * @NL80211_ATTR_IFACE_SOCKET_OWNER: flag attribute, if set during interface
+ *	creation then the new interface will be owned by the netlink socket
+ *	that created it and will be destroyed when the socket is closed
+ *
  * @NL80211_ATTR_MAX: highest attribute number currently defined
  * @__NL80211_ATTR_AFTER_LAST: internal use
  */
@@ -1941,6 +1945,8 @@ enum nl80211_attrs {
 
 	NL80211_ATTR_EXTERNAL_AUTH_ACTION,
 	NL80211_ATTR_EXTERNAL_AUTH_SUPPORT,
+
+	NL80211_ATTR_IFACE_SOCKET_OWNER,
 
 	/* add attributes here, update the policy in nl80211.c */
 
