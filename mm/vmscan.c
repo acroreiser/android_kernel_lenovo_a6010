@@ -1976,7 +1976,7 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 	struct zone *zone = lruvec_zone(lruvec);
 	unsigned long anon_prio, file_prio;
 	enum scan_balance scan_balance;
-	unsigned long anon, file;
+	unsigned long anon;
 	bool force_scan = false;
 	unsigned long ap, fp;
 	enum lru_list lru;
@@ -2024,26 +2024,6 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 	if (!sc->priority && sc->swappiness) {
 		scan_balance = SCAN_EQUAL;
 		goto out;
-	}
-
-	/*
-	 * If it's foreseeable that reclaiming the file cache won't be
-	 * enough to get the zone back into a desirable shape, we have
-	 * to swap.  Better start now and leave the - probably heavily
-	 * thrashing - remaining file pages alone.
-	 */
-	if (global_reclaim(sc)) {
-		unsigned long zonefile;
-		unsigned long zonefree;
-
-		zonefree = zone_page_state(zone, NR_FREE_PAGES);
-		zonefile = zone_page_state(zone, NR_ACTIVE_FILE) +
-			   zone_page_state(zone, NR_INACTIVE_FILE);
-
-		if (unlikely(zonefile + zonefree <= high_wmark_pages(zone))) {
-			scan_balance = SCAN_ANON;
-			goto out;
-		}
 	}
 
 	/*
