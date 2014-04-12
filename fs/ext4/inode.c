@@ -4619,7 +4619,9 @@ static int ext4_do_update_inode(handle_t *handle,
 	uid_t i_uid;
 	gid_t i_gid;
 
-	/* For fields not not tracking in the in-memory inode,
+	spin_lock(&ei->i_raw_lock);
+
+	/* For fields not tracked in the in-memory inode,
 	 * initialise them to zero for new inodes. */
 	if (ext4_test_inode_state(inode, EXT4_STATE_NEW))
 		memset(raw_inode, 0, EXT4_SB(inode->i_sb)->s_inode_size);
@@ -4729,6 +4731,7 @@ static int ext4_do_update_inode(handle_t *handle,
 
 	ext4_update_inode_fsync_trans(handle, inode, need_datasync);
 out_brelse:
+	spin_unlock(&ei->i_raw_lock);
 	brelse(bh);
 	ext4_std_error(inode->i_sb, err);
 	return err;
