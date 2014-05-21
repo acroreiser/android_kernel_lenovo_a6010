@@ -1888,6 +1888,37 @@ static ssize_t _sptp_pc_show(struct device *dev,
 					&adreno_dev->pwrctrl_flag));
 }
 
+/**
+ * _wake_nice_store() - Store nice level for the higher priority GPU start
+ * thread
+ * @dev: device ptr
+ * @attr: Device attribute
+ * @buf: value to write
+ * @count: size of the value to write
+ *
+ */
+static ssize_t _wake_nice_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int ret = kgsl_sysfs_store(buf, &_wake_nice);
+	return ret < 0 ? ret : count;
+}
+
+/**
+ * _wake_nice_show() -  Show nice level for the higher priority GPU start
+ * thread
+ * @dev: device ptr
+ * @attr: Device attribute
+ * @buf: value read
+ */
+static ssize_t _wake_nice_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", _wake_nice);
+}
+
 #define ADRENO_DEVICE_ATTR(name) \
 	DEVICE_ATTR(name, 0644,	_ ## name ## _show, _ ## name ## _store);
 
@@ -1897,7 +1928,7 @@ static ADRENO_DEVICE_ATTR(ft_fast_hang_detect);
 static ADRENO_DEVICE_ATTR(ft_long_ib_detect);
 static ADRENO_DEVICE_ATTR(ft_hang_intr_status);
 
-static DEVICE_INT_ATTR(wake_nice, 0644, _wake_nice);
+static ADRENO_DEVICE_ATTR(wake_nice);
 static ADRENO_DEVICE_ATTR(wake_timeout);
 static ADRENO_DEVICE_ATTR(sptp_pc);
 
@@ -1907,7 +1938,7 @@ static const struct device_attribute *_attr_list[] = {
 	&dev_attr_ft_fast_hang_detect,
 	&dev_attr_ft_long_ib_detect,
 	&dev_attr_ft_hang_intr_status,
-	&dev_attr_wake_nice.attr,
+	&dev_attr_wake_nice,
 	&dev_attr_wake_timeout,
 	&dev_attr_sptp_pc,
 	NULL,
