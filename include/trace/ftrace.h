@@ -193,6 +193,10 @@
 #define __get_dynamic_array(field)	\
 		((void *)__entry + (__entry->__data_loc_##field & 0xffff))
 
+#undef __get_dynamic_array_len
+#define __get_dynamic_array_len(field)	\
+		((__entry->__data_loc_##field >> 16) & 0xffff)
+
 #undef __get_str
 #define __get_str(field) (char *)__get_dynamic_array(field)
 
@@ -201,7 +205,7 @@
 	({								\
 		void *__bitmask = __get_dynamic_array(field);		\
 		unsigned int __bitmask_size;				\
-		__bitmask_size = (__entry->__data_loc_##field >> 16) & 0xffff; \
+		__bitmask_size = __get_dynamic_array_len(field);	\
 		ftrace_print_bitmask_seq(p, __bitmask, __bitmask_size);	\
 	})
 
@@ -633,6 +637,7 @@ static inline void ftrace_test_probe_##call(void)			\
 #undef __print_symbolic
 #undef __print_hex
 #undef __get_dynamic_array
+#undef __get_dynamic_array_len
 #undef __get_str
 #undef __get_bitmask
 #undef __print_array
@@ -693,6 +698,10 @@ __attribute__((section("_ftrace_events"))) *__event_##call = &event_##call
 #undef __get_dynamic_array
 #define __get_dynamic_array(field)	\
 		((void *)__entry + (__entry->__data_loc_##field & 0xffff))
+
+#undef __get_dynamic_array_len
+#define __get_dynamic_array_len(field)	\
+		((__entry->__data_loc_##field >> 16) & 0xffff)
 
 #undef __get_str
 #define __get_str(field) (char *)__get_dynamic_array(field)
