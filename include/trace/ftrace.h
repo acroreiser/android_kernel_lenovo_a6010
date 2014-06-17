@@ -45,6 +45,12 @@
 #undef __field_ext
 #define __field_ext(type, item, filter_type)	type	item;
 
+#undef __field_struct
+#define __field_struct(type, item)	type	item;
+
+#undef __field_struct_ext
+#define __field_struct_ext(type, item, filter_type)	type	item;
+
 #undef __array
 #define __array(type, item, len)	type	item[len];
 
@@ -114,6 +120,12 @@
 
 #undef __field_ext
 #define __field_ext(type, item, filter_type)
+
+#undef __field_struct
+#define __field_struct(type, item)
+
+#undef __field_struct_ext
+#define __field_struct_ext(type, item, filter_type)
 
 #undef __array
 #define __array(type, item, len)
@@ -321,8 +333,20 @@ static struct trace_event_functions ftrace_event_type_funcs_##call = {	\
 	if (ret)							\
 		return ret;
 
+#undef __field_struct_ext
+#define __field_struct_ext(type, item, filter_type)			\
+	ret = trace_define_field(event_call, #type, #item,		\
+				 offsetof(typeof(field), item),		\
+				 sizeof(field.item),			\
+				 0, filter_type);			\
+	if (ret)							\
+		return ret;
+
 #undef __field
 #define __field(type, item)	__field_ext(type, item, FILTER_OTHER)
+
+#undef __field_struct
+#define __field_struct(type, item) __field_struct_ext(type, item, FILTER_OTHER)
 
 #undef __array
 #define __array(type, item, len)					\
@@ -384,6 +408,12 @@ ftrace_define_fields_##call(struct ftrace_event_call *event_call)	\
 
 #undef __field_ext
 #define __field_ext(type, item, filter_type)
+
+#undef __field_struct
+#define __field_struct(type, item)
+
+#undef __field_struct_ext
+#define __field_struct_ext(type, item, filter_type)
 
 #undef __array
 #define __array(type, item, len)
@@ -538,6 +568,9 @@ static inline notrace int ftrace_get_offsets_##call(			\
 
 #undef __field
 #define __field(type, item)
+
+#undef __field_struct
+#define __field_struct(type, item)
 
 #undef __array
 #define __array(type, item, len)
