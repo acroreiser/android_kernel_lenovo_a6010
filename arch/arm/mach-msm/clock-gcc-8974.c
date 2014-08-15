@@ -2408,6 +2408,9 @@ static struct clk_lookup msm_clocks_gcc_8974[] = {
 	CLK_LOOKUP_OF("iface_clk", gcc_blsp2_ahb_clk, "f9967000.i2c"),
 	CLK_LOOKUP_OF("iface_clk", gcc_blsp2_ahb_clk, "f9966000.spi"),
 	CLK_LOOKUP_OF("iface_clk", gcc_blsp2_ahb_clk, "f995e000.serial"),
+#ifdef CONFIG_LGE_BLUETOOTH
+	CLK_LOOKUP_OF("iface_clk", gcc_blsp2_ahb_clk, "f9960000.uart"),
+#endif
 	CLK_LOOKUP_OF("iface_clk", gcc_blsp2_ahb_clk, "f995d000.uart"),
 	CLK_LOOKUP_OF("core_clk", gcc_blsp2_qup1_i2c_apps_clk, ""),
 	CLK_LOOKUP_OF("core_clk", gcc_blsp2_qup1_spi_apps_clk, ""),
@@ -2424,7 +2427,11 @@ static struct clk_lookup msm_clocks_gcc_8974[] = {
 	CLK_LOOKUP_OF("core_clk", gcc_blsp2_uart1_apps_clk, "f995d000.uart"),
 	CLK_LOOKUP_OF("core_clk", gcc_blsp2_uart2_apps_clk, "f995e000.serial"),
 	CLK_LOOKUP_OF("core_clk", gcc_blsp2_uart3_apps_clk, ""),
+#ifdef CONFIG_LGE_BLUETOOTH
+	CLK_LOOKUP_OF("core_clk", gcc_blsp2_uart4_apps_clk, "f9960000.uart"),
+#else
 	CLK_LOOKUP_OF("core_clk", gcc_blsp2_uart4_apps_clk, ""),
+#endif
 	CLK_LOOKUP_OF("core_clk", gcc_blsp2_uart5_apps_clk, ""),
 	CLK_LOOKUP_OF("core_clk", gcc_blsp2_uart6_apps_clk, ""),
 
