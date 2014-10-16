@@ -673,12 +673,6 @@ out:
 	return err;
 }
 
-static inline void mmc_free_ext_csd(u8 *ext_csd)
-{
-	kfree(ext_csd);
-}
-
-
 static int mmc_compare_ext_csds(struct mmc_card *card, unsigned bus_width)
 {
 	u8 *bw_ext_csd;
@@ -733,7 +727,7 @@ static int mmc_compare_ext_csds(struct mmc_card *card, unsigned bus_width)
 		err = -EINVAL;
 
 out:
-	mmc_free_ext_csd(bw_ext_csd);
+	kfree(bw_ext_csd);
 	return err;
 }
 
