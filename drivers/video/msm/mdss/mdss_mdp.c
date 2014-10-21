@@ -1051,6 +1051,9 @@ static int mdss_iommu_init(struct mdss_data_type *mdata)
 			return -EINVAL;
 		}
 
+		iommu_set_fault_handler(domain, mdss_xlog_tout_handler_iommu,
+			NULL);
+
 		iomap->ctx = msm_iommu_get_ctx(iomap->ctx_name);
 		if (!iomap->ctx) {
 			pr_warn("unable to get iommu ctx(%s)\n",
