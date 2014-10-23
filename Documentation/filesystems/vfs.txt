@@ -681,6 +681,12 @@ struct address_space_operations {
   	but instead uses bmap to find out where the blocks in the file
   	are and uses those addresses directly.
 
+  dentry_open: *WARNING: probably going away soon, do not use!* This is an
+	alternative to f_op->open(), the difference is that this method may open
+	a file not necessarily originating from the same filesystem as the one
+	i_op->open() was called on.  It may be useful for stacking filesystems
+	which want to allow native I/O directly on underlying files.
+
 
   invalidatepage: If a page has PagePrivate set, then invalidatepage
         will be called when part or all of the page is to be removed
