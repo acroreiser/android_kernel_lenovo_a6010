@@ -2625,6 +2625,9 @@ enum ieee80211_roc_type {
  * @ipv6_addr_change: IPv6 address assignment on the given interface changed.
  *	Currently, this is only called for managed or P2P client interfaces.
  *	This callback is optional; it must not sleep.
+ *
+ * @get_txpower: get current maximum tx power (in dBm) based on configuration
+ *	and hardware limits.
  */
 struct ieee80211_ops {
 	void (*tx)(struct ieee80211_hw *hw,
@@ -2812,6 +2815,8 @@ struct ieee80211_ops {
 				 struct ieee80211_vif *vif,
 				 struct inet6_dev *idev);
 #endif
+	int (*get_txpower)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+			   int *dbm);
 };
 
 /**

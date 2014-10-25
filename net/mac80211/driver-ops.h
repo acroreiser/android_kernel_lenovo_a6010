@@ -1071,4 +1071,18 @@ static inline void drv_ipv6_addr_change(struct ieee80211_local *local,
 }
 #endif
 
+static inline int drv_get_txpower(struct ieee80211_local *local,
+				  struct ieee80211_sub_if_data *sdata, int *dbm)
+{
+	int ret;
+
+	if (!local->ops->get_txpower)
+		return -EOPNOTSUPP;
+
+	ret = local->ops->get_txpower(&local->hw, &sdata->vif, dbm);
+	trace_drv_get_txpower(local, sdata, *dbm, ret);
+
+	return ret;
+}
+
 #endif /* __MAC80211_DRIVER_OPS */
