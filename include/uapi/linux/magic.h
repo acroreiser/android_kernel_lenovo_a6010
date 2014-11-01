@@ -75,5 +75,6 @@
 #define MTD_INODE_FS_MAGIC      0x11307854
 #define ANON_INODE_FS_MAGIC	0x09041934
 #define BPF_FS_MAGIC		0xcafe4a11
+#define NSFS_MAGIC		0x6e736673
 
 #endif /* __LINUX_MAGIC_H__ */
