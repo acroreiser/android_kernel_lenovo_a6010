@@ -1480,7 +1480,8 @@ int mostly_idle_cpu(int cpu)
 	struct rq *rq = cpu_rq(cpu);
 
 	return (cpu_load(cpu) <= sched_mostly_idle_load
-		&& rq->nr_running <= sysctl_sched_mostly_idle_nr_run);
+		&& rq->nr_running <= sysctl_sched_mostly_idle_nr_run
+		&& !sched_cpu_high_irqload(cpu));
 }
 
 static int mostly_idle_cpu_sync(int cpu, u64 load, int sync)
@@ -1790,7 +1791,8 @@ static int best_small_task_cpu(struct task_struct *p, int sync)
 	if (cpumask_test_cpu(prev_cpu, &search_cpus) &&
 	   !power_delta_exceeded(power_cost_task(p, prev_cpu), cluster_cost) &&
 	   !cpu_rq(prev_cpu)->cstate &&
-	   mostly_idle_cpu_sync(prev_cpu, cpu_load_sync(prev_cpu, sync), sync))
+	   mostly_idle_cpu_sync(prev_cpu, cpu_load_sync(prev_cpu, sync), sync)
+           && !sched_cpu_high_irqload(prev_cpu))
 		return prev_cpu;
 
 	cpumask_copy(&fb_search_cpus, &search_cpus);
@@ -1818,14 +1820,14 @@ static int best_small_task_cpu(struct task_struct *p, int sync)
 		if (power_cost_task(p, i) == cluster_cost) {
 			cstate = rq->cstate;
 			/* This CPU is within the same cluster as the waker. */
-			if (cstate) {
+			if (cstate && !sched_cpu_high_irqload(i)) {
 				if (cstate < best_lpm_sibling_cstate ||
 				   (cstate == best_lpm_sibling_cstate &&
 				   i == prev_cpu)) {
 					best_lpm_sibling_cpu = i;
 					best_lpm_sibling_cstate = cstate;
 				}
-			} else if (idle_cpu(i)) {
+			} else if (idle_cpu(i) && !sched_cpu_high_irqload(i)) {
 				return i;
 			} else {
 				cpu_load = cpu_load_sync(i, sync);
@@ -1855,14 +1857,14 @@ static int best_small_task_cpu(struct task_struct *p, int sync)
 		cstate = rq->cstate;
 
 		/* This CPU is not within the same cluster as the waker. */
-		if (cstate) {
+		if (cstate && !sched_cpu_high_irqload(i)) {
 			if (cstate < best_lpm_nonsibling_cstate ||
 			   (cstate == best_lpm_nonsibling_cstate &&
 			   i == prev_cpu)) {
 				best_lpm_nonsibling_cpu = i;
 				best_lpm_nonsibling_cstate = cstate;
 			}
-		} else if (idle_cpu(i)) {
+		} else if (idle_cpu(i) && !sched_cpu_high_irqload(i)) {
 			return i;
 		} else {
 			cpu_load = cpu_load_sync(i, sync);
