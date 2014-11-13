@@ -523,6 +523,10 @@ struct rq {
 #endif
 #endif
 
+	u64 cur_irqload;
+	u64 avg_irqload;
+	u64 irqload_ts;
+
 #ifdef CONFIG_SCHED_FREQ_INPUT
 	u64 curr_runnable_sum;
 	u64 prev_runnable_sum;
