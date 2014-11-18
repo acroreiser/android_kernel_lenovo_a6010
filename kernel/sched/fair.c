@@ -1242,6 +1242,8 @@ unsigned int __read_mostly sched_init_task_load_pelt;
 unsigned int __read_mostly sched_init_task_load_windows;
 unsigned int __read_mostly sysctl_sched_init_task_load_pct = 15;
 
+unsigned int __read_mostly sysctl_sched_min_runtime = 200000000; /* 200 ms */
+
 static inline unsigned int task_load(struct task_struct *p)
 {
 	if (sched_use_pelt)
@@ -2396,6 +2398,11 @@ static int lower_power_cpu_available(struct task_struct *p, int cpu)
 					lowest_power_cpu), lowest_power_cpu);
 	struct cpumask search_cpus;
 	struct rq *rq = cpu_rq(cpu);
+
+	u64 delta = sched_clock() - p->run_start;
+
+	if (delta < sysctl_sched_min_runtime)
+		return 0;
 
 	cpumask_and(&search_cpus, tsk_cpus_allowed(p), cpu_online_mask);
 	cpumask_and(&search_cpus, &search_cpus, &rq->freq_domain_cpumask);
