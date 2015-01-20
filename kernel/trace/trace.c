@@ -20,6 +20,7 @@
 #include <linux/notifier.h>
 #include <linux/irqflags.h>
 #include <linux/debugfs.h>
+#include <linux/tracefs.h>
 #include <linux/pagemap.h>
 #include <linux/hardirq.h>
 #include <linux/linkage.h>
@@ -5605,6 +5606,14 @@ static inline int register_snapshot_cmd(void) { return 0; }
 
 static struct dentry *tracing_get_dentry(struct trace_array *tr)
 {
+	if (WARN_ON(!tr->dir))
+		return ERR_PTR(-ENODEV);
+
+	/* Top directory uses NULL as the parent */
+	if (tr->flags & TRACE_ARRAY_FL_GLOBAL)
+		return NULL;
+
+	/* All sub buffers have a descriptor */
 	return tr->dir;
 }
 
@@ -5619,10 +5628,10 @@ static struct dentry *tracing_dentry_percpu(struct trace_array *tr, int cpu)
 	if (IS_ERR(d_tracer))
 		return NULL;
 
-	tr->percpu_dir = debugfs_create_dir("per_cpu", d_tracer);
+	tr->percpu_dir = tracefs_create_dir("per_cpu", d_tracer);
 
 	WARN_ONCE(!tr->percpu_dir,
-		  "Could not create debugfs directory 'per_cpu/%d'\n", cpu);
+		  "Could not create tracefs directory 'per_cpu/%d'\n", cpu);
 
 	return tr->percpu_dir;
 }
@@ -5639,7 +5648,7 @@ trace_create_cpu_file(const char *name, umode_t mode, struct dentry *parent,
 }
 
 static void
-tracing_init_debugfs_percpu(struct trace_array *tr, long cpu)
+tracing_init_tracefs_percpu(struct trace_array *tr, long cpu)
 {
 	struct dentry *d_percpu = tracing_dentry_percpu(tr, cpu);
 	struct dentry *d_cpu;
@@ -5649,9 +5658,9 @@ tracing_init_debugfs_percpu(struct trace_array *tr, long cpu)
 		return;
 
 	snprintf(cpu_dir, 30, "cpu%ld", cpu);
-	d_cpu = debugfs_create_dir(cpu_dir, d_percpu);
+	d_cpu = tracefs_create_dir(cpu_dir, d_percpu);
 	if (!d_cpu) {
-		pr_warning("Could not create debugfs '%s' entry\n", cpu_dir);
+		pr_warning("Could not create tracefs '%s' entry\n", cpu_dir);
 		return;
 	}
 
@@ -5803,9 +5812,9 @@ struct dentry *trace_create_file(const char *name,
 {
 	struct dentry *ret;
 
-	ret = debugfs_create_file(name, mode, parent, data, fops);
+	ret = tracefs_create_file(name, mode, parent, data, fops);
 	if (!ret)
-		pr_warning("Could not create debugfs '%s' entry\n", name);
+		pr_warning("Could not create tracefs '%s' entry\n", name);
 
 	return ret;
 }
@@ -5822,9 +5831,9 @@ static struct dentry *trace_options_init_dentry(struct trace_array *tr)
 	if (IS_ERR(d_tracer))
 		return NULL;
 
-	tr->options = debugfs_create_dir("options", d_tracer);
+	tr->options = tracefs_create_dir("options", d_tracer);
 	if (!tr->options) {
-		pr_warning("Could not create debugfs directory 'options'\n");
+		pr_warning("Could not create tracefs directory 'options'\n");
 		return NULL;
 	}
 
@@ -5893,7 +5902,7 @@ destroy_trace_option_files(struct trace_option_dentry *topts)
 		return;
 
 	for (cnt = 0; topts[cnt].opt; cnt++)
-		debugfs_remove(topts[cnt].entry);
+		tracefs_remove(topts[cnt].entry);
 
 	kfree(topts);
 }
@@ -5982,7 +5991,7 @@ static const struct file_operations rb_simple_fops = {
 struct dentry *trace_instance_dir;
 
 static void
-init_tracer_debugfs(struct trace_array *tr, struct dentry *d_tracer);
+init_tracer_tracefs(struct trace_array *tr, struct dentry *d_tracer);
 
 static void init_trace_buffers(struct trace_array *tr, struct trace_buffer *buf)
 {
@@ -6094,17 +6103,17 @@ static int new_instance_create(const char *name)
 	tr->trace_cpu.cpu = RING_BUFFER_ALL_CPUS;
 	tr->trace_cpu.tr = tr;
 
-	tr->dir = debugfs_create_dir(name, trace_instance_dir);
+	tr->dir = tracefs_create_dir(name, trace_instance_dir);
 	if (!tr->dir)
 		goto out_free_tr;
 
 	ret = event_trace_add_tracer(tr->dir, tr);
 	if (ret) {
-		debugfs_remove_recursive(tr->dir);
+		tracefs_remove_recursive(tr->dir);
 		goto out_free_tr;
 	}
 
-	init_tracer_debugfs(tr, tr->dir);
+	init_tracer_tracefs(tr, tr->dir);
 
 	list_add(&tr->list, &ftrace_trace_arrays);
 
@@ -6179,7 +6188,7 @@ static int instance_mkdir (struct inode *inode, struct dentry *dentry, umode_t m
 		return -ENOENT;
 
 	/*
-	 * The inode mutex is locked, but debugfs_create_dir() will also
+	 * The inode mutex is locked, but tracefs_create_dir() will also
 	 * take the mutex. As the instances directory can not be destroyed
 	 * or changed in any other way, it is safe to unlock it, and
 	 * let the dentry try. If two users try to make the same dir at
@@ -6209,7 +6218,7 @@ static int instance_rmdir(struct inode *inode, struct dentry *dentry)
 	mutex_unlock(&dentry->d_inode->i_mutex);
 
 	/*
-	 * The inode mutex is locked, but debugfs_create_dir() will also
+	 * The inode mutex is locked, but tracefs_create_dir() will also
 	 * take the mutex. As the instances directory can not be destroyed
 	 * or changed in any other way, it is safe to unlock it, and
 	 * let the dentry try. If two users try to make the same dir at
@@ -6234,7 +6243,7 @@ static const struct inode_operations instance_dir_inode_operations = {
 
 static __init void create_trace_instances(struct dentry *d_tracer)
 {
-	trace_instance_dir = debugfs_create_dir("instances", d_tracer);
+	trace_instance_dir = tracefs_create_dir("instances", d_tracer);
 	if (WARN_ON(!trace_instance_dir))
 		return;
 
@@ -6243,7 +6252,7 @@ static __init void create_trace_instances(struct dentry *d_tracer)
 }
 
 static void
-init_tracer_debugfs(struct trace_array *tr, struct dentry *d_tracer)
+init_tracer_tracefs(struct trace_array *tr, struct dentry *d_tracer)
 {
 	int cpu;
 
@@ -6292,7 +6301,7 @@ init_tracer_debugfs(struct trace_array *tr, struct dentry *d_tracer)
 #endif
 
 	for_each_tracing_cpu(cpu)
-		tracing_init_debugfs_percpu(tr, cpu);
+		tracing_init_tracefs_percpu(tr, cpu);
 
 }
 
@@ -6320,10 +6329,10 @@ struct dentry *tracing_init_dentry(void)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	return tr->dir;
+	return NULL;
 }
 
-static __init int tracer_init_debugfs(void)
+static __init int tracer_init_tracefs(void)
 {
 	struct dentry *d_tracer;
 
@@ -6333,7 +6342,7 @@ static __init int tracer_init_debugfs(void)
 	if (IS_ERR(d_tracer))
 		return 0;
 
-	init_tracer_debugfs(&global_trace, d_tracer);
+	init_tracer_tracefs(&global_trace, d_tracer);
 
 #ifdef CONFIG_TRACER_MAX_TRACE
 	trace_create_file("tracing_max_latency", 0644, d_tracer,
@@ -6654,5 +6663,5 @@ __init static int clear_boot_tracer(void)
 }
 
 early_initcall(tracer_alloc_buffers);
-fs_initcall(tracer_init_debugfs);
+fs_initcall(tracer_init_tracefs);
 late_initcall(clear_boot_tracer);

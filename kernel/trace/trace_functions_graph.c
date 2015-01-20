@@ -6,7 +6,6 @@
  * is Copyright (c) Steven Rostedt <srostedt@redhat.com>
  *
  */
-#include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/ftrace.h>
 #include <linux/slab.h>
@@ -1496,7 +1495,7 @@ static const struct file_operations graph_depth_fops = {
 	.llseek		= generic_file_llseek,
 };
 
-static __init int init_graph_debugfs(void)
+static __init int init_graph_tracefs(void)
 {
 	struct dentry *d_tracer;
 
@@ -1509,7 +1508,7 @@ static __init int init_graph_debugfs(void)
 
 	return 0;
 }
-fs_initcall(init_graph_debugfs);
+fs_initcall(init_graph_tracefs);
 
 static __init int init_graph_trace(void)
 {
