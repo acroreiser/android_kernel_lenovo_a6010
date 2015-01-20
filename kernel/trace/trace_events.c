@@ -2594,7 +2594,7 @@ static __init int event_trace_init(void)
 	tr = top_trace_array();
 
 	d_tracer = tracing_init_dentry();
-	if (!d_tracer)
+	if (IS_ERR(d_tracer))
 		return 0;
 
 	entry = debugfs_create_file("available_events", 0444, d_tracer,
