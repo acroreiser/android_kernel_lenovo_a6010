@@ -5515,7 +5515,7 @@ static int register_snapshot_cmd(void)
 static inline int register_snapshot_cmd(void) { return 0; }
 #endif /* defined(CONFIG_TRACER_SNAPSHOT) && defined(CONFIG_DYNAMIC_FTRACE) */
 
-struct dentry *tracing_init_dentry_tr(struct trace_array *tr)
+static struct dentry *tracing_init_dentry_tr(struct trace_array *tr)
 {
 	if (tr->dir)
 		return tr->dir;
