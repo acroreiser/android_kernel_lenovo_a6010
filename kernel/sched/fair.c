@@ -1952,6 +1952,11 @@ static int select_best_cpu(struct task_struct *p, int target, int reason,
 			 (p->flags & PF_WAKE_UP_IDLE)) {
 		prefer_idle = 1;
 		small_task = 0;
+		/*
+		 * If wake to idle and sync are both set prefer wake to idle
+		 * since sync is a weak hint that might not always be correct.
+		 */
+		sync = 0;
 	}
 
 	trace_sched_task_load(p, small_task, boost, reason, sync);
