@@ -653,46 +653,19 @@ void sock_tx_timestamp(struct sock *sk, __u8 *tx_flags)
 }
 EXPORT_SYMBOL(sock_tx_timestamp);
 
-static inline int __sock_sendmsg_nosec(struct kiocb *iocb, struct socket *sock,
-				       struct msghdr *msg, size_t size)
+static inline int sock_sendmsg_nosec(struct socket *sock, struct msghdr *msg,
+				       size_t size)
 {
-	return sock->ops->sendmsg(iocb, sock, msg, size);
-}
-
-static inline int __sock_sendmsg(struct kiocb *iocb, struct socket *sock,
-				 struct msghdr *msg, size_t size)
-{
-	int err = security_socket_sendmsg(sock, msg, size);
-
-	return err ?: __sock_sendmsg_nosec(iocb, sock, msg, size);
+	return sock->ops->sendmsg(sock, msg, size);
 }
 
 int sock_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 {
-	struct kiocb iocb;
-	int ret;
+	int err = security_socket_sendmsg(sock, msg, size);
 
-	init_sync_kiocb(&iocb, NULL);
-	ret = __sock_sendmsg(&iocb, sock, msg, size);
-	if (-EIOCBQUEUED == ret)
-		ret = wait_on_sync_kiocb(&iocb);
-	return ret;
+	return err ?: sock_sendmsg_nosec(sock, msg, size);
 }
 EXPORT_SYMBOL(sock_sendmsg);
-
-static int sock_sendmsg_nosec(struct socket *sock, struct msghdr *msg, size_t size)
-{
-	struct kiocb iocb;
-	struct sock_iocb siocb;
-	int ret;
-
-	init_sync_kiocb(&iocb, NULL);
-	iocb.private = &siocb;
-	ret = __sock_sendmsg_nosec(&iocb, sock, msg, size);
-	if (-EIOCBQUEUED == ret)
-		ret = wait_on_sync_kiocb(&iocb);
-	return ret;
-}
 
 int kernel_sendmsg(struct socket *sock, struct msghdr *msg,
 		   struct kvec *vec, size_t num, size_t size)
@@ -794,46 +767,20 @@ void __sock_recv_ts_and_drops(struct msghdr *msg, struct sock *sk,
 }
 EXPORT_SYMBOL_GPL(__sock_recv_ts_and_drops);
 
-static inline int __sock_recvmsg_nosec(struct kiocb *iocb, struct socket *sock,
-				       struct msghdr *msg, size_t size, int flags)
+static inline int sock_recvmsg_nosec(struct socket *sock, struct msghdr *msg,
+				     size_t size, int flags)
 {
-	return sock->ops->recvmsg(iocb, sock, msg, size, flags);
+	return sock->ops->recvmsg(sock, msg, size, flags);
 }
 
-static inline int __sock_recvmsg(struct kiocb *iocb, struct socket *sock,
-				 struct msghdr *msg, size_t size, int flags)
+int sock_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
+		 int flags)
 {
 	int err = security_socket_recvmsg(sock, msg, size, flags);
 
-	return err ?: __sock_recvmsg_nosec(iocb, sock, msg, size, flags);
-}
-
-int sock_recvmsg(struct socket *sock, struct msghdr *msg,
-		 size_t size, int flags)
-{
-	struct kiocb iocb;
-	int ret;
-
-	init_sync_kiocb(&iocb, NULL);
-	ret = __sock_recvmsg(&iocb, sock, msg, size, flags);
-	if (-EIOCBQUEUED == ret)
-		ret = wait_on_sync_kiocb(&iocb);
-	return ret;
+	return err ?: sock_recvmsg_nosec(sock, msg, size, flags);
 }
 EXPORT_SYMBOL(sock_recvmsg);
-
-static int sock_recvmsg_nosec(struct socket *sock, struct msghdr *msg,
-			      size_t size, int flags)
-{
-	struct kiocb iocb;
-	int ret;
-
-	init_sync_kiocb(&iocb, NULL);
-	ret = __sock_recvmsg_nosec(&iocb, sock, msg, size, flags);
-	if (-EIOCBQUEUED == ret)
-		ret = wait_on_sync_kiocb(&iocb);
-	return ret;
-}
 
 /**
  * kernel_recvmsg - Receive a message from a socket (kernel space)
@@ -919,7 +866,7 @@ static ssize_t do_sock_read(struct msghdr *msg, struct kiocb *iocb,
 	msg->msg_iovlen = nr_segs;
 	msg->msg_flags = (file->f_flags & O_NONBLOCK) ? MSG_DONTWAIT : 0;
 
-	return __sock_recvmsg(iocb, sock, msg, size, msg->msg_flags);
+	return sock_recvmsg(sock, msg, size, msg->msg_flags);
 }
 
 static ssize_t sock_aio_read(struct kiocb *iocb, const struct iovec *iov,
@@ -957,7 +904,7 @@ static ssize_t do_sock_write(struct msghdr *msg, struct kiocb *iocb,
 	if (sock->type == SOCK_SEQPACKET)
 		msg->msg_flags |= MSG_EOR;
 
-	return __sock_sendmsg(iocb, sock, msg, size);
+	return sock_sendmsg(sock, msg, size);
 }
 
 static ssize_t sock_aio_write(struct kiocb *iocb, const struct iovec *iov,
