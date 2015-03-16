@@ -557,6 +557,18 @@ config CRYPTO_SHA256
 	  This code also includes SHA-224, a 224 bit hash with 112 bits
 	  of security against collision attacks.
 
+config CRYPTO_SHA256_ARM_NEON
+	tristate "SHA256 digest algorithm (ARM NEON)"
+	depends on ARM && KERNEL_MODE_NEON && !CPU_BIG_ENDIAN
+	select CRYPTO_SHA256
+	select CRYPTO_HASH
+	help
+	  SHA-256 secure hash standard (DFIPS 180-2) implemented
+	  using ARM NEON instructions, when available.
+
+	  This version of SHA implements a 256 bit hash with 128 bits of
+	  security against collision attacks.
+
 config CRYPTO_SHA256_SPARC64
 	tristate "SHA224 and SHA256 digest algorithm (SPARC64)"
 	depends on SPARC64
