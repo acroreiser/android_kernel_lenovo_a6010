@@ -1041,11 +1041,8 @@ static void tick_nohz_switch_to_nohz(void)
 	if (!tick_nohz_enabled)
 		return;
 
-	local_irq_disable();
-	if (tick_switch_to_oneshot(tick_nohz_handler)) {
-		local_irq_enable();
+	if (tick_switch_to_oneshot(tick_nohz_handler))
 		return;
-	}
 
 	ts->nohz_mode = NOHZ_MODE_LOWRES;
 
@@ -1063,7 +1060,6 @@ static void tick_nohz_switch_to_nohz(void)
 			break;
 		next = ktime_add(next, tick_period);
 	}
-	local_irq_enable();
 }
 
 /*
@@ -1318,7 +1314,7 @@ void tick_oneshot_notify(void)
  * Called cyclic from the hrtimer softirq (driven by the timer
  * softirq) allow_nohz signals, that we can switch into low-res nohz
  * mode, because high resolution timers are disabled (either compile
- * or runtime).
+ * or runtime). Called with interrupts disabled.
  */
 int tick_check_oneshot_change(int allow_nohz)
 {
