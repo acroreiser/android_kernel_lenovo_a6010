@@ -41,7 +41,7 @@
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 
-#include "timeconst.h"
+#include <generated/timeconst.h>
 
 /*
  * The timezone where the local system is located.  Used as a default by some
