@@ -228,6 +228,7 @@ out:
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(splice_to_pipe);
 
 void spd_release_page(struct splice_pipe_desc *spd, unsigned int i)
 {
