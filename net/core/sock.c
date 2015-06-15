@@ -1421,7 +1421,7 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 }
 EXPORT_SYMBOL(sk_alloc);
 
-static void __sk_free(struct sock *sk)
+void sk_destruct(struct sock *sk)
 {
 	struct sk_filter *filter;
 
@@ -1453,6 +1453,14 @@ static void __sk_free(struct sock *sk)
 	put_pid(sk->sk_peer_pid);
 	put_net(sock_net(sk));
 	sk_prot_free(sk->sk_prot_creator, sk);
+}
+
+static void __sk_free(struct sock *sk)
+{
+	if (unlikely(sock_diag_has_destroy_listeners(sk)))
+		sock_diag_broadcast_destroy(sk);
+	else
+		sk_destruct(sk);
 }
 
 void sk_free(struct sock *sk)

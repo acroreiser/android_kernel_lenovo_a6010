@@ -1540,6 +1540,7 @@ extern struct sock		*sk_alloc(struct net *net, int family,
 					  gfp_t priority,
 					  struct proto *prot);
 extern void			sk_free(struct sock *sk);
+extern void                     sk_destruct(struct sock *sk);
 extern void			sk_release_kernel(struct sock *sk);
 extern struct sock		*sk_clone_lock(const struct sock *sk,
 					       const gfp_t priority);
