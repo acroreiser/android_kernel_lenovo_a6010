@@ -72,16 +72,6 @@ void task_work_run(void)
 		raw_spin_unlock_wait(&task->pi_lock);
 		smp_mb();
 
-		/* Reverse the list to run the works in fifo order */
-		head = NULL;
-		do {
-			next = work->next;
-			work->next = head;
-			head = work;
-			work = next;
-		} while (work);
-
-		work = head;
 		do {
 			next = work->next;
 			work->func(work);
