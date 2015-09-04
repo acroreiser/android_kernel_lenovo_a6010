@@ -195,6 +195,7 @@ cond_syscall(compat_sys_timerfd_gettime);
 cond_syscall(sys_eventfd);
 cond_syscall(sys_eventfd2);
 cond_syscall(sys_memfd_create);
+cond_syscall(sys_userfaultfd);
 cond_syscall(sys_pidfd_send_signal);
 cond_syscall(sys_pidfd_open);
 
