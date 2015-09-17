@@ -277,7 +277,7 @@ revalidate:
 				} else {
 					/* Directory is encrypted */
 					err = ext4_fname_disk_to_usr(enc_ctx,
-							de, &fname_crypto_str);
+						NULL, de, &fname_crypto_str);
 					if (err < 0) {
 						ret = err;
 						goto out;
