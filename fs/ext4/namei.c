@@ -1441,6 +1441,18 @@ static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, unsi
 					 ino);
 			return ERR_PTR(-EIO);
 		}
+		if (!IS_ERR(inode) && ext4_encrypted_inode(dir) &&
+		    (S_ISREG(inode->i_mode) || S_ISDIR(inode->i_mode) ||
+		     S_ISLNK(inode->i_mode)) &&
+		    !ext4_is_child_context_consistent_with_parent(dir,
+								  inode)) {
+			iput(inode);
+			ext4_warning(inode->i_sb,
+				     "Inconsistent encryption contexts: %lu/%lu\n",
+				     (unsigned long) dir->i_ino,
+				     (unsigned long) inode->i_ino);
+			return ERR_PTR(-EPERM);
+		}
 	}
 	return d_splice_alias(inode, dentry);
 }
@@ -2952,7 +2964,11 @@ static int ext4_link(struct dentry *old_dentry,
 	if (inode->i_nlink >= EXT4_LINK_MAX)
 		return -EMLINK;
 
-   if ((ext4_test_inode_flag(dir, EXT4_INODE_PROJINHERIT)) &&
+	if (ext4_encrypted_inode(dir) &&
+	    !ext4_is_child_context_consistent_with_parent(dir, inode))
+		return -EPERM;
+
+	if ((ext4_test_inode_flag(dir, EXT4_INODE_PROJINHERIT)) &&
 	   (!projid_eq(EXT4_I(dir)->i_projid,
 		       EXT4_I(old_dentry->d_inode)->i_projid)))
 		return -EXDEV;
@@ -3071,6 +3087,14 @@ static int ext4_rename(struct inode *old_dir, struct dentry *old_dentry,
 	retval = -ENOENT;
 	if (!old_bh || le32_to_cpu(old_de->inode) != old_inode->i_ino)
 		goto end_rename;
+
+	if ((old_dir != new_dir) &&
+	    ext4_encrypted_inode(new_dir) &&
+	    !ext4_is_child_context_consistent_with_parent(new_dir,
+							  old_dentry->d_inode)) {
+		retval = -EPERM;
+		goto end_rename;
+	}
 
 	new_inode = new_dentry->d_inode;
 	new_bh = ext4_find_entry(new_dir, &new_dentry->d_name,
