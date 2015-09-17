@@ -145,9 +145,6 @@ static int ext4_readdir(struct file *filp,
 			return err;
 	}
 
-	err = ext4_setup_fname_crypto(inode);
-	if (err)
-		return err;
 	if (ext4_encrypted_inode(inode)) {
 		err = ext4_fname_crypto_alloc_buffer(inode, EXT4_NAME_LEN,
 						     &fname_crypto_str);
