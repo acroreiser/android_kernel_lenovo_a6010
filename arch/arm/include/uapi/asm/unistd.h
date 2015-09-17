@@ -414,6 +414,7 @@
 #define __NR_seccomp			(__NR_SYSCALL_BASE+383)
 #define __NR_getrandom			(__NR_SYSCALL_BASE+384)
 #define __NR_memfd_create		(__NR_SYSCALL_BASE+385)
+#define __NR_membarrier			(__NR_SYSCALL_BASE+389)
 
 /*
  * The following SWIs are ARM private.
