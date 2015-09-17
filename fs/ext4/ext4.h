@@ -618,6 +618,8 @@ enum {
 #define EXT4_ENCRYPTION_MODE_AES_256_CBC	3
 #define EXT4_ENCRYPTION_MODE_AES_256_CTS	4
 
+#include "ext4_crypto.h"
+
 /*
  * ioctl commands
  */
@@ -638,6 +640,9 @@ enum {
 #define EXT4_IOC_MOVE_EXT		_IOWR('f', 15, struct move_extent)
 #define EXT4_IOC_RESIZE_FS		_IOW('f', 16, __u64)
 #define EXT4_IOC_SWAP_BOOT		_IO('f', 17)
+#define EXT4_IOC_SET_ENCRYPTION_POLICY	_IOR('f', 19, struct ext4_encryption_policy)
+#define EXT4_IOC_GET_ENCRYPTION_PWSALT	_IOW('f', 20, __u8[16])
+#define EXT4_IOC_GET_ENCRYPTION_POLICY	_IOW('f', 21, struct ext4_encryption_policy)
 
 #ifndef FS_IOC_FSGETXATTR
 /* Until the uapi changes get merged for project quota... */
@@ -2108,6 +2113,16 @@ extern unsigned ext4_num_overhead_clusters(struct super_block *sb,
 					   ext4_group_t block_group,
 					   struct ext4_group_desc *gdp);
 ext4_fsblk_t ext4_inode_to_goal_block(struct inode *);
+
+/* crypto_policy.c */
+int ext4_is_child_context_consistent_with_parent(struct inode *parent,
+						 struct inode *child);
+int ext4_inherit_context(struct inode *parent, struct inode *child);
+void ext4_to_hex(char *dst, char *src, size_t src_size);
+int ext4_process_policy(const struct ext4_encryption_policy *policy,
+			struct inode *inode);
+int ext4_get_policy(struct inode *inode,
+		    struct ext4_encryption_policy *policy);
 
 /* dir.c */
 extern int __ext4_check_dir_entry(const char *, unsigned int, struct inode *,
