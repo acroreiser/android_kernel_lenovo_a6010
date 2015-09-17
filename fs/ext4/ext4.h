@@ -1479,12 +1479,6 @@ struct ext4_sb_info {
 	struct mb2_cache *s_mb_cache;
 	spinlock_t s_es_lru_lock ____cacheline_aligned_in_smp;
 
-#ifdef CONFIG_EXT4_FS_ENCRYPTION
-	/* Encryption */
-	uint32_t s_file_encryption_mode;
-	uint32_t s_dir_encryption_mode;
-#endif
-
 	struct ratelimit_state s_err_ratelimit_state;	/* Ratelimit ext4 messages. */
 	struct ratelimit_state s_warning_ratelimit_state;
 	struct ratelimit_state s_msg_ratelimit_state;
