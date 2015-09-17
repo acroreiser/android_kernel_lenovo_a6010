@@ -121,7 +121,6 @@ static int ext4_readdir(struct file *filp,
 	int ret = 0;
 	struct buffer_head *bh = NULL;
 	int dir_has_error = 0;
-	struct ext4_fname_crypto_ctx *enc_ctx = NULL;
 	struct ext4_str fname_crypto_str = {.name = NULL, .len = 0};
 
 	if (is_dx_dir(inode)) {
@@ -146,16 +145,14 @@ static int ext4_readdir(struct file *filp,
 			return err;
 	}
 
-	enc_ctx = ext4_get_fname_crypto_ctx(inode, EXT4_NAME_LEN);
-	if (IS_ERR(enc_ctx))
-		return PTR_ERR(enc_ctx);
-	if (enc_ctx) {
-		err = ext4_fname_crypto_alloc_buffer(enc_ctx, EXT4_NAME_LEN,
+	err = ext4_setup_fname_crypto(inode);
+	if (err)
+		return err;
+	if (ext4_encrypted_inode(inode)) {
+		err = ext4_fname_crypto_alloc_buffer(inode, EXT4_NAME_LEN,
 						     &fname_crypto_str);
-		if (err < 0) {
-			ext4_put_fname_crypto_ctx(&enc_ctx);
+		if (err < 0)
 			return err;
-		}
 	}
 
 	stored = 0;
@@ -266,8 +263,7 @@ revalidate:
 				 */
 				u64 version = filp->f_version;
 
-				if(enc_ctx == NULL) {
-					/* Directory is not encrypted */
+				if (!ext4_encrypted_inode(inode)) {
 					error = filldir(dirent, de->name,
 							de->name_len,
 							filp->f_pos,
@@ -278,7 +274,7 @@ revalidate:
 					int save_len = fname_crypto_str.len;
 
 					/* Directory is encrypted */
-					err = ext4_fname_disk_to_usr(enc_ctx,
+					err = ext4_fname_disk_to_usr(inode,
 						NULL, de, &fname_crypto_str);
 					fname_crypto_str.len = save_len;
 					if (err < 0) {
@@ -307,7 +303,6 @@ revalidate:
 	}
 out:
 #ifdef CONFIG_EXT4_FS_ENCRYPTION
-	ext4_put_fname_crypto_ctx(&enc_ctx);
 	ext4_fname_crypto_free_buffer(&fname_crypto_str);
 #endif
 	return ret;
