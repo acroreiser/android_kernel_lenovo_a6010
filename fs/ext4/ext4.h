@@ -2253,6 +2253,11 @@ static inline int ext4_get_encryption_info(struct inode *inode)
 	return 0;
 }
 
+static inline struct ext4_crypt_info *ext4_encryption_info(struct inode *inode)
+{
+	return EXT4_I(inode)->i_crypt_info;
+}
+
 #else
 static inline int ext4_has_encryption_key(struct inode *inode)
 {
@@ -2261,6 +2266,10 @@ static inline int ext4_has_encryption_key(struct inode *inode)
 static inline int ext4_get_encryption_info(struct inode *inode)
 {
 	return 0;
+}
+static inline struct ext4_crypt_info *ext4_encryption_info(struct inode *inode)
+{
+	return NULL;
 }
 #endif
 
