@@ -119,7 +119,10 @@ static int ext4_readdir(struct file *filp,
 	struct inode *inode = file_inode(filp);
 	struct super_block *sb = inode->i_sb;
 	int ret = 0;
+	struct buffer_head *bh = NULL;
 	int dir_has_error = 0;
+	struct ext4_fname_crypto_ctx *enc_ctx = NULL;
+	struct ext4_str fname_crypto_str = {.name = NULL, .len = 0};
 
 	if (is_dx_dir(inode)) {
 		err = ext4_dx_readdir(filp, dirent, filldir);
@@ -137,10 +140,22 @@ static int ext4_readdir(struct file *filp,
 
 	if (ext4_has_inline_data(inode)) {
 		int has_inline_data = 1;
-		ret = ext4_read_inline_dir(filp, dirent, filldir,
+		err = ext4_read_inline_dir(filp, dirent, filldir,
 					   &has_inline_data);
 		if (has_inline_data)
-			return ret;
+			return err;
+	}
+
+	enc_ctx = ext4_get_fname_crypto_ctx(inode, EXT4_NAME_LEN);
+	if (IS_ERR(enc_ctx))
+		return PTR_ERR(enc_ctx);
+	if (enc_ctx) {
+		err = ext4_fname_crypto_alloc_buffer(enc_ctx, EXT4_NAME_LEN,
+						     &fname_crypto_str);
+		if (err < 0) {
+			ext4_put_fname_crypto_ctx(&enc_ctx);
+			return err;
+		}
 	}
 
 	stored = 0;
@@ -148,7 +163,6 @@ static int ext4_readdir(struct file *filp,
 
 	while (!error && !stored && filp->f_pos < inode->i_size) {
 		struct ext4_map_blocks map;
-		struct buffer_head *bh = NULL;
 
 		map.m_lblk = filp->f_pos >> EXT4_BLOCK_SIZE_BITS(sb);
 		map.m_len = 1;
@@ -193,6 +207,7 @@ static int ext4_readdir(struct file *filp,
 					(unsigned long long)filp->f_pos);
 			filp->f_pos += sb->s_blocksize - offset;
 			brelse(bh);
+			bh = NULL;
 			continue;
 		}
 		set_buffer_verified(bh);
@@ -251,13 +266,32 @@ revalidate:
 				 */
 				u64 version = filp->f_version;
 
-				error = filldir(dirent, de->name,
-						de->name_len,
-						filp->f_pos,
-						le32_to_cpu(de->inode),
-						get_dtype(sb, de->file_type));
-				if (error)
+				if(enc_ctx == NULL) {
+					/* Directory is not encrypted */
+					error = filldir(dirent, de->name,
+							de->name_len,
+							filp->f_pos,
+							le32_to_cpu(de->inode),
+							get_dtype(sb, de->file_type));
+				
+				} else {
+					/* Directory is encrypted */
+					err = ext4_fname_disk_to_usr(enc_ctx,
+							de, &fname_crypto_str);
+					if (err < 0) {
+						ret = err;
+						goto out;
+					}
+					error = filldir(dirent, fname_crypto_str.name,
+							err,
+							filp->f_pos,
+							le32_to_cpu(de->inode),
+							get_dtype(sb, de->file_type));
+				}
+
+				if(error)
 					break;
+
 				if (version != filp->f_version)
 					goto revalidate;
 				stored++;
@@ -269,6 +303,10 @@ revalidate:
 		brelse(bh);
 	}
 out:
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+	ext4_put_fname_crypto_ctx(&enc_ctx);
+	ext4_fname_crypto_free_buffer(&fname_crypto_str);
+#endif
 	return ret;
 }
 
