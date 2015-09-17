@@ -275,9 +275,12 @@ revalidate:
 							get_dtype(sb, de->file_type));
 				
 				} else {
+					int save_len = fname_crypto_str.len;
+
 					/* Directory is encrypted */
 					err = ext4_fname_disk_to_usr(enc_ctx,
 						NULL, de, &fname_crypto_str);
+					fname_crypto_str.len = save_len;
 					if (err < 0) {
 						ret = err;
 						goto out;
