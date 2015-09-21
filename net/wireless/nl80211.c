@@ -3823,7 +3823,8 @@ int cfg80211_check_station_change(struct wiphy *wiphy,
 		params->sta_flags_mask &= ~BIT(NL80211_STA_FLAG_TDLS_PEER);
 	}
 
-	if (statype != CFG80211_STA_TDLS_PEER_SETUP) {
+	if (statype != CFG80211_STA_TDLS_PEER_SETUP &&
+	    statype != CFG80211_STA_AP_CLIENT_UNASSOC) {
 		/* reject other things that can't change */
 		if (params->sta_modify_mask & STATION_PARAM_APPLY_UAPSD)
 			return -EINVAL;
@@ -3835,7 +3836,8 @@ int cfg80211_check_station_change(struct wiphy *wiphy,
 			return -EINVAL;
 	}
 
-	if (statype != CFG80211_STA_AP_CLIENT) {
+	if (statype != CFG80211_STA_AP_CLIENT &&
+	    statype != CFG80211_STA_AP_CLIENT_UNASSOC) {
 		if (params->vlan)
 			return -EINVAL;
 	}
@@ -3847,6 +3849,7 @@ int cfg80211_check_station_change(struct wiphy *wiphy,
 			return -EOPNOTSUPP;
 		break;
 	case CFG80211_STA_AP_CLIENT:
+	case CFG80211_STA_AP_CLIENT_UNASSOC:
 		/* accept only the listed bits */
 		if (params->sta_flags_mask &
 				~(BIT(NL80211_STA_FLAG_AUTHORIZED) |
