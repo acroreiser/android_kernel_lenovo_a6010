@@ -23,6 +23,8 @@
 
 #include "internal.h"
 
+#include <linux/palloc.h>
+
 #ifdef CONFIG_VM_EVENT_COUNTERS
 DEFINE_PER_CPU(struct vm_event_state, vm_event_states) = {{0}};
 EXPORT_PER_CPU_SYMBOL(vm_event_states);
@@ -835,12 +837,45 @@ static void frag_show_print(struct seq_file *m, pg_data_t *pgdat,
 						struct zone *zone)
 {
 	int order;
+#ifdef CONFIG_CGROUP_PALLOC
+#include <linux/palloc.h>
+	int color, mt;
+	int cnt, bins;
+	struct free_area *area;
+	struct list_head *curr;
+
+	seq_printf(m, "-------\n");
+	/* order by memory type */
+	for (mt = 0; mt < MIGRATE_ISOLATE; mt++) {
+		seq_printf(m, "- %17s[%d]", "mt", mt);
+		for (order = 0; order < MAX_ORDER; order++) {
+			area = &(zone->free_area[order]);
+			cnt = 0;
+			list_for_each(curr, &area->free_list[mt])
+				cnt++;
+			seq_printf(m, "%6d ", cnt);
+		}
+		seq_printf(m, "\n");
+	}
+	/* order by color */
+	seq_printf(m, "-------\n");
+	bins = palloc_bins();
+
+	for (color = 0; color < bins; color++) {
+		seq_printf(m, "- color [%d:%0x]", color, color);
+		cnt = 0;
+		list_for_each(curr, &zone->color_list[color])
+			cnt++;
+		seq_printf(m, "%6d\n", cnt);
+	}
+#endif /* !CONFIG_CGROUP_PALLOC */
 
 	seq_printf(m, "Node %d, zone %8s ", pgdat->node_id, zone->name);
 	for (order = 0; order < MAX_ORDER; ++order)
 		seq_printf(m, "%6lu ", zone->free_area[order].nr_free);
 	seq_putc(m, '\n');
 }
+
 
 /*
  * This walks the free areas for each zone.
