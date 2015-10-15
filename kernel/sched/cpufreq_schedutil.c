@@ -767,7 +767,6 @@ static int sugov_init(struct cpufreq_policy *policy)
 	if (ret) {
 		if (!have_governor_per_policy()) {
 			global_tunables = NULL;
-			cpufreq_put_global_kobject();
 		}
 		goto fail;
 	}
