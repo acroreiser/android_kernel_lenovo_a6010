@@ -74,6 +74,6 @@
 #define USBDEVICE_SUPER_MAGIC	0x9fa2
 #define MTD_INODE_FS_MAGIC      0x11307854
 #define ANON_INODE_FS_MAGIC	0x09041934
-
+#define BPF_FS_MAGIC		0xcafe4a11
 
 #endif /* __LINUX_MAGIC_H__ */
