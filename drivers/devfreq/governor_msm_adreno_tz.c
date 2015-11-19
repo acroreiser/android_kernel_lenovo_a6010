@@ -25,6 +25,8 @@
 #include <linux/powersuspend.h>
 #include "governor.h"
 
+static bool power_suspended;
+
 static DEFINE_SPINLOCK(tz_lock);
 
 /*
