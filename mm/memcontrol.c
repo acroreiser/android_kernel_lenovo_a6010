@@ -6936,8 +6936,13 @@ static int mem_cgroup_can_attach(struct cgroup_subsys_state *css,
 {
 	struct task_struct *leader, *p;
 	int ret = 0;
-	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
+	struct cgroup_subsys_state *css;
+	struct mem_cgroup *memcg;
 	unsigned long move_charge_at_immigrate;
+
+	/* charge immigration isn't supported on the default hierarchy */
+	if (cgroup_subsys_on_dfl(memory_cgrp_subsys))
+		return 0;
 
 	/*
 	 * Multi-process migrations only happen on the default hierarchy
@@ -6946,9 +6951,10 @@ static int mem_cgroup_can_attach(struct cgroup_subsys_state *css,
 	 * multiple.
 	 */
 	p = NULL;
-	cgroup_taskset_for_each_leader(leader, tset) {
+	cgroup_taskset_for_each_leader(leader, css, tset) {
 		WARN_ON_ONCE(p);
 		p = leader;
+		memcg = mem_cgroup_from_css(css);
 	}
 	if (!p)
 		return 0;
@@ -6992,8 +6998,7 @@ static int mem_cgroup_can_attach(struct cgroup_subsys_state *css,
 	return ret;
 }
 
-static void mem_cgroup_cancel_attach(struct cgroup_subsys_state *css,
-				     struct cgroup_taskset *tset)
+static void mem_cgroup_cancel_attach(struct cgroup_taskset *tset)
 {
 	mem_cgroup_clear_mc();
 }
@@ -7140,10 +7145,10 @@ retry:
 	up_read(&mm->mmap_sem);
 }
 
-static void mem_cgroup_move_task(struct cgroup_subsys_state *css,
-				 struct cgroup_taskset *tset)
+static void mem_cgroup_move_task(struct cgroup_taskset *tset)
 {
-	struct task_struct *p = cgroup_taskset_first(tset);
+	struct cgroup_subsys_state *css;
+	struct task_struct *p = cgroup_taskset_first(tset, &css);
 	struct mm_struct *mm = get_task_mm(p);
 
 	if (mm) {
@@ -7155,17 +7160,14 @@ static void mem_cgroup_move_task(struct cgroup_subsys_state *css,
 		mem_cgroup_clear_mc();
 }
 #else	/* !CONFIG_MMU */
-static int mem_cgroup_can_attach(struct cgroup_subsys_state *css,
-				 struct cgroup_taskset *tset)
+static int mem_cgroup_can_attach(struct cgroup_taskset *tset)
 {
 	return 0;
 }
-static void mem_cgroup_cancel_attach(struct cgroup_subsys_state *css,
-				     struct cgroup_taskset *tset)
+static void mem_cgroup_cancel_attach(struct cgroup_taskset *tset)
 {
 }
-static void mem_cgroup_move_task(struct cgroup_subsys_state *css,
-				 struct cgroup_taskset *tset)
+static void mem_cgroup_move_task(struct cgroup_taskset *tset)
 {
 }
 #endif
