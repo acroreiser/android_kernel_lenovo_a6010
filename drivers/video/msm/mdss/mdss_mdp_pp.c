@@ -2060,7 +2060,7 @@ int mdss_mdp_pp_resume(struct mdss_mdp_ctl *ctl, u32 dspp_num)
 	if (dspp_num < mdata->nad_cfgs) {
 		ret = mdss_mdp_get_ad(ctl->mfd, &ad);
 		if (ret) {
-			pr_warn("Failed to get AD info, err = %d\n", ret);
+			pr_debug("Failed to get AD info, err = %d\n", ret);
 			return ret;
 		}
 		if (ctl->mfd->panel_info->type == WRITEBACK_PANEL) {
