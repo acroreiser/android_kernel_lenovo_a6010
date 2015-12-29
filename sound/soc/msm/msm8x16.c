@@ -2966,7 +2966,18 @@ static struct platform_driver msm8x16_asoc_machine_driver = {
 	.probe = msm8x16_asoc_machine_probe,
 	.remove = msm8x16_asoc_machine_remove,
 };
-module_platform_driver(msm8x16_asoc_machine_driver);
+
+static int __init msm8x16_machine_init(void)
+{
+	return platform_driver_register(&msm8x16_asoc_machine_driver);
+}
+late_initcall(msm8x16_machine_init);
+
+static void __exit msm8x16_machine_exit(void)
+{
+	return platform_driver_unregister(&msm8x16_asoc_machine_driver);
+}
+module_exit(msm8x16_machine_exit);
 
 MODULE_DESCRIPTION("ALSA SoC msm");
 MODULE_LICENSE("GPL v2");
