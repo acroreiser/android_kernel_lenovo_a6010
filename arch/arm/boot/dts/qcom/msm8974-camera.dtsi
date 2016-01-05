@@ -256,6 +256,50 @@
         qcom,clock-rates = <0 266670000 0 0 266670000 0 0 0>;
 	};
 
+
+	led_flash0: qcom,camera-led-flash {
+		cell-index = <0>;
+		compatible = "qcom,camera-led-flash";
+		qcom,flash-type = <1>;
+		qcom,flash-source = <&pm8941_flash0 &pm8941_flash1>;
+		qcom,torch-source = <&pm8941_torch>;
+	};
+
+	qcom,ois@48 {
+		cell-index = <998>;
+		reg = <0x48 0x0>;
+		compatible = "qcom,ois";
+		qcom,cci-master = <0>;
+	};
+
+	cci_master0: qcom,cci_master_0 {
+		qcom,hw-thigh = <20>;
+		qcom,hw-tlow = <28>;
+		qcom,hw-tsu-sto = <21>;
+		qcom,hw-tsu-sta = <21>;
+		qcom,hw-thd-dat = <13>;
+		qcom,hw-thd-sta = <18>;
+		qcom,hw-tbuf = <25>;
+		qcom,hw-scl-stretch-en = <0>;
+		qcom,hw-trdhld = <6>;
+		qcom,hw-tsp = <3>;
+		status = "ok";
+	};
+
+	cci_master1: qcom,cci_master_1 {
+		qcom,hw-thigh = <20>;
+		qcom,hw-tlow = <28>;
+		qcom,hw-tsu-sto = <21>;
+		qcom,hw-tsu-sta = <21>;
+		qcom,hw-thd-dat = <13>;
+		qcom,hw-thd-sta = <18>;
+		qcom,hw-tbuf = <25>;
+		qcom,hw-scl-stretch-en = <0>;
+		qcom,hw-trdhld = <6>;
+		qcom,hw-tsp = <3>;
+		status = "ok";
+	};
+
 	cci: qcom,cci@fda0C000 {
 		cell-index = <0>;
 		compatible = "qcom,cci";
@@ -278,15 +322,8 @@
 				      "CCI_I2C_CLK0",
 				      "CCI_I2C_DATA1",
 				      "CCI_I2C_CLK1";
-		i2c_freq_100Khz: qcom,i2c_standard_mode {
-			status = "disabled";
-		};
-		i2c_freq_400Khz: qcom,i2c_fast_mode {
-			status = "disabled";
-		};
-		i2c_freq_custom: qcom,i2c_custom_mode {
-			status = "disabled";
-		};
+		qcom,cci-master0 = <&cci_master0>;
+		qcom,cci-master1 = <&cci_master1>;
 	};
 };
 
