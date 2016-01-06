@@ -1888,7 +1888,7 @@ static struct i2c_driver synaptics_ts_driver = {
 	},
 };
 
-static int synaptics_ts_init(void)
+static int __init synaptics_ts_init(void)
 {
 	return i2c_add_driver(&synaptics_ts_driver);
 }
