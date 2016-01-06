@@ -115,8 +115,9 @@ void __init lge_add_persistent_device(void)
 #endif
 
 /* See include/mach/board_lge.h. CAUTION: These strings come from LK. */
-static char *rev_str[] = {"unknown", "evb1", "rev_a", "rev_b", "rev_c",
-	"rev_d", "rev_10", "rev_11"};
+static char *rev_str[] = {"evb1", "evb2", "rev_a", "rev_b", "rev_c", "rev_d",
+	"rev_e", "rev_f", "rev_g", "rev_h", "rev_10", "rev_11", "rev_12",
+	"revserved"};
 
 static int __init board_revno_setup(char *rev_info)
 {
@@ -159,3 +160,30 @@ static int __init uart_console_setup(char *str)
 }
 
 __setup("uart_console=", uart_console_setup);
+
+/* get boot mode information from cmdline.
+ * If any boot mode is not specified,
+ * boot mode is normal type.
+ */
+static enum lge_boot_mode_type lge_boot_mode = LGE_BOOT_MODE_NORMAL;
+int __init lge_boot_mode_init(char *s)
+{
+	if (!strcmp(s, "charger"))
+		lge_boot_mode = LGE_BOOT_MODE_CHARGER;
+	else if (!strcmp(s, "chargerlogo"))
+		lge_boot_mode = LGE_BOOT_MODE_CHARGERLOGO;
+	else if (!strcmp(s, "factory"))
+		lge_boot_mode = LGE_BOOT_MODE_FACTORY;
+	else if (!strcmp(s, "factory2"))
+		lge_boot_mode = LGE_BOOT_MODE_FACTORY2;
+	else if (!strcmp(s, "pifboot"))
+		lge_boot_mode = LGE_BOOT_MODE_PIFBOOT;
+
+	return 1;
+}
+__setup("androidboot.mode=", lge_boot_mode_init);
+
+enum lge_boot_mode_type lge_get_boot_mode(void)
+{
+	return lge_boot_mode;
+}

@@ -32,7 +32,17 @@ typedef enum {
 	HW_REV_MAX
 } hw_rev_type;
 
+enum lge_boot_mode_type {
+	LGE_BOOT_MODE_NORMAL = 0,
+	LGE_BOOT_MODE_CHARGER,
+	LGE_BOOT_MODE_CHARGERLOGO,
+	LGE_BOOT_MODE_FACTORY,
+	LGE_BOOT_MODE_FACTORY2,
+	LGE_BOOT_MODE_PIFBOOT
+};
+
 int lge_get_board_revno(void);
+enum lge_boot_mode_type lge_get_boot_mode(void);
 
 #ifdef CONFIG_PSTORE_RAM
 #define LGE_RAM_CONSOLE_SIZE (128 * SZ_1K * 2)
