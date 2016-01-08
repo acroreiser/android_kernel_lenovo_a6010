@@ -2952,6 +2952,11 @@ static int ext4_link(struct dentry *old_dentry,
 	if (inode->i_nlink >= EXT4_LINK_MAX)
 		return -EMLINK;
 
+   if ((ext4_test_inode_flag(dir, EXT4_INODE_PROJINHERIT)) &&
+	   (!projid_eq(EXT4_I(dir)->i_projid,
+		       EXT4_I(old_dentry->d_inode)->i_projid)))
+		return -EXDEV;
+
 	dquot_initialize(dir);
 
 retry:
@@ -3031,6 +3036,11 @@ static int ext4_rename(struct inode *old_dir, struct dentry *old_dentry,
 	int retval, force_da_alloc = 0;
 	int inlined = 0, new_inlined = 0;
 	struct ext4_dir_entry_2 *parent_de;
+
+	if ((ext4_test_inode_flag(new_dir, EXT4_INODE_PROJINHERIT)) &&
+	    (!projid_eq(EXT4_I(new_dir)->i_projid,
+			EXT4_I(old_dentry->d_inode)->i_projid)))
+		return -EXDEV;
 
 	dquot_initialize(old_dir);
 	dquot_initialize(new_dir);
