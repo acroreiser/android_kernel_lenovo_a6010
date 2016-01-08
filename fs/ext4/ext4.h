@@ -1225,6 +1225,9 @@ struct ext4_super_block {
 	__le32	s_checksum;		/* crc32c(superblock) */
 };
 
+ /* Number of quota types we support */
+#define EXT4_MAXQUOTAS 3
+
 #define EXT4_S_ERR_LEN (EXT4_S_ERR_END - EXT4_S_ERR_START)
 
 #ifdef __KERNEL__
