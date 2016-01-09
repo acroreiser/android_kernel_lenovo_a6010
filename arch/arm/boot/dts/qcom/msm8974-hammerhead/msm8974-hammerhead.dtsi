@@ -735,3 +735,7 @@
 &pm8941_mvs1 {
 	parent-supply = <&pm8941_boost>;
 };
+
+&memory_hole {
+	qcom,memblock-remove = <0x7b00000 0x8400000>; /* Address and size of the hole */
+};
