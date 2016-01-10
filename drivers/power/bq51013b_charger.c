@@ -252,7 +252,7 @@ static int bq51013b_probe(struct platform_device *pdev)
 
 	ret = request_threaded_irq(gpio_to_irq(chip->wlc_int_gpio), NULL,
 				bq51013b_irq_handler,
-				IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+				IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 				"bq51013b", chip);
 	if (ret) {
 		pr_err("%s: failed to request irq", __func__);
