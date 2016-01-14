@@ -49,7 +49,7 @@ static void zcomp_strm_free(struct zcomp_strm *zstrm)
  */
 static struct zcomp_strm *zcomp_strm_alloc(struct zcomp *comp)
 {
-	struct zcomp_strm *zstrm = kmalloc(sizeof(*zstrm), GFP_KERNEL);
+	struct zcomp_strm *zstrm = kmalloc(sizeof(*zstrm), GFP_NOIO);
 	if (!zstrm)
 		return NULL;
 
@@ -58,7 +58,7 @@ static struct zcomp_strm *zcomp_strm_alloc(struct zcomp *comp)
 	 * allocate 2 pages. 1 for compressed data, plus 1 extra for the
 	 * case when compressed size is larger than the original one
 	 */
-	zstrm->buffer = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO, 1);
+	zstrm->buffer = (void *)__get_free_pages(GFP_NOIO | __GFP_ZERO, 1);
 	if (IS_ERR_OR_NULL(zstrm->tfm) || !zstrm->buffer) {
 		zcomp_strm_free(zstrm);
 		zstrm = NULL;
@@ -256,7 +256,7 @@ struct zcomp *zcomp_create(const char *compress)
 	if (!zcomp_available_algorithm(compress))
 		return ERR_PTR(-EINVAL);
 
-	comp = kzalloc(sizeof(struct zcomp), GFP_KERNEL);
+	comp = kzalloc(sizeof(struct zcomp), GFP_NOIO);
 	if (!comp)
 		return ERR_PTR(-ENOMEM);
 
