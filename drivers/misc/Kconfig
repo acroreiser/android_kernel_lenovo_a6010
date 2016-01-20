@@ -51,6 +51,13 @@ config AD525X_DPOT_SPI
 	  To compile this driver as a module, choose M here: the
 	  module will be called ad525x_dpot-spi.
 
+config MSM8974_PWM_VIBRATOR
+    bool "MSM8974 vibrator support"
+        depends on ANDROID_TIMED_OUTPUT
+        help
+          This option enables device driver support for MSM8974 Vibrator driver.
+          Some functions should be given by platform data for enable PWM, Motor IC, etc.
+
 config ATMEL_PWM
 	tristate "Atmel AT32/AT91 PWM support"
 	depends on HAVE_CLK
