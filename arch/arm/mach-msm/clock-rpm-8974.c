@@ -168,7 +168,7 @@ static struct clk_lookup msm_clocks_rpm_8974[] = {
 	CLK_LOOKUP_OF("xo",       cxo_dwc3_clk,                 "msm_dwc3"),
 	CLK_LOOKUP_OF("xo",  cxo_ehci_host_clk,            "msm_ehci_host"),
 #ifdef CONFIG_NFC_BCM2079X
-	CLK_LOOKUP_OF("xo",         cxo_d1_pin,                 "bcm2079x"),
+	CLK_LOOKUP("xo",         cxo_d1_pin.c,                 "bcm2079x"),
 #endif
 	CLK_LOOKUP_OF("xo",        cxo_lpm_clk,        "fc4281d0.qcom,mpm"),
 	CLK_LOOKUP_OF("hfpll_src", cxo_a_clk_src,  "f9016000.qcom,clock-krait"),
