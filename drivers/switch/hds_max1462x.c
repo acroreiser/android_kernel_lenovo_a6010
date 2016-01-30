@@ -549,7 +549,7 @@ static int max1462x_hsd_probe(struct platform_device *pdev)
 
 	ret = request_threaded_irq(hi->irq_detect, NULL,
 				max1462x_earjack_det_irq_handler,
-				IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING,
+				IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING|IRQF_ONESHOT,
 				pdev->name, hi);
 	if (ret < 0) {
 		pr_err("%s: failed to request button irq\n", __func__);
