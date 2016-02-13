@@ -588,4 +588,11 @@ config MSM_PERFORMANCE_HOTPLUG_ON
 
 source "drivers/soc/qcom/memshare/Kconfig"
 
+config FORCE_FAST_CHARGE
+	bool "Force faster charge rate for AC/USB"
+	default n
+ 	help
+	  This allows users to override default charge rate for both USB and AC
+	  charger input current
+
 endif # ARCH_MSM
