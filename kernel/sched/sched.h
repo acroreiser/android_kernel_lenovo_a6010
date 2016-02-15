@@ -7,6 +7,7 @@
 #include <linux/spinlock.h>
 #include <linux/stop_machine.h>
 #include <linux/tick.h>
+#include <linux/cpufreq.h>
 
 #include "cpupri.h"
 #include "cpuacct.h"
