@@ -1383,7 +1383,7 @@ struct ext4_sb_info {
 	struct shrinker s_es_shrinker;
 	struct list_head s_es_lru;
 	struct percpu_counter s_extent_cache_cnt;
-	struct mb_cache *s_mb_cache;
+	struct mb2_cache *s_mb_cache;
 	spinlock_t s_es_lru_lock ____cacheline_aligned_in_smp;
 
 	/* Ratelimit ext4 messages. */
