@@ -3056,4 +3056,15 @@ static inline unsigned long rlimit_max(unsigned int limit)
 	return task_rlimit_max(current, limit);
 }
 
+#ifdef CONFIG_CPU_FREQ
+struct update_util_data {
+    void (*func)(struct update_util_data *data,
+             u64 time, unsigned long util, unsigned long max);
+};
+
+void cpufreq_add_update_util_hook(int cpu, struct update_util_data *data,
+            void (*func)(struct update_util_data *data, u64 time,
+                     unsigned long util, unsigned long max));
+void cpufreq_remove_update_util_hook(int cpu);
+#endif /* CONFIG_CPU_FREQ */
 #endif
