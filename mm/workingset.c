@@ -279,7 +279,9 @@ static unsigned long count_shadow_nodes(struct shrinker *shrinker,
 	shadow_nodes = list_lru_count_node(&workingset_shadow_nodes, sc->nid);
 	local_irq_enable();
 
-	pages = node_present_pages(sc->nid);
+	pages = node_page_state(sc->nid, NR_ACTIVE_FILE) +
+		node_page_state(sc->nid, NR_INACTIVE_FILE);
+
 	/*
 	 * Active cache pages are limited to 50% of memory, and shadow
 	 * entries that represent a refault distance bigger than that
