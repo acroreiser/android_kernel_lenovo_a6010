@@ -88,6 +88,10 @@ static inline bool compaction_restarting(struct zone *zone, int order)
 		zone->compact_considered >= 1UL << zone->compact_defer_shift;
 }
 
+extern int kcompactd_run(int nid);
+extern void kcompactd_stop(int nid);
+extern void wakeup_kcompactd(pg_data_t *pgdat, int order, int classzone_idx);
+
 #else
 static inline unsigned long try_to_compact_pages(struct zonelist *zonelist,
 			int order, gfp_t gfp_mask, nodemask_t *nodemask,
@@ -116,6 +120,18 @@ static inline void defer_compaction(struct zone *zone, int order)
 static inline bool compaction_deferred(struct zone *zone, int order)
 {
 	return true;
+}
+
+static inline int kcompactd_run(int nid)
+{
+	return 0;
+}
+static inline void kcompactd_stop(int nid)
+{
+}
+
+static inline void wakeup_kcompactd(pg_data_t *pgdat, int order, int classzone_idx)
+{
 }
 
 #endif /* CONFIG_COMPACTION */

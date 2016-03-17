@@ -810,6 +810,12 @@ typedef struct pglist_data {
 	struct task_struct *kswapd[MAX_KSWAPD_THREADS];	/* Protected by lock_memory_hotplug() */
 	int kswapd_max_order;
 	enum zone_type classzone_idx;
+#ifdef CONFIG_COMPACTION
+	int kcompactd_max_order;
+	enum zone_type kcompactd_classzone_idx;
+	wait_queue_head_t kcompactd_wait;
+	struct task_struct *kcompactd;
+#endif
 #ifdef CONFIG_NUMA_BALANCING
 	/*
 	 * Lock serializing the per destination node AutoNUMA memory
