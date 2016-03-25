@@ -492,6 +492,8 @@ static void oom_reap_vmas(struct mm_struct *mm)
 
 static int oom_reaper(void *unused)
 {
+	set_freezable();
+
 	while (true) {
 		struct mm_struct *mm;
 
