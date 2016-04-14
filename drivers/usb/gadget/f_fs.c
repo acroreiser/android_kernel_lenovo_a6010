@@ -849,7 +849,6 @@ static void ffs_user_copy_worker(struct work_struct *work)
 	}
 	aio_complete(io_data->kiocb, ret, ret);
 	usb_ep_free_request(io_data->ep, io_data->req);
-	io_data->kiocb->private = NULL;
 	if (io_data->read)
 		kfree(io_data->iovec);
 	kfree(io_data->buf);
