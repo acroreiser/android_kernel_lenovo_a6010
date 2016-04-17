@@ -12936,9 +12936,9 @@ void hdd_wlan_exit(hdd_context_t *pHddCtx)
    unregister_inetaddr_notifier(&pHddCtx->ipv4_notifier);
 
    // Unregister the Net Device Notifier
-   unregister_netdevice_notifier(&hdd_netdev_notifier);
+   //unregister_netdevice_notifier(&hdd_netdev_notifier);
    
-   hdd_stop_all_adapters( pHddCtx );
+ //  hdd_stop_all_adapters( pHddCtx );
 
 #ifdef WLAN_BTAMP_FEATURE
    vosStatus = WLANBAP_Stop(pVosContext);
@@ -14750,6 +14750,7 @@ int hdd_wlan_startup(struct device *dev )
    }
 
    // register net device notifier for device change notification
+   /*
    ret = register_netdevice_notifier(&hdd_netdev_notifier);
 
    if(ret < 0)
@@ -14757,12 +14758,13 @@ int hdd_wlan_startup(struct device *dev )
       hddLog(VOS_TRACE_LEVEL_ERROR,"%s: register_netdevice_notifier failed",__func__);
       goto err_unregister_pmops;
    }
+   */
 
    //Initialize the BTC service
    if(btc_activate_service(pHddCtx) != 0)
    {
       hddLog(VOS_TRACE_LEVEL_FATAL,"%s: btc_activate_service failed",__func__);
-      goto err_reg_netdev;
+      goto err_btc_activate_service;
    }
 
 #ifdef FEATURE_OEM_DATA_SUPPORT
@@ -14974,8 +14976,8 @@ err_oem_activate_service:
 err_btc_activate_service:
    btc_deactivate_service();
 
-err_reg_netdev:
-   unregister_netdevice_notifier(&hdd_netdev_notifier);
+//err_reg_netdev:
+ //  unregister_netdevice_notifier(&hdd_netdev_notifier);
 
 err_unregister_pmops:
    hddDevTmUnregisterNotifyCallback(pHddCtx);
