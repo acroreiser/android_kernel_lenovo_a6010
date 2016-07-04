@@ -3640,19 +3640,17 @@ bfq_set_next_ioprio_data(struct bfq_queue *bfqq, struct bfq_io_cq *bic)
 
 static void bfq_check_ioprio_change(struct bfq_io_cq *bic, struct bio *bio)
 {
-	struct bfq_data *bfqd;
+	struct bfq_data *bfqd = bic_to_bfqd(bic);
 	struct bfq_queue *bfqq;
 	unsigned long uninitialized_var(flags);
 	int ioprio = bic->icq.ioc->ioprio;
 
-	bfqd = bfq_get_bfqd_locked(&(bic->icq.q->elevator->elevator_data),
-				   &flags);
 	/*
 	 * This condition may trigger on a newly created bic, be sure to
 	 * drop the lock before returning.
 	 */
 	if (unlikely(!bfqd) || likely(bic->ioprio == ioprio))
-		goto out;
+		return;
 
 	bic->ioprio = ioprio;
 
@@ -3669,9 +3667,6 @@ static void bfq_check_ioprio_change(struct bfq_io_cq *bic, struct bio *bio)
 	bfqq = bic_to_bfqq(bic, true);
 	if (bfqq)
 		bfq_set_next_ioprio_data(bfqq, bic);
-
-out:
-	bfq_put_bfqd_unlock(bfqd, &flags);
 }
 
 static void bfq_init_bfqq(struct bfq_data *bfqd, struct bfq_queue *bfqq,
@@ -4232,9 +4227,8 @@ static int bfq_set_request(struct request_queue *q, struct request *rq,
 
 	might_sleep_if(gfp_mask & __GFP_WAIT);
 
-	bfq_check_ioprio_change(bic, bio);
-
 	spin_lock_irqsave(q->queue_lock, flags);
+	bfq_check_ioprio_change(bic, bio);
 
 	if (!bic)
 		goto queue_fail;
