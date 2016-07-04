@@ -673,18 +673,20 @@ static void bfq_bic_update_cgroup(struct bfq_io_cq *bic, struct bio *bio)
 	rcu_read_lock();
 	blkcg = bio_blkcg(bio);
 	id = blkcg->css.serial_nr;
-	rcu_read_unlock();
 
 	/*
 	 * Check whether blkcg has changed.  The condition may trigger
 	 * spuriously on a newly created cic but there's no harm.
 	 */
 	if (unlikely(!bfqd) || likely(bic->blkcg_id == id))
-		return;
+		goto out;
 
 	bfqg = __bfq_bic_change_cgroup(bfqd, bic, blkcg);
 	BUG_ON(!bfqg);
 	bic->blkcg_id = id;
+
+out:
+	rcu_read_unlock();
 }
 
 /**
