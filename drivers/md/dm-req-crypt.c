@@ -746,6 +746,7 @@ static int req_crypt_endio(struct dm_target *ti, struct request *clone,
 				bvec->bv_page = NULL;
 		}
 		mempool_free(req_io, req_io_pool);
+		err = error;
 		goto submit_request;
 	} else if (rq_data_dir(clone) == READ) {
 		req_io->error = error;
