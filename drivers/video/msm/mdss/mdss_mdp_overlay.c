@@ -1586,8 +1586,6 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 
-	__vsync_set_vsync_handler(mfd);
-
 	if (data) {
 		mdss_mdp_set_roi(ctl, data);
 	} else {
@@ -1643,6 +1641,7 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 		}
 		ATRACE_END("display_commit");
 	}
+	__vsync_set_vsync_handler(mfd);
 
 	if ((!need_cleanup) && (!mdp5_data->kickoff_released))
 		mdss_mdp_ctl_notify(ctl, MDP_NOTIFY_FRAME_CTX_DONE);
