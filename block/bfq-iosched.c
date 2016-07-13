@@ -4882,6 +4882,7 @@ static struct elevator_type iosched_bfq = {
 static int __init bfq_init(void)
 {
 	int ret;
+	char msg[50] = "BFQ I/O-scheduler: v8-rc3";
 
 	/*
 	 * Can be 0 on HZ < 1000 setups.
@@ -4928,7 +4929,10 @@ static int __init bfq_init(void)
 	if (ret)
 		goto err_pol_unreg;
 
-	pr_info("BFQ I/O-scheduler: v8-rc3");
+#ifdef CONFIG_BFQ_GROUP_IOSCHED
+	strcat(msg, " (with cgroups support)");
+#endif
+	pr_info("%s", msg);
 
 	return 0;
 
