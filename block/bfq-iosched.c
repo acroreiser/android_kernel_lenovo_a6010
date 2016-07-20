@@ -4885,7 +4885,7 @@ static struct elevator_type iosched_bfq = {
 static int __init bfq_init(void)
 {
 	int ret;
-	char msg[50] = "BFQ I/O-scheduler: v8-rc5";
+	char msg[50] = "BFQ I/O-scheduler: v8-rc6";
 
 	/*
 	 * Can be 0 on HZ < 1000 setups.
