@@ -38,6 +38,8 @@
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
 
+#include <linux/math64.h>
+
 #include "core.h"
 #include "bus.h"
 #include "host.h"
@@ -4044,19 +4046,19 @@ latency_hist_show(struct device *dev, struct device_attribute *attr, char *buf)
 	int i;
 	struct mmc_host *host = cls_dev_to_mmc_host(dev);
 	int bytes_written = 0;
-	int pct, num_elem;
-	u_int64_t elem;
+	u_int64_t num_elem, elem;
+	int pct;
 
 	num_elem = host->latency_reads_elems;
 	if (num_elem > 0) {
 		bytes_written += scnprintf(buf + bytes_written,
-					   PAGE_SIZE - bytes_written,
-					   "IO svc_time Read Latency Histogram :\n");
+			   PAGE_SIZE - bytes_written,
+			   "IO svc_time Read Latency Histogram :\n");
 		for (i = 0;
 		     i < ARRAY_SIZE(latency_x_axis_us);
 		     i++) {
 			elem = host->latency_y_axis_read[i];
-			pct = (elem * 100) / num_elem;
+			pct = div64_u64(elem * 100, num_elem);
 			bytes_written += scnprintf(buf + bytes_written,
 						   PAGE_SIZE - bytes_written,
 						   "\t< %5lluus%15llu%15d%%\n",
@@ -4065,7 +4067,7 @@ latency_hist_show(struct device *dev, struct device_attribute *attr, char *buf)
 		}
 		/* Last element in y-axis table is overflow */
 		elem = host->latency_y_axis_read[i];
-		pct = (elem * 100) / num_elem;
+		pct = div64_u64(elem * 100, num_elem);
 		bytes_written += scnprintf(buf + bytes_written,
 					   PAGE_SIZE - bytes_written,
 					   "\t> %5dms%15llu%15d%%\n", 10,
@@ -4080,7 +4082,7 @@ latency_hist_show(struct device *dev, struct device_attribute *attr, char *buf)
 		     i < ARRAY_SIZE(latency_x_axis_us);
 		     i++) {
 			elem = host->latency_y_axis_write[i];
-			pct = (elem * 100) / num_elem;
+			pct = div64_u64(elem * 100, num_elem);
 			bytes_written += scnprintf(buf + bytes_written,
 						   PAGE_SIZE - bytes_written,
 						   "\t< %5lluus%15llu%15d%%\n",
@@ -4089,7 +4091,7 @@ latency_hist_show(struct device *dev, struct device_attribute *attr, char *buf)
 		}
 		/* Last element in y-axis table is overflow */
 		elem = host->latency_y_axis_write[i];
-		pct = (elem * 100) / num_elem;
+		pct = div64_u64(elem * 100, num_elem);
 		bytes_written += scnprintf(buf + bytes_written,
 					   PAGE_SIZE - bytes_written,
 					   "\t> %5dms%15llu%15d%%\n", 10,
