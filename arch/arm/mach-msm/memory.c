@@ -33,6 +33,10 @@
 #include <linux/sched.h>
 #include <linux/of_fdt.h>
 
+#ifdef CONFIG_LLCON
+#include <video/llcon.h>
+#endif
+
 char *memtype_name[] = {
 	"EBI0",
 	"EBI1"
@@ -119,6 +123,11 @@ mem_reserve:
 		else
 			pr_info("Node %s memblock_reserve memory %x-%x\n",
 				uname, memory_start, memory_start+memory_size);
+#ifdef CONFIG_LLCON
+		if (!ret && strcmp(uname, "qcom,mdss_fb_primary") == 0) {
+			llcon_set_fb_addr((void *)memory_start, memory_size);
+		}
+#endif
 	}
 
 out:

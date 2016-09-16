@@ -20,6 +20,8 @@ font-objs += $(font-objs-y)
 
 obj-$(CONFIG_FONTS) += font.o
 
+obj-$(CONFIG_LLCON) += llcon.o
+
 # Each configuration option enables a list of files.
 
 obj-$(CONFIG_DUMMY_CONSOLE)       += dummycon.o

@@ -37,6 +37,10 @@
 
 #include <asm/user_accessible_timer.h>
 
+#ifdef CONFIG_LLCON
+#include <video/llcon.h>
+#endif
+
 #include "mm.h"
 #include "tcm.h"
 
@@ -1385,6 +1389,9 @@ static void __init devicemaps_init(const struct machine_desc *mdesc)
 	/* Reserve fixed i/o space in VMALLOC region */
 	pci_reserve_io();
 
+#ifdef CONFIG_LLCON_DBG
+	llcon_dbg_set_fb_vmem(NULL);
+#endif
 	/*
 	 * Finally flush the caches and tlb to ensure that we're in a
 	 * consistent state wrt the writebuffer.  This also ensures that

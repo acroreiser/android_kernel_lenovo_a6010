@@ -56,6 +56,10 @@
 
 #include "mdss_livedisplay.h"
 
+#ifdef CONFIG_LLCON
+#include <video/llcon.h>
+#endif
+
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
 #else
@@ -3482,6 +3486,14 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 	pdata = dev_get_platdata(&mfd->pdev->dev);
 	if (!pdata || pdata->panel_info.dynamic_switch_pending)
 		return -EPERM;
+
+#ifdef CONFIG_LLCON
+	if ( cmd != MSMFB_OVERLAY_VSYNC_CTRL
+	  && cmd != MSMFB_METADATA_GET
+	  && cmd != MSMFB_DISPLAY_COMMIT ) {
+		llcon_exit();
+	}
+#endif
 
 	atomic_inc(&mfd->ioctl_ref_cnt);
 

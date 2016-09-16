@@ -272,6 +272,14 @@ __create_page_tables:
 						@ for 64-bit descriptors
 #endif
 
+#ifdef CONFIG_LLCON_DBG
+	ldr	r7, [r10, #PROCINFO_IO_MMUFLAGS] @ io_mmuflags  
+	add	r0, r4, #CONFIG_LLCON_DBG_FB_ADDR >> (SECTION_SHIFT - PMD_ORDER)
+	orr	r3, r7, #CONFIG_LLCON_DBG_FB_VMEM
+	orr	r3, r3, #PMD_SECT_XN
+	str	r3, [r0]
+#endif
+
 #ifdef CONFIG_DEBUG_LL
 #if !defined(CONFIG_DEBUG_ICEDCC) && !defined(CONFIG_DEBUG_SEMIHOSTING)
 	/*
