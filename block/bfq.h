@@ -289,6 +289,10 @@ struct bfq_queue {
 	unsigned int wr_coeff;
 	unsigned long last_idle_bklogged;
 	unsigned long service_from_backlogged;
+	/*
+	 * Value of wr start time when switching to soft rt
+	 */
+	unsigned long wr_start_at_switch_to_srt;
 
 	unsigned long split_time;
 };
@@ -353,6 +357,7 @@ struct bfq_io_cq {
 	 */
 	unsigned long saved_wr_coeff;
 	unsigned long saved_last_wr_start_finish;
+	unsigned long saved_wr_start_at_switch_to_srt;
 };
 
 enum bfq_device_speed {
