@@ -599,7 +599,7 @@ static int spi_init_queue(struct spi_master *master)
 	master->running = false;
 	master->busy = false;
 
-	init_kthread_worker(&master->kworker);
+	kthread_init_worker(&master->kworker);
 	master->kworker_task = kthread_run(kthread_worker_fn,
 					   &master->kworker,
 					   dev_name(&master->dev));
@@ -607,7 +607,7 @@ static int spi_init_queue(struct spi_master *master)
 		dev_err(&master->dev, "failed to create message pump task\n");
 		return -ENOMEM;
 	}
-	init_kthread_work(&master->pump_messages, spi_pump_messages);
+	kthread_init_work(&master->pump_messages, spi_pump_messages);
 
 	/*
 	 * Master config will indicate if this controller should run the
@@ -667,7 +667,7 @@ void spi_finalize_current_message(struct spi_master *master)
 	mesg = master->cur_msg;
 	master->cur_msg = NULL;
 
-	queue_kthread_work(&master->kworker, &master->pump_messages);
+	kthread_queue_work(&master->kworker, &master->pump_messages);
 	spin_unlock_irqrestore(&master->queue_lock, flags);
 
 	mesg->state = NULL;
@@ -691,7 +691,7 @@ static int spi_start_queue(struct spi_master *master)
 	master->cur_msg = NULL;
 	spin_unlock_irqrestore(&master->queue_lock, flags);
 
-	queue_kthread_work(&master->kworker, &master->pump_messages);
+	kthread_queue_work(&master->kworker, &master->pump_messages);
 
 	return 0;
 }
@@ -738,7 +738,7 @@ static int spi_destroy_queue(struct spi_master *master)
 	ret = spi_stop_queue(master);
 
 	/*
-	 * flush_kthread_worker will block until all work is done.
+	 * kthread_flush_worker will block until all work is done.
 	 * If the reason that stop_queue timed out is that the work will never
 	 * finish, then it does no good to call flush/stop thread, so
 	 * return anyway.
@@ -748,7 +748,7 @@ static int spi_destroy_queue(struct spi_master *master)
 		return ret;
 	}
 
-	flush_kthread_worker(&master->kworker);
+	kthread_flush_worker(&master->kworker);
 	kthread_stop(master->kworker_task);
 
 	return 0;
@@ -775,7 +775,7 @@ static int spi_queued_transfer(struct spi_device *spi, struct spi_message *msg)
 
 	list_add_tail(&msg->queue, &master->queue);
 	if (master->running && !master->busy)
-		queue_kthread_work(&master->kworker, &master->pump_messages);
+		kthread_queue_work(&master->kworker, &master->pump_messages);
 
 	spin_unlock_irqrestore(&master->queue_lock, flags);
 	return 0;

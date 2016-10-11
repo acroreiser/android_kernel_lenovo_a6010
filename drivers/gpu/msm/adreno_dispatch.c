@@ -2046,7 +2046,7 @@ void adreno_dispatcher_schedule(struct kgsl_device *device)
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_dispatcher *dispatcher = &adreno_dev->dispatcher;
 
-	queue_kthread_work(&kgsl_driver.worker, &dispatcher->work);
+	kthread_queue_work(&kgsl_driver.worker, &dispatcher->work);
 }
 
 /**
@@ -2341,7 +2341,7 @@ int adreno_dispatcher_init(struct adreno_device *adreno_dev)
 	if (adreno_is_a304(adreno_dev))
 		_fault_timer_interval = 400;
 
-	init_kthread_work(&dispatcher->work, adreno_dispatcher_work);
+	kthread_init_work(&dispatcher->work, adreno_dispatcher_work);
 
 	init_completion(&dispatcher->idle_gate);
 	complete_all(&dispatcher->idle_gate);
