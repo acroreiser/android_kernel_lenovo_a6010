@@ -347,6 +347,12 @@ struct bfq_io_cq {
 
 	bool saved_in_large_burst;
 	bool was_in_burst_list;
+
+	/*
+	 * Similar to previous fields: save wr information.
+	 */
+	unsigned long saved_wr_coeff;
+	unsigned long saved_last_wr_start_finish;
 };
 
 enum bfq_device_speed {
