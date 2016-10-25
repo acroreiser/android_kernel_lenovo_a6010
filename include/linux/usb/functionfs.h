@@ -32,5 +32,10 @@ static void *functionfs_acquire_dev_callback(const char *dev_name)
 static void functionfs_release_dev_callback(struct ffs_data *ffs_data)
 	__attribute__((nonnull));
 
+/*
+ * Returns endpoint descriptor. If function is not active returns -ENODEV.
+ */
+#define FUNCTIONFS_ENDPOINT_DESC    _IOR('g', 130, \
+						struct usb_endpoint_descriptor)
 
 #endif
