@@ -261,7 +261,7 @@ int __cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 			 const u8 *ssid, int ssid_len,
 			 const u8 *ie, int ie_len,
 			 const u8 *key, int key_len, int key_idx,
-			 const u8 *sae_data, int sae_data_len)
+			 const u8 *auth_data, int auth_data_len)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	struct cfg80211_auth_request req;
@@ -281,8 +281,8 @@ int __cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 
 	req.ie = ie;
 	req.ie_len = ie_len;
-	req.sae_data = sae_data;
-	req.sae_data_len = sae_data_len;
+	req.auth_data = auth_data;
+	req.auth_data_len = auth_data_len;
 	req.auth_type = auth_type;
 	req.bss = cfg80211_get_bss(&rdev->wiphy, chan, bssid, ssid, ssid_len,
 				   WLAN_CAPABILITY_ESS, WLAN_CAPABILITY_ESS);
@@ -310,7 +310,7 @@ int cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 		       const u8 *ssid, int ssid_len,
 		       const u8 *ie, int ie_len,
 		       const u8 *key, int key_len, int key_idx,
-		       const u8 *sae_data, int sae_data_len)
+		       const u8 *auth_data, int auth_data_len)
 {
 	int err;
 
@@ -319,7 +319,7 @@ int cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 	err = __cfg80211_mlme_auth(rdev, dev, chan, auth_type, bssid,
 				   ssid, ssid_len, ie, ie_len,
 				   key, key_len, key_idx,
-				   sae_data, sae_data_len);
+				   auth_data, auth_data_len);
 	wdev_unlock(dev->ieee80211_ptr);
 	mutex_unlock(&rdev->devlist_mtx);
 
