@@ -22,7 +22,8 @@
 #define SUGOV_KTHREAD_PRIORITY	50
 
 struct sugov_tunables {
-	unsigned int rate_limit_us;
+	unsigned int up_rate_limit_us;
+	unsigned int down_rate_limit_us;
 };
 
 struct sugov_policy {
@@ -33,7 +34,9 @@ struct sugov_policy {
 
 	raw_spinlock_t update_lock;  /* For shared policies */
 	u64 last_freq_update_time;
-	s64 freq_update_delay_ns;
+	s64 min_rate_limit_ns;
+	s64 up_rate_delay_ns;
+	s64 down_rate_delay_ns;
 	unsigned int next_freq;
 
 	/* The next fields are only needed if fast switch cannot be used. */
@@ -83,13 +86,36 @@ static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
 	}
 
 	delta_ns = time - sg_policy->last_freq_update_time;
-	return delta_ns >= sg_policy->freq_update_delay_ns;
+
+	/* No need to recalculate next freq for min_rate_limit_us at least */
+	return delta_ns >= sg_policy->min_rate_limit_ns;
+}
+
+static bool sugov_up_down_rate_limit(struct sugov_policy *sg_policy, u64 time,
+				     unsigned int next_freq)
+{
+	s64 delta_ns;
+
+	delta_ns = time - sg_policy->last_freq_update_time;
+
+	if (next_freq > sg_policy->next_freq &&
+	    delta_ns < sg_policy->up_rate_delay_ns)
+			return true;
+
+	if (next_freq < sg_policy->next_freq &&
+	    delta_ns < sg_policy->down_rate_delay_ns)
+			return true;
+
+	return false;
 }
 
 static void sugov_update_commit(struct sugov_policy *sg_policy, u64 time,
 				unsigned int next_freq)
 {
 	struct cpufreq_policy *policy = sg_policy->policy;
+
+	if (sugov_up_down_rate_limit(sg_policy, time, next_freq))
+		return;
 
 	sg_policy->last_freq_update_time = time;
 
@@ -270,53 +296,115 @@ static void sugov_irq_work(struct irq_work *irq_work)
 /************************** sysfs interface ************************/
 static struct sugov_tunables *global_tunables;
 static DEFINE_MUTEX(global_tunables_lock);
+static DEFINE_MUTEX(min_rate_lock);
 
 
-static ssize_t show_sys_rate_limit_us(struct sugov_tunables *tunables, char *buf)
+static void update_min_rate_limit_us(struct sugov_policy *sg_policy)
 {
-	return sprintf(buf, "%u\n", tunables->rate_limit_us);
+	mutex_lock(&min_rate_lock);
+	sg_policy->min_rate_limit_ns = min(sg_policy->up_rate_delay_ns,
+					   sg_policy->down_rate_delay_ns);
+	mutex_unlock(&min_rate_lock);
 }
 
-static ssize_t store_sys_rate_limit_us(struct sugov_tunables *tunables, const char *buf,
+static ssize_t show_sys_up_rate_limit_us(struct sugov_tunables *tunables, char *buf)
+{
+	return sprintf(buf, "%u\n", tunables->up_rate_limit_us);
+}
+
+static ssize_t store_sys_up_rate_limit_us(struct sugov_tunables *tunables, const char *buf,
 				   size_t count)
 {
-	unsigned int rate_limit_us;
+	unsigned int up_rate_limit_us;
 	int cpu;
 
-	if (kstrtouint(buf, 10, &rate_limit_us))
+	if (kstrtouint(buf, 10, &up_rate_limit_us))
 		return -EINVAL;
 
-	tunables->rate_limit_us = rate_limit_us;
+	tunables->up_rate_limit_us = up_rate_limit_us;
 
 	for_each_present_cpu(cpu) {
 		struct sugov_cpu *sugov_cpu_i = &per_cpu(sugov_cpu, cpu);
 		struct sugov_policy *sg_policy_cpu = sugov_cpu_i->sg_policy;
 
-		sg_policy_cpu->tunables->rate_limit_us = rate_limit_us;
-		sg_policy_cpu->freq_update_delay_ns = rate_limit_us * NSEC_PER_USEC;
+		sg_policy_cpu->tunables->up_rate_limit_us = up_rate_limit_us;
+		sg_policy_cpu->up_rate_delay_ns = up_rate_limit_us * NSEC_PER_USEC;
+		update_min_rate_limit_us(sg_policy_cpu);
 	}
 
 	return count;
 }
 
-static ssize_t show_rate_limit_us(struct sugov_policy *sg_policy, char *buf)
+static ssize_t show_up_rate_limit_us(struct sugov_policy *sg_policy, char *buf)
 {
 	struct sugov_tunables *tunables = sg_policy->tunables;
-	return sprintf(buf, "%u\n", tunables->rate_limit_us);
+	return sprintf(buf, "%u\n", tunables->up_rate_limit_us);
 }
 
-static ssize_t store_rate_limit_us(struct sugov_policy *sg_policy, const char *buf,
+static ssize_t store_up_rate_limit_us(struct sugov_policy *sg_policy, const char *buf,
 				   size_t count)
 {
 	struct sugov_tunables *tunables = sg_policy->tunables;
-	unsigned int rate_limit_us;
+	unsigned int up_rate_limit_us;
 	int cpu;
 
-	if (kstrtouint(buf, 10, &rate_limit_us))
+	if (kstrtouint(buf, 10, &up_rate_limit_us))
 		return -EINVAL;
 
-	tunables->rate_limit_us = rate_limit_us;
-	sg_policy->freq_update_delay_ns = rate_limit_us * NSEC_PER_USEC;
+	tunables->up_rate_limit_us = up_rate_limit_us;
+	sg_policy->up_rate_delay_ns = up_rate_limit_us * NSEC_PER_USEC;
+	update_min_rate_limit_us(sg_policy);
+
+	return count;
+}
+
+static ssize_t show_sys_down_rate_limit_us(struct sugov_tunables *tunables, char *buf)
+{
+	return sprintf(buf, "%u\n", tunables->down_rate_limit_us);
+}
+
+static ssize_t store_sys_down_rate_limit_us(struct sugov_tunables *tunables, const char *buf,
+				   size_t count)
+{
+	unsigned int down_rate_limit_us;
+	int cpu;
+
+	if (kstrtouint(buf, 10, &down_rate_limit_us))
+		return -EINVAL;
+
+	tunables->down_rate_limit_us = down_rate_limit_us;
+
+	for_each_present_cpu(cpu) {
+		struct sugov_cpu *sugov_cpu_i = &per_cpu(sugov_cpu, cpu);
+		struct sugov_policy *sg_policy_cpu = sugov_cpu_i->sg_policy;
+
+		sg_policy_cpu->tunables->down_rate_limit_us = down_rate_limit_us;
+		sg_policy_cpu->down_rate_delay_ns = down_rate_limit_us * NSEC_PER_USEC;
+		update_min_rate_limit_us(sg_policy_cpu);
+	}
+
+	return count;
+}
+
+static ssize_t show_down_rate_limit_us(struct sugov_policy *sg_policy, char *buf)
+{
+	struct sugov_tunables *tunables = sg_policy->tunables;
+	return sprintf(buf, "%u\n", tunables->down_rate_limit_us);
+}
+
+static ssize_t store_down_rate_limit_us(struct sugov_policy *sg_policy, const char *buf,
+				   size_t count)
+{
+	struct sugov_tunables *tunables = sg_policy->tunables;
+	unsigned int down_rate_limit_us;
+	int cpu;
+
+	if (kstrtouint(buf, 10, &down_rate_limit_us))
+		return -EINVAL;
+
+	tunables->down_rate_limit_us = down_rate_limit_us;
+	sg_policy->down_rate_delay_ns = down_rate_limit_us * NSEC_PER_USEC;
+	update_min_rate_limit_us(sg_policy);
 
 	return count;
 }
@@ -357,19 +445,21 @@ static ssize_t store_##file_name##_gov_pol				\
 show_gov_pol_sys(file_name);						\
 store_gov_pol_sys(file_name)
 
-show_store_gov_pol_sys(rate_limit_us);
+show_store_gov_pol_sys(up_rate_limit_us);
+show_store_gov_pol_sys(down_rate_limit_us);
 
 #define gov_sys_pol_attr_rw(_name)					\
 	gov_sys_attr_rw(_name);						\
 	gov_pol_attr_rw(_name)
 
-gov_sys_pol_attr_rw(rate_limit_us);
-
+gov_sys_pol_attr_rw(up_rate_limit_us);
+gov_sys_pol_attr_rw(down_rate_limit_us);
 
 
 /* One Governor instance for entire system */
 static struct attribute *sugov_attributes_gov_sys[] = {
-	&rate_limit_us_gov_sys.attr,
+	&up_rate_limit_us_gov_sys.attr,
+	&down_rate_limit_us_gov_sys.attr,
 	NULL
 };
 
@@ -380,7 +470,8 @@ static struct attribute_group sugov_attr_group_gov_sys = {
 };
 
 static struct attribute *sugov_attributes_gov_pol[] = {
-	&rate_limit_us_gov_pol.attr,
+	&up_rate_limit_us_gov_pol.attr,
+	&down_rate_limit_us_gov_pol.attr,
 	NULL
 };
 
@@ -517,10 +608,13 @@ static int sugov_init(struct cpufreq_policy *policy)
 		goto stop_kthread;
 	}
 
-	tunables->rate_limit_us = LATENCY_MULTIPLIER;
+	tunables->up_rate_limit_us = LATENCY_MULTIPLIER;
+	tunables->down_rate_limit_us = LATENCY_MULTIPLIER;
 	lat = policy->cpuinfo.transition_latency / NSEC_PER_USEC;
-	if (lat)
-		tunables->rate_limit_us *= lat;
+	if (lat) {
+		tunables->up_rate_limit_us *= lat;
+		tunables->down_rate_limit_us *= lat;
+	}
 
 	policy->governor_data = sg_policy;
 	sg_policy->tunables = tunables;
@@ -580,7 +674,11 @@ static int sugov_start(struct cpufreq_policy *policy)
 	struct sugov_policy *sg_policy = policy->governor_data;
 	unsigned int cpu;
 
-	sg_policy->freq_update_delay_ns = LATENCY_MULTIPLIER * NSEC_PER_USEC;
+	sg_policy->up_rate_delay_ns =
+		sg_policy->tunables->up_rate_limit_us * NSEC_PER_USEC;
+	sg_policy->down_rate_delay_ns =
+		sg_policy->tunables->down_rate_limit_us * NSEC_PER_USEC;
+	update_min_rate_limit_us(sg_policy);
 	sg_policy->last_freq_update_time = 0;
 	sg_policy->next_freq = UINT_MAX;
 	sg_policy->work_in_progress = false;
