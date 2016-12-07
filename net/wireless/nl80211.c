@@ -1614,6 +1614,11 @@ static int nl80211_send_wiphy(struct cfg80211_registered_device *dev,
 			    dev->wiphy.vht_capa_mod_mask))
 			goto nla_put_failure;
 
+		if (nla_put(msg, NL80211_ATTR_EXT_FEATURES,
+			    sizeof(*dev->wiphy.ext_features),
+			    dev->wiphy.ext_features))
+			goto nla_put_failure;
+
 		/* done */
 		*split_start = 0;
 		break;
