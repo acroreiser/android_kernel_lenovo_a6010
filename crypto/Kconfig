@@ -1068,6 +1068,12 @@ config CRYPTO_CHACHA20
 	  See also:
 	  <http://cr.yp.to/chacha/chacha-20080128.pdf>
 
+config CRYPTO_CHACHA20_NEON
+	tristate "NEON accelerated ChaCha20 stream cipher algorithms"
+	depends on KERNEL_MODE_NEON
+	select CRYPTO_BLKCIPHER
+	select CRYPTO_CHACHA20
+
 config CRYPTO_SEED
 	tristate "SEED cipher algorithm"
 	select CRYPTO_ALGAPI
