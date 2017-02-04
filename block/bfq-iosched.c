@@ -4981,7 +4981,7 @@ static int __init bfq_init(void)
 	 * definitions of the two arrays).
 	 */
 	T_slow[0] = msecs_to_jiffies(3500);
-	T_slow[1] = msecs_to_jiffies(1500);
+	T_slow[1] = msecs_to_jiffies(6000);
 	T_fast[0] = msecs_to_jiffies(8000);
 	T_fast[1] = msecs_to_jiffies(3000);
 
