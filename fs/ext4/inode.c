@@ -3550,6 +3550,11 @@ int ext4_discard_partial_page_buffers(handle_t *handle,
 	struct page *page;
 	int err = 0;
 
+	/* If we are processing an encrypted inode during orphan list
+	 * handling */
+	if (ext4_encrypted_inode(inode) && !ext4_has_encryption_key(inode))
+		return 0;
+
 	page = find_or_create_page(mapping, from >> PAGE_CACHE_SHIFT,
 				   mapping_gfp_mask(mapping) & ~__GFP_FS);
 	if (!page)
