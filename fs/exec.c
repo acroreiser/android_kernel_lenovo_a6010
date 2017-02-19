@@ -57,6 +57,7 @@
 #include <linux/oom.h>
 #include <linux/compat.h>
 #include <linux/sched.h>
+#include <linux/ksm.h>
 
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
