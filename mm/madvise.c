@@ -279,6 +279,8 @@ static long madvise_dontneed(struct vm_area_struct * vma,
 	if (vma->vm_flags & (VM_LOCKED|VM_HUGETLB|VM_PFNMAP))
 		return -EINVAL;
 
+	madvise_userfault_dontneed(vma, prev, start, end);
+
 	if (unlikely(vma->vm_flags & VM_NONLINEAR)) {
 		struct zap_details details = {
 			.nonlinear_vma = vma,
@@ -288,7 +290,6 @@ static long madvise_dontneed(struct vm_area_struct * vma,
 	} else
 		zap_page_range(vma, start, end - start, NULL);
 
-	madvise_userfault_dontneed(vma, prev, start, end);
 	return 0;
 }
 
