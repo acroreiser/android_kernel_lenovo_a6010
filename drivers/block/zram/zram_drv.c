@@ -36,6 +36,9 @@
 
 #include "zram_drv.h"
 
+size_t max_zpage_size = PAGE_SIZE / 10 * 9;
+module_param(max_zpage_size, uint, 0644);
+
 /* Globals */
 static int zram_major;
 

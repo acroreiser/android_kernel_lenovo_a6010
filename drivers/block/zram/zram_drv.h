@@ -30,7 +30,7 @@ u32 zram_pages_stored = 0;
  * Pages that compress to size greater than this are stored
  * uncompressed in memory.
  */
-static const size_t max_zpage_size = PAGE_SIZE / 4 * 3;
+extern size_t max_zpage_size;
 
 /*
  * NOTE: max_zpage_size must be less than or equal to:
