@@ -193,11 +193,10 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 }
 
 static unsigned int sugov_next_freq_shared(struct sugov_policy *sg_policy,
-					   unsigned long util, unsigned long max)
+					   unsigned long util, unsigned long max, u64 time)
 {
 	struct cpufreq_policy *policy = sg_policy->policy;
 	unsigned int max_f = policy->cpuinfo.max_freq;
-	u64 last_freq_update_time = sg_policy->last_freq_update_time;
 	unsigned int j;
 
 	if (util == ULONG_MAX)
@@ -219,7 +218,7 @@ static unsigned int sugov_next_freq_shared(struct sugov_policy *sg_policy,
 		 * enough, don't take the CPU into account as it probably is
 		 * idle now.
 		 */
-		delta_ns = last_freq_update_time - j_sg_cpu->last_update;
+		delta_ns = time - j_sg_cpu->last_update;
 		if (delta_ns > TICK_NSEC)
 			continue;
 
@@ -251,7 +250,7 @@ static void sugov_update_shared(struct update_util_data *hook, u64 time,
 	sg_cpu->last_update = time;
 
 	if (sugov_should_update_freq(sg_policy, time)) {
-		next_f = sugov_next_freq_shared(sg_policy, util, max);
+		next_f = sugov_next_freq_shared(sg_policy, util, max, time);
 		sugov_update_commit(sg_policy, time, next_f);
 	}
 
