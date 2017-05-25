@@ -55,6 +55,11 @@ struct sugov_cpu {
 	unsigned long util;
 	unsigned long max;
 	u64 last_update;
+
+	/* The field below is for single-CPU policies only. */
+#ifdef CONFIG_NO_HZ_COMMON
+	unsigned long saved_idle_calls;
+#endif
 };
 
 static DEFINE_PER_CPU(struct sugov_cpu, sugov_cpu);
@@ -125,6 +130,19 @@ static unsigned int get_next_freq(struct cpufreq_policy *policy,
 	return (freq + (freq >> 2)) * util / max;
 }
 
+#ifdef CONFIG_NO_HZ_COMMON
+static bool sugov_cpu_is_busy(struct sugov_cpu *sg_cpu)
+{
+	unsigned long idle_calls = tick_nohz_get_idle_calls();
+	bool ret = idle_calls == sg_cpu->saved_idle_calls;
+
+	sg_cpu->saved_idle_calls = idle_calls;
+	return ret;
+}
+#else
+static inline bool sugov_cpu_is_busy(struct sugov_cpu *sg_cpu) { return false; }
+#endif /* CONFIG_NO_HZ_COMMON */
+
 static void sugov_update_single(struct update_util_data *hook, u64 time,
 				unsigned long util, unsigned long max)
 {
@@ -132,12 +150,23 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 	struct sugov_policy *sg_policy = sg_cpu->sg_policy;
 	struct cpufreq_policy *policy = sg_policy->policy;
 	unsigned int next_f;
+	bool busy;
 
 	if (!sugov_should_update_freq(sg_policy, time))
 		return;
 
-	next_f = util == ULONG_MAX ? policy->cpuinfo.max_freq :
-			get_next_freq(policy, util, max);
+	busy = sugov_cpu_is_busy(sg_cpu);
+
+	/*
+	 * Do not reduce the frequency if the CPU has not been idle
+	 * recently, as the reduction is likely to be premature then.
+	 */
+	if (busy && next_f < sg_policy->next_freq)
+		next_f = sg_policy->next_freq;
+	else
+		next_f = util == ULONG_MAX ? policy->cpuinfo.max_freq :
+				get_next_freq(policy, util, max);
+
 	sugov_update_commit(sg_policy, time, next_f);
 }
 
