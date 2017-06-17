@@ -1927,10 +1927,8 @@ static struct rtable *__mkroute_output(const struct fib_result *res,
 			prth = __this_cpu_ptr(nh->nh_pcpu_rth_output);
 		}
 		rth = rcu_dereference(*prth);
-		if (rt_cache_valid(rth)) {
-			dst_hold(&rth->dst);
+		if (rt_cache_valid(rth) && dst_hold_safe(&rth->dst))
 			return rth;
-		}
 	}
 
 add:
