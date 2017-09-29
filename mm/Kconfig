@@ -317,6 +317,33 @@ config KSM
 	  until a program has madvised that an area is MADV_MERGEABLE, and
 	  root has set /sys/kernel/mm/ksm/run to 1 (if CONFIG_SYSFS is set).
 
+config DIRTY_RATIO_HARDCODE
+	bool "Hardcode default dirty_ratio and dirty_background_ratio values"
+	help
+	  "Prevent vm.dirty_ratio and vm.dirty_background_ratio from change."
+
+config DECREASE_DIRTY_RATIO
+	bool "Decrease default dirty_ratio"
+	help
+	  The default dirty ratio is chosen to be a compromise between throughput and 
+	  overall system latency. On a desktop, if an application writes to disk a lot,
+	  that application should be the one to slow down rather than the desktop as a
+	  whole. At higher dirty ratio settings, an application could write a lot to
+	  disk and then happily use lots of CPU time after that while the rest of the
+	  system is busy waiting on that naughty application's disk writes to complete
+	  before anything else happening.
+
+	  Lower ratios mean that the application that do a lot of disk writes end up
+	  being responsible for their own actions and they're the ones that slow down
+	  rather than the system in general.
+
+	  This does decrease overall write throughput, but to the benefit of the latency
+	  of the system as a whole with disk writes.
+
+	  Other checks may well round this up to 10 still at startup.
+
+
+
 config DEFAULT_MMAP_MIN_ADDR
         int "Low address space to protect from user allocation"
 	depends on MMU
