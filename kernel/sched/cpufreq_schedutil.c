@@ -177,7 +177,7 @@ static unsigned int sugov_next_freq_shared(struct sugov_policy *sg_policy,
 			return max_f;
 
 		j_max = j_sg_cpu->max;
-		if (j_util * max > j_max * util) {
+		if (j_util * max >= j_max * util) {
 			util = j_util;
 			max = j_max;
 		}
