@@ -15,6 +15,7 @@
 #include "node.h"
 #include "acl.h"
 #include "xattr.h"
+#include <trace/events/f2fs.h>
 
 static unsigned long dir_blocks(struct inode *inode)
 {
@@ -862,16 +863,16 @@ static int f2fs_readdir(struct file *file, void *dirent, filldir_t filldir)
 	if (f2fs_encrypted_inode(inode)) {
 		err = fscrypt_get_encryption_info(inode);
 		if (err && err != -ENOKEY)
-			return err;
+			goto out;
 
 		err = fscrypt_fname_alloc_buffer(inode, F2FS_NAME_LEN, &fstr);
 		if (err < 0)
-			return err;
+			goto out;
 	}
 
 	if (f2fs_has_inline_dentry(inode)) {
 		err = f2fs_read_inline_dir(file, dirent, filldir, &fstr);
-		goto out;
+		goto out_free;
 	}
 
 	bit_pos = (pos % NR_DENTRY_IN_BLOCK);
@@ -890,7 +891,7 @@ static int f2fs_readdir(struct file *file, void *dirent, filldir_t filldir)
 				err = 0;
 				continue;
 			} else {
-				goto out;
+				goto out_free;
 			}
 		}
 
@@ -911,8 +912,10 @@ static int f2fs_readdir(struct file *file, void *dirent, filldir_t filldir)
 		kunmap(dentry_page);
 		f2fs_put_page(dentry_page, 1);
 	}
-out:
+out_free:
 	fscrypt_fname_free_buffer(&fstr);
+out:
+	trace_f2fs_readdir(inode, pos, file->f_pos, err);
 	return err < 0 ? err : 0;
 }
 
