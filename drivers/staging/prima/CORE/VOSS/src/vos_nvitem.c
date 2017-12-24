@@ -1622,6 +1622,7 @@ VOS_STATUS vos_nv_close(void)
     vos_mem_vfree(pEncodedBuf);
     vos_mem_free(pDictFile);
     vos_mem_vfree(pnvEncodedBuf);
+#ifdef CONFIG_ENABLE_LINUX_REG
    /*
     * Reset the linux_reg identifier to allow
     * driver to send fresh regulatory hint to
@@ -1630,6 +1631,7 @@ VOS_STATUS vos_nv_close(void)
     */
     linux_reg_cc[0] = '0';
     linux_reg_cc[1] = '0';
+#endif
 
     gnvEFSTable=NULL;
     return VOS_STATUS_SUCCESS;
