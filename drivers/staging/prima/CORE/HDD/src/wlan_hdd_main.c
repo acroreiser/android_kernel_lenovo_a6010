@@ -13648,6 +13648,7 @@ int wlan_hdd_mon_open(hdd_context_t *pHddCtx)
         return VOS_STATUS_E_FAILURE;
     }
 
+#ifdef CONFIG_ENABLE_LINUX_REG
    status = vos_nv_open();
    if (!VOS_IS_STATUS_SUCCESS(status))
    {
@@ -13665,6 +13666,7 @@ int wlan_hdd_mon_open(hdd_context_t *pHddCtx)
                "%s: vos_init_wiphy failed", __func__);
        goto err_vos_nv_close;
    }
+#endif
 
    status = vos_open( &pVosContext, pHddCtx->parent_dev);
    if ( !VOS_IS_STATUS_SUCCESS( status ))
@@ -15006,11 +15008,10 @@ err_vos_nv_close:
 #ifdef CONFIG_ENABLE_LINUX_REG
    vos_nv_close();
 
-#endif
-
 err_wdclose:
    if(pHddCtx->cfg_ini->fIsLogpEnabled)
       vos_watchdog_close(pVosContext);
+#endif
 
 err_config:
    hdd_request_manager_deinit();
