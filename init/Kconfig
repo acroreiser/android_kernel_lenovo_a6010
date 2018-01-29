@@ -1522,6 +1522,9 @@ config MEMBARRIER
 
 	  If unsure, say Y.
 
+config ARCH_HAS_MEMBARRIER_SYNC_CORE
+	bool
+
 config EMBEDDED
 	bool "Embedded system"
 	select EXPERT
