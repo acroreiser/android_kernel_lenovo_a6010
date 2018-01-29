@@ -3829,7 +3829,11 @@ static void finish_task_switch(struct rq *rq, struct task_struct *prev)
 
 	fire_sched_in_preempt_notifiers(current);
 	if (mm)
+	{
+		membarrier_mm_sync_core_before_usermode(mm);
 		mmdrop(mm);
+	}
+
 	if (unlikely(prev_state == TASK_DEAD)) {
 		/*
 		 * Remove function-return probe instances associated with this
