@@ -1920,6 +1920,9 @@ extern struct reclaim_param reclaim_task_anon(struct task_struct *task,
 enum {
 	MEMBARRIER_STATE_PRIVATE_EXPEDITED_READY	= (1U << 0),
 	MEMBARRIER_STATE_SWITCH_MM			= (1U << 1),
+MEMBARRIER_STATE_GLOBAL_EXPEDITED_READY			= (1U << 2),
+	MEMBARRIER_STATE_GLOBAL_EXPEDITED			= (1U << 3),
+
 };
 
 
