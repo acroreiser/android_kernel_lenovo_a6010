@@ -1600,6 +1600,8 @@ enum nl80211_commands {
  * @NL80211_ATTR_SOCKET_OWNER: Flag attribute, if set during interface
  *	creation then the new interface will be owned by the netlink socket
  *	that created it and will be destroyed when the socket is closed.
+ *  If set during %NL80211_CMD_ASSOCIATE or %NL80211_CMD_CONNECT the
+ *  station will deauthenticate when the socket is closed.
  *
  * @NL80211_ATTR_MAX: highest attribute number currently defined
  * @__NL80211_ATTR_AFTER_LAST: internal use

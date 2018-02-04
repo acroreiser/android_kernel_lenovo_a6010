@@ -385,6 +385,7 @@ void cfg80211_oper_and_ht_capa(struct ieee80211_ht_cap *ht_capa,
 			       const struct ieee80211_ht_cap *ht_capa_mask);
 void cfg80211_oper_and_vht_capa(struct ieee80211_vht_cap *vht_capa,
 				const struct ieee80211_vht_cap *vht_capa_mask);
+void cfg80211_autodisconnect_wk(struct work_struct *work);
 
 /* SME */
 int __cfg80211_connect(struct cfg80211_registered_device *rdev,

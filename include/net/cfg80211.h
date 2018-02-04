@@ -3107,6 +3107,9 @@ struct cfg80211_cached_keys;
  * @cac_started: true if DFS channel availability check has been started
  * @cac_start_time: timestamp (jiffies) when the dfs state was entered.
  * @owner_nlportid: (private) owner socket port ID
+ * @conn_owner_nlportid: (private) connection owner socket port ID
+ * @disconnect_wk: (private) auto-disconnect work
+ * @disconnect_bssid: (private) the BSSID to use for auto-disconnect
  */
 struct wireless_dev {
 	struct wiphy *wiphy;
@@ -3139,6 +3142,10 @@ struct wireless_dev {
 	} sme_state;
 	struct cfg80211_conn *conn;
 	struct cfg80211_cached_keys *connect_keys;
+       u32 conn_owner_nlportid;
+
+       struct work_struct disconnect_wk;
+       u8 disconnect_bssid[ETH_ALEN];
 
 	struct list_head event_list;
 	spinlock_t event_lock;
