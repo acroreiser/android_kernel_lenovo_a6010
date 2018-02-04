@@ -997,6 +997,7 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
 		     wdev->iftype == NL80211_IFTYPE_P2P_CLIENT ||
 		     wdev->iftype == NL80211_IFTYPE_ADHOC) && !wdev->use_4addr)
 			dev->priv_flags |= IFF_DONT_BRIDGE;
+		INIT_WORK(&wdev->disconnect_wk, cfg80211_autodisconnect_wk);
 		break;
 	case NETDEV_GOING_DOWN:
 		switch (wdev->iftype) {
@@ -1127,6 +1128,7 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
 #ifdef CONFIG_CFG80211_WEXT
 			kfree(wdev->wext.keys);
 #endif
+			flush_work(&wdev->disconnect_wk);
 		}
 		mutex_unlock(&rdev->devlist_mtx);
 		/*
