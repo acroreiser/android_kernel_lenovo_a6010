@@ -274,12 +274,14 @@ static inline bool owner_running(struct rw_semaphore *sem,
 static noinline
 bool rwsem_spin_on_owner(struct rw_semaphore *sem, struct task_struct *owner)
 {
+	int i = 0;
 	rcu_read_lock();
 	while (owner_running(sem, owner)) {
 		if (need_resched())
 			break;
 
-		arch_mutex_cpu_relax();
+		if (i++ > 1000)
+			arch_mutex_cpu_relax();
 	}
 	rcu_read_unlock();
 
