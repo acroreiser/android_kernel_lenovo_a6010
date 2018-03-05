@@ -524,6 +524,11 @@ static int msm_vidc_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	if (!vidc_driver) {
+		dprintk(VIDC_ERR, "Invalid vidc driver\n");
+		return -EINVAL;
+	}
+
 	core = kzalloc(sizeof(*core), GFP_KERNEL);
 	if (!core) {
 		dprintk(VIDC_ERR,
