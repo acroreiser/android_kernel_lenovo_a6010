@@ -72,10 +72,7 @@ extern int sysctl_sched_upmigrate_min_nice;
 extern unsigned int sysctl_sched_prefer_idle;
 extern unsigned int sysctl_sched_powerband_limit_pct;
 extern unsigned int sysctl_sched_boost;
-
-#if defined(CONFIG_SCHED_FREQ_INPUT)
 extern unsigned int sysctl_sched_new_task_windows;
-#endif
 
 #else /* CONFIG_SCHED_HMP */
 
