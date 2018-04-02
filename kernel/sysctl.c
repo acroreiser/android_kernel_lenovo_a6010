@@ -146,6 +146,7 @@ static int ten_thousand = 10000;
 #ifdef CONFIG_PERF_EVENTS
 static int six_hundred_forty_kb = 640 * 1024;
 #endif
+static int max_kswapd_threads = MAX_KSWAPD_THREADS;
 
 /* this is needed for the proc_doulongvec_minmax of vm_dirty_bytes */
 static unsigned long dirty_bytes_min = 2 * PAGE_SIZE;
@@ -1402,6 +1403,15 @@ static struct ctl_table vm_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 	},
+        {
+                .procname       = "kswapd_threads",
+                .data           = &kswapd_threads,
+                .maxlen         = sizeof(kswapd_threads),
+                .mode           = 0644,
+                .proc_handler   = kswapd_threads_sysctl_handler,
+                .extra1         = &one,
+                .extra2         = &max_kswapd_threads,
+        },
 	{
 		.procname	= "watermark_scale_factor",
 		.data		= &watermark_scale_factor,
