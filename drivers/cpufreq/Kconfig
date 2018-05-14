@@ -515,6 +515,7 @@ config CPU_FREQ_GOV_BIOSHOCK
 	help
 	  'bioshock' - More aggressive version of conservative
 
+
 config CPU_FREQ_GOV_INTELLIACTIVE
 	tristate "'intelliactive' cpufreq governor"
 	depends on CPU_FREQ
@@ -631,6 +632,17 @@ config CPU_FREQ_GOV_CONSERVATIVE
 	  For details, take a look at linux/Documentation/cpu-freq.
 
 	  If in doubt, say N.
+
+config CPU_WAKE_BOOST
+	bool "CPU wake boost"
+	depends on FB
+	help
+	  Boosts all online CPUs to policy->max (scaling_max_freq) when the display
+	  is powered on, as reported by the framebuffer chain notifier. This helps
+	  make the display power on faster, as well as ensures good performance
+	  immediately after powering on the display.
+
+comment "CPU frequency scaling drivers"
 
 config CPU_BOOST
 	tristate "Event base short term CPU freq boost"
