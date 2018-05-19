@@ -23,7 +23,7 @@ enum boost_state {
 };
 
 /* The duration in milliseconds for the wake boost */
-#define FB_BOOST_MS (3000)
+#define FB_BOOST_MS (2000)
 
 struct wake_boost_info {
 	struct workqueue_struct *wq;
