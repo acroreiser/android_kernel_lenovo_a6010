@@ -2222,7 +2222,7 @@ static void get_ipsec_sa(struct pktgen_dev *pkt_dev, int flow)
 	struct pktgen_net *pn = net_generic(dev_net(pkt_dev->odev), pg_net_id);
 	if (!x) {
 		/*slow path: we dont already have xfrm_state*/
-		x = xfrm_stateonly_find(pn->net, DUMMY_MARK,
+		x = xfrm_stateonly_find(pn->net, DUMMY_MARK, 0,
 					(xfrm_address_t *)&pkt_dev->cur_daddr,
 					(xfrm_address_t *)&pkt_dev->cur_saddr,
 					AF_INET,
