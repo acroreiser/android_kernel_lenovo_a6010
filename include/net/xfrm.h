@@ -282,6 +282,13 @@ struct xfrm_replay {
 	int	(*overflow)(struct xfrm_state *x, struct sk_buff *skb);
 };
 
+struct xfrm_if_cb {
+	struct xfrm_if	*(*decode_session)(struct sk_buff *skb);
+};
+
+void xfrm_if_register_cb(const struct xfrm_if_cb *ifcb);
+void xfrm_if_unregister_cb(void);
+
 struct net_device;
 struct xfrm_type;
 struct xfrm_dst;
@@ -975,6 +982,20 @@ static inline void xfrm_dst_destroy(struct xfrm_dst *xdst)
 #endif
 
 extern void xfrm_dst_ifdown(struct dst_entry *dst, struct net_device *dev);
+
+struct xfrm_if_parms {
+	char name[IFNAMSIZ];	/* name of XFRM device */
+	int link;		/* ifindex of underlying L2 interface */
+	u32 if_id;		/* interface identifyer */
+};
+
+struct xfrm_if {
+	struct xfrm_if __rcu *next;	/* next interface in list */
+	struct net_device *dev;		/* virtual device associated with interface */
+	struct net_device *phydev;	/* physical device */
+	struct net *net;		/* netns for packet i/o */
+	struct xfrm_if_parms p;		/* interface parms */
+};
 
 struct sec_path {
 	atomic_t		refcnt;
