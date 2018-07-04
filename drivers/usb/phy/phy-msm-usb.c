@@ -1601,6 +1601,8 @@ phcd_retry:
 	/* Enable ASYNC IRQ (if present) during LPM */
 	if (motg->async_irq)
 		enable_irq(motg->async_irq);
+	if (motg->phy_irq)
+		enable_irq(motg->phy_irq);
 
 	/* XO shutdown during idle , non wakeable irqs must be disabled */
 	if (device_bus_suspend || host_bus_suspend || !motg->async_irq) {
