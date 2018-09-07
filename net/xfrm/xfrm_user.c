@@ -1272,6 +1272,9 @@ static int validate_tmpl(int nr, struct xfrm_user_tmpl *ut, u16 family)
 	if (nr > XFRM_MAX_DEPTH)
 		return -EINVAL;
 
+	if (ut[i].mode >= XFRM_MODE_MAX)
+		return -EINVAL;
+
 	for (i = 0; i < nr; i++) {
 		/* We never validated the ut->family value, so many
 		 * applications simply leave it at zero.  The check was
