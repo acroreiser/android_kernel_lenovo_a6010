@@ -19,7 +19,8 @@
 static void chacha20_docrypt(u32 *state, u8 *dst, const u8 *src,
 			     unsigned int bytes)
 {
-	u8 stream[CHACHA20_BLOCK_SIZE];
+	/* aligned to potentially speed up crypto_xor() */
+	u8 stream[CHACHA20_BLOCK_SIZE] __aligned(sizeof(long));
 
 	if (dst != src)
 		memcpy(dst, src, bytes);
