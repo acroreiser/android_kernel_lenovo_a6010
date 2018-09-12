@@ -814,7 +814,7 @@ static void extract_crng(__u8 out[CHACHA20_BLOCK_SIZE])
 static ssize_t extract_crng_user(void __user *buf, size_t nbytes)
 {
 	ssize_t ret = 0, i;
-	__u8 tmp[CHACHA20_BLOCK_SIZE];
+	__u8 tmp[CHACHA20_BLOCK_SIZE] __aligned(4);
 	int large_request = (nbytes > 256);
 
 	while (nbytes) {
@@ -1365,7 +1365,7 @@ static ssize_t extract_entropy_user(struct entropy_store *r, void __user *buf,
  */
 void get_random_bytes(void *buf, int nbytes)
 {
-	__u8 tmp[CHACHA20_BLOCK_SIZE];
+	__u8 tmp[CHACHA20_BLOCK_SIZE] __aligned(4);
 
 #if DEBUG_RANDOM_BOOT > 0
 	if (!crng_ready())
