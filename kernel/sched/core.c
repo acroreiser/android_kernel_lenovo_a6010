@@ -4492,7 +4492,7 @@ fixed_power_int(unsigned long x, unsigned int frac_bits, unsigned int n)
  *     S_n := \Sum x^i = -------------
  *             i=0          1 - x
  */
-static unsigned long
+unsigned long
 calc_load_n(unsigned long load, unsigned long exp,
 	    unsigned long active, unsigned int n)
 {
