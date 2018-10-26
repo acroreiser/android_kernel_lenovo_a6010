@@ -33,6 +33,7 @@
 #include <linux/hardirq.h> /* for BUG_ON(!in_atomic()) only */
 #include <linux/memcontrol.h>
 #include <linux/cleancache.h>
+#include <linux/delayacct.h>
 #include <linux/list_lru.h>
 #include "internal.h"
 
@@ -819,7 +820,14 @@ static inline int wait_on_page_bit_common(wait_queue_head_t *q,
 {
 	struct wait_page_queue wait_page;
 	wait_queue_t *wait = &wait_page.wait;
+	bool thrashing = false;
 	int ret = 0;
+
+	if (bit_nr == PG_locked && !PageSwapBacked(page) &&
+	    !PageUptodate(page) && PageWorkingset(page)) {
+		delayacct_thrashing_start();
+		thrashing = true;
+	}
 
 	init_wait(wait);
 	wait->func = wake_page_function;
@@ -860,6 +868,9 @@ static inline int wait_on_page_bit_common(wait_queue_head_t *q,
 	}
 
 	finish_wait(q, wait);
+
+	if (thrashing)
+		delayacct_thrashing_end();
 
 	/*
 	 * A signal could leave PageWaiters set. Clearing it here if
