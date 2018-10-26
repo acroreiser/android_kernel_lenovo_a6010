@@ -829,7 +829,12 @@ struct task_delay_info {
 
 	struct timespec freepages_start, freepages_end;
 	u64 freepages_delay;	/* wait for memory reclaim */
+
+    struct timespec thrashing_start, thrashing_end;
+	u64 thrashing_delay;	/* wait for thrashing page */
+
 	u32 freepages_count;	/* total count of memory reclaim */
+	u32 thrashing_count;	/* total count of thrash waits */
 };
 #endif	/* CONFIG_TASK_DELAY_ACCT */
 
