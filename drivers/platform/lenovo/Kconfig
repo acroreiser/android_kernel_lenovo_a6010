@@ -1,0 +1,24 @@
+# Lenovo configuration options
+
+config MACH_LENOVO
+	bool "Wingtech device"
+	depends on ARCH_MSM
+	help
+	  Support for Lenovo products
+
+config MACH_LENOVO_MSM8916
+	bool "Lenovo MSM8916"
+	depends on ARCH_MSM8916
+	select MACH_LENOVO
+	help
+	  Support for MSM8916 Lenovo variants
+
+menu "Lenovo board selection"
+
+config MACH_WT86518
+	bool "WT86518 board"
+	select MACH_LENOVO_MSM8916
+	help
+	  Support for Lenovo A6000(s) variant
+
+endmenu
