@@ -300,6 +300,11 @@ config CRYPTO_XTS
 
 comment "Hash modes"
 
+config CRYPTO_NHPOLY1305
+	tristate
+	select CRYPTO_HASH
+	select CRYPTO_POLY1305
+
 config CRYPTO_CMAC
 	tristate "CMAC support"
 	select CRYPTO_HASH
