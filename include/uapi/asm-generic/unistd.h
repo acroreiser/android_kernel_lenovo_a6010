@@ -709,9 +709,11 @@ __SYSCALL(__NR_getrandom, sys_getrandom)
 __SYSCALL(__NR_memfd_create, sys_memfd_create)
 #define __NR_membarrier 282
 __SYSCALL(__NR_membarrier, sys_membarrier)
-
+#define __NR_pidfd_send_signal 424
+__SYSCALL(__NR_pidfd_send_signal, sys_pidfd_send_signal)
+ 
 #undef __NR_syscalls
-#define __NR_syscalls 281
+#define __NR_syscalls 425
 
 /*
  * All syscalls below here should go away really,
