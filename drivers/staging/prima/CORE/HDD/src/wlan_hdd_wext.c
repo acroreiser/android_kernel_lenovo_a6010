@@ -839,7 +839,7 @@ int hdd_wlan_get_freq(v_U32_t channel, v_U32_t *pfreq)
             if (channel == freq_chan_map[i].chan)
             {
                 *pfreq = freq_chan_map[i].freq;
-                return 1;
+                return 0;
             }
         }
     }
@@ -1215,78 +1215,19 @@ VOS_STATUS wlan_hdd_get_snr(hdd_adapter_t *pAdapter, v_S7_t *snr)
 
 #if defined WLAN_FEATURE_VOWIFI_11R || defined FEATURE_WLAN_ESE || defined(FEATURE_WLAN_LFR)
 
-static void hdd_GetRoamRssiCB( v_S7_t rssi, tANI_U32 staId, void *pContext )
-{
-   struct statsContext *pStatsContext;
-   hdd_adapter_t *pAdapter;
-   if (ioctl_debug)
-   {
-      pr_info("%s: rssi [%d] STA [%d] pContext [%pK]\n",
-              __func__, (int)rssi, (int)staId, pContext);
-   }
-
-   if (NULL == pContext)
-   {
-      hddLog(VOS_TRACE_LEVEL_ERROR,
-             "%s: Bad param, pContext [%pK]",
-             __func__, pContext);
-      return;
-   }
-
-   pStatsContext = pContext;
-   pAdapter      = pStatsContext->pAdapter;
-
-   /* there is a race condition that exists between this callback
-      function and the caller since the caller could time out either
-      before or while this code is executing.  we use a spinlock to
-      serialize these actions */
-   spin_lock(&hdd_context_lock);
-
-   if ((NULL == pAdapter) || (RSSI_CONTEXT_MAGIC != pStatsContext->magic))
-   {
-      /* the caller presumably timed out so there is nothing we can do */
-      spin_unlock(&hdd_context_lock);
-      hddLog(VOS_TRACE_LEVEL_WARN,
-             "%s: Invalid context, pAdapter [%pK] magic [%08x]",
-              __func__, pAdapter, pStatsContext->magic);
-      if (ioctl_debug)
-      {
-         pr_info("%s: Invalid context, pAdapter [%pK] magic [%08x]\n",
-                 __func__, pAdapter, pStatsContext->magic);
-      }
-      return;
-   }
-
-   /* context is valid so caller is still waiting */
-
-   /* paranoia: invalidate the magic */
-   pStatsContext->magic = 0;
-
-   /* copy over the rssi.FW will return RSSI as -100
-    * if there are no samples to calculate the average
-    * RSSI
-    */
-   if (rssi != -100)
-       pAdapter->rssi = rssi;
-
-   if (pAdapter->rssi > 0)
-       pAdapter->rssi = 0;
-   /* notify the caller */
-   complete(&pStatsContext->completion);
-
-   /* serialization is complete */
-   spin_unlock(&hdd_context_lock);
-}
-
-
-
 VOS_STATUS wlan_hdd_get_roam_rssi(hdd_adapter_t *pAdapter, v_S7_t *rssi_value)
 {
-   struct statsContext context;
    hdd_context_t *pHddCtx = NULL;
    hdd_station_ctx_t *pHddStaCtx = NULL;
    eHalStatus hstatus;
-   long lrc;
+   int ret;
+   void *cookie;
+   struct hdd_request *request;
+   struct rssi_priv *priv;
+   static const struct hdd_request_params params = {
+        .priv_size = sizeof(*priv),
+        .timeout_ms = WLAN_WAIT_TIME_STATS,
+   };
 
    if (NULL == pAdapter)
    {
@@ -1321,14 +1262,17 @@ VOS_STATUS wlan_hdd_get_roam_rssi(hdd_adapter_t *pAdapter, v_S7_t *rssi_value)
        return VOS_STATUS_SUCCESS;
    }
 
-   init_completion(&context.completion);
-   context.pAdapter = pAdapter;
-   context.magic = RSSI_CONTEXT_MAGIC;
+   request = hdd_request_alloc(&params);
+   if (!request) {
+           hddLog(VOS_TRACE_LEVEL_ERROR, FL("Request allocation failure"));
+           return VOS_STATUS_E_NOMEM;
+   }
+   cookie = hdd_request_cookie(request);
 
-   hstatus = sme_GetRoamRssi(pHddCtx->hHal, hdd_GetRoamRssiCB,
+   hstatus = sme_GetRoamRssi(pHddCtx->hHal, hdd_get_rssi_cb,
                          pHddStaCtx->conn_info.staId[ 0 ],
                          pHddStaCtx->conn_info.bssId,
-                         &context, pHddCtx->pvosContext);
+                         cookie, pHddCtx->pvosContext);
    if (eHAL_STATUS_SUCCESS != hstatus)
    {
        hddLog(VOS_TRACE_LEVEL_ERROR,"%s: Unable to retrieve RSSI",
@@ -1337,31 +1281,27 @@ VOS_STATUS wlan_hdd_get_roam_rssi(hdd_adapter_t *pAdapter, v_S7_t *rssi_value)
    }
    else
    {
+       ret = hdd_request_wait_for_response(request);
+       if(ret)
        /* request was sent -- wait for the response */
-       lrc = wait_for_completion_interruptible_timeout(&context.completion,
-                                    msecs_to_jiffies(WLAN_WAIT_TIME_STATS));
-       if (lrc <= 0)
        {
-          hddLog(VOS_TRACE_LEVEL_ERROR,"%s: SME %s while retrieving RSSI",
-                 __func__, (0 == lrc) ? "timeout" : "interrupt");
+          hddLog(VOS_TRACE_LEVEL_ERROR,
+                 FL(" SME timeout while retrieving RSSI"));
           /* we'll now returned a cached value below */
+       }
+       else
+       {
+           priv = hdd_request_priv(request);
+           pAdapter->rssi = priv->rssi;
        }
    }
 
-   /* either we never sent a request, we sent a request and received a
-      response or we sent a request and timed out.  if we never sent a
-      request or if we sent a request and got a response, we want to
-      clear the magic out of paranoia.  if we timed out there is a
-      race condition such that the callback function could be
-      executing at the same time we are. of primary concern is if the
-      callback function had already verified the "magic" but had not
-      yet set the completion variable when a timeout occurred. we
-      serialize these activities by invalidating the magic while
-      holding a shared spinlock which will cause us to block if the
-      callback is currently executing */
-   spin_lock(&hdd_context_lock);
-   context.magic = 0;
-   spin_unlock(&hdd_context_lock);
+   /*
+    * either we never sent a request, we sent a request and received a
+    * response or we sent a request and timed out. Regardless we are
+    * done with the request.
+    */
+    hdd_request_put(request);
 
    *rssi_value = pAdapter->rssi;
 
@@ -1692,189 +1632,6 @@ static int iw_get_name(struct net_device *dev,
     return ret;
 }
 
-static int __iw_set_mode(struct net_device *dev,
-                         struct iw_request_info *info,
-                         union iwreq_data *wrqu, char *extra)
-{
-    hdd_wext_state_t         *pWextState;
-    hdd_adapter_t            *pAdapter;
-    hdd_context_t            *pHddCtx;
-    tCsrRoamProfile          *pRoamProfile;
-    eCsrRoamBssType          LastBSSType;
-    eMib_dot11DesiredBssType connectedBssType;
-    hdd_config_t             *pConfig;
-    struct wireless_dev      *wdev;
-    int                      status = 0;
-
-    ENTER();
-
-    pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
-    if (NULL == pAdapter)
-    {
-        hddLog(VOS_TRACE_LEVEL_WARN,
-               "%s: Invalid context, pAdapter", __func__);
-        return 0;
-    }
-    pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
-    status = wlan_hdd_validate_context(pHddCtx);
-    if (0 != status)
-    {
-        return status;
-    }
-
-    pWextState = WLAN_HDD_GET_WEXT_STATE_PTR(pAdapter);
-    if (pWextState == NULL)
-    {
-        hddLog(LOGE, "%s ERROR: Data Storage Corruption", __func__);
-        return -EINVAL;
-    }
-
-    wdev = dev->ieee80211_ptr;
-    pRoamProfile = &pWextState->roamProfile;
-    LastBSSType = pRoamProfile->BSSType;
-
-    hddLog(LOG1, "%s Old Bss type = %d", __func__, LastBSSType);
-
-    switch (wrqu->mode)
-    {
-    case IW_MODE_ADHOC:
-        hddLog(LOG1, "%s Setting AP Mode as IW_MODE_ADHOC", __func__);
-        pRoamProfile->BSSType = eCSR_BSS_TYPE_START_IBSS;
-        // Set the phymode correctly for IBSS.
-        pConfig  = (WLAN_HDD_GET_CTX(pAdapter))->cfg_ini;
-        pWextState->roamProfile.phyMode = hdd_cfg_xlate_to_csr_phy_mode(pConfig->dot11Mode);
-        pAdapter->device_mode = WLAN_HDD_IBSS;
-        wdev->iftype = NL80211_IFTYPE_ADHOC;
-        break;
-    case IW_MODE_INFRA:
-        hddLog(LOG1, "%s Setting AP Mode as IW_MODE_INFRA", __func__);
-        pRoamProfile->BSSType = eCSR_BSS_TYPE_INFRASTRUCTURE;
-        wdev->iftype = NL80211_IFTYPE_STATION;
-        break;
-    case IW_MODE_AUTO:
-        hddLog(LOG1, "%s Setting AP Mode as IW_MODE_AUTO", __func__);
-        pRoamProfile->BSSType = eCSR_BSS_TYPE_ANY;
-        break;
-    default:
-        hddLog(LOGE, "%s Unknown AP Mode value %d ", __func__, wrqu->mode);
-        return -EOPNOTSUPP;
-    }
-
-    if ( LastBSSType != pRoamProfile->BSSType )
-    {
-        //the BSS mode changed
-        // We need to issue disconnect if connected or in IBSS disconnect state
-        if ( hdd_connGetConnectedBssType( WLAN_HDD_GET_STATION_CTX_PTR(pAdapter), &connectedBssType ) ||
-             ( eCSR_BSS_TYPE_START_IBSS == LastBSSType ) )
-        {
-            VOS_STATUS vosStatus;
-            // need to issue a disconnect to CSR.
-            INIT_COMPLETION(pAdapter->disconnect_comp_var);
-            vosStatus = sme_RoamDisconnect( WLAN_HDD_GET_HAL_CTX(pAdapter),
-                                          pAdapter->sessionId,
-                                          eCSR_DISCONNECT_REASON_IBSS_LEAVE );
-            if(VOS_STATUS_SUCCESS == vosStatus)
-            {
-                 long ret;
-                 ret = wait_for_completion_interruptible_timeout(
-                                   &pAdapter->disconnect_comp_var,
-                                    msecs_to_jiffies(WLAN_WAIT_TIME_DISCONNECT));
-                 if (ret <= 0)
-                     hddLog(VOS_TRACE_LEVEL_ERROR,
-                            FL("failed wait on disconnect_comp_var %ld"), ret);
-            }
-        }
-    }
-
-    EXIT();
-    return 0;
-}
-
-static int iw_set_mode(struct net_device *dev,
-                       struct iw_request_info *info,
-                       union iwreq_data *wrqu, char *extra)
-{
-    int ret;
-
-    vos_ssr_protect(__func__);
-    ret = __iw_set_mode(dev, info, wrqu, extra);
-    vos_ssr_unprotect(__func__);
-
-    return ret;
-}
-
-static int __iw_get_mode(struct net_device *dev,
-                         struct iw_request_info *info,
-                         union iwreq_data *wrqu,
-                         char *extra)
-{
-
-    hdd_wext_state_t *pWextState;
-    hdd_adapter_t *pAdapter;
-    hdd_context_t *pHddCtx;
-    int ret = 0;
-
-    ENTER();
-
-    pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
-    if (NULL == pAdapter)
-    {
-        hddLog(VOS_TRACE_LEVEL_WARN,
-               "%s: Invalid context, pAdapter", __func__);
-        return 0;
-    }
-
-    pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
-    ret = wlan_hdd_validate_context(pHddCtx);
-    if (0 != ret)
-    {
-        return ret;
-    }
-    pWextState = WLAN_HDD_GET_WEXT_STATE_PTR(pAdapter);
-    if (pWextState == NULL)
-    {
-        hddLog(LOGE, "%s ERROR: Data Storage Corruption", __func__);
-        return -EINVAL;
-    }
-
-    switch (pWextState->roamProfile.BSSType)
-    {
-    case eCSR_BSS_TYPE_INFRASTRUCTURE:
-        hddLog(LOG1, "%s returns IW_MODE_INFRA", __func__);
-        wrqu->mode = IW_MODE_INFRA;
-        break;
-    case eCSR_BSS_TYPE_IBSS:
-    case eCSR_BSS_TYPE_START_IBSS:
-        hddLog(LOG1, "%s returns IW_MODE_ADHOC", __func__);
-        wrqu->mode = IW_MODE_ADHOC;
-        break;
-    case eCSR_BSS_TYPE_ANY:
-        hddLog(LOG1, "%s returns IW_MODE_AUTO", __func__);
-        wrqu->mode = IW_MODE_AUTO;
-        break;
-    default:
-        hddLog(LOG1, "%s returns APMODE_UNKNOWN", __func__);
-        break;
-    }
-
-    EXIT();
-    return 0;
-}
-
-static int iw_get_mode(struct net_device *dev,
-                       struct iw_request_info *info,
-                       union iwreq_data *wrqu,
-                       char *extra)
-{
-    int ret;
-
-    vos_ssr_protect(__func__);
-    ret = __iw_get_mode(dev, info, wrqu, extra);
-    vos_ssr_unprotect(__func__);
-
-    return ret;
-}
-
 static int __iw_set_freq(struct net_device *dev,
                          struct iw_request_info *info,
                          union iwreq_data *wrqu, char *extra)
@@ -2084,7 +1841,7 @@ static int __iw_get_freq(struct net_device *dev,
        else
        {
            status = hdd_wlan_get_freq(channel, &freq);
-           if( TRUE == status )
+           if( 0 == status )
            {
                /* Set Exponent parameter as 6 (MHZ) in struct iw_freq
                 * iwlist & iwconfig command shows frequency into proper
@@ -2347,7 +2104,8 @@ static int __iw_set_bitrate(struct net_device *dev,
     hdd_wext_state_t *pWextState;
     hdd_station_ctx_t *pHddStaCtx;
     hdd_context_t *pHddCtx;
-    v_U8_t supp_rates[WNI_CFG_SUPPORTED_RATES_11A_LEN];
+    v_U8_t supp_rates[WNI_CFG_SUPPORTED_RATES_11A_LEN +
+                      WNI_CFG_SUPPORTED_RATES_11B_LEN];
     v_U32_t a_len = WNI_CFG_SUPPORTED_RATES_11A_LEN;
     v_U32_t b_len = WNI_CFG_SUPPORTED_RATES_11B_LEN;
     v_U32_t i, rate;
@@ -2410,7 +2168,7 @@ static int __iw_set_bitrate(struct net_device *dev,
                         supp_rates, &a_len) == eHAL_STATUS_SUCCESS) &&
                 (ccmCfgGetStr(WLAN_HDD_GET_HAL_CTX(pAdapter),
                         WNI_CFG_SUPPORTED_RATES_11B,
-                        supp_rates, &b_len) == eHAL_STATUS_SUCCESS))
+                        supp_rates + a_len, &b_len) == eHAL_STATUS_SUCCESS))
             {
                 for (i = 0; i < (b_len + a_len); ++i)
                 {
@@ -3303,71 +3061,6 @@ void hdd_tx_per_hit_cb (void *pCallbackContext)
     wrqu.data.length = strlcpy(tx_fail, "TX_FAIL", sizeof(tx_fail));
     wireless_send_event(pAdapter->dev, IWEVCUSTOM, &wrqu, tx_fail);
 }
-
-void hdd_GetClassA_statisticsCB(void *pStats, void *pContext)
-{
-   struct statsContext *pStatsContext;
-   tCsrGlobalClassAStatsInfo *pClassAStats;
-   hdd_adapter_t *pAdapter;
-
-   if (ioctl_debug)
-   {
-      pr_info("%s: pStats [%pK] pContext [%pK]\n",
-              __func__, pStats, pContext);
-   }
-
-   if ((NULL == pStats) || (NULL == pContext))
-   {
-      hddLog(VOS_TRACE_LEVEL_ERROR,
-             "%s: Bad param, pStats [%pK] pContext [%pK]",
-              __func__, pStats, pContext);
-      return;
-   }
-
-   pClassAStats  = pStats;
-   pStatsContext = pContext;
-   pAdapter      = pStatsContext->pAdapter;
-
-   /* there is a race condition that exists between this callback
-      function and the caller since the caller could time out either
-      before or while this code is executing.  we use a spinlock to
-      serialize these actions */
-   spin_lock(&hdd_context_lock);
-
-   if ((NULL == pAdapter) || (STATS_CONTEXT_MAGIC != pStatsContext->magic))
-   {
-      /* the caller presumably timed out so there is nothing we can do */
-      spin_unlock(&hdd_context_lock);
-      hddLog(VOS_TRACE_LEVEL_WARN,
-             "%s: Invalid context, pAdapter [%pK] magic [%08x]",
-              __func__, pAdapter, pStatsContext->magic);
-      if (ioctl_debug)
-      {
-         pr_info("%s: Invalid context, pAdapter [%pK] magic [%08x]\n",
-                 __func__, pAdapter, pStatsContext->magic);
-      }
-      return;
-   }
-
-   /* context is valid so caller is still waiting */
-
-   /* paranoia: invalidate the magic */
-   pStatsContext->magic = 0;
-
-   /* copy over the stats. do so as a struct copy */
-   pAdapter->hdd_stats.ClassA_stat = *pClassAStats;
-
-   /* notify the caller */
-   complete(&pStatsContext->completion);
-
-   /* serialization is complete */
-   spin_unlock(&hdd_context_lock);
-
-}
-
-struct stats_class_a_ctx {
-	tCsrGlobalClassAStatsInfo class_a_stats;
-};
 
 void hdd_get_class_a_statistics_cb(void *stats, void *context)
 {
@@ -5744,9 +5437,12 @@ static int __iw_mon_setint_getnone(struct net_device *dev,
 
 	case WE_SET_MONITOR_STATE:
 		{
-			v_U32_t magic = 0;
-			struct completion cmp_var;
-			long waitRet = 0;
+			void *cookie;
+			struct hdd_request *request;
+			static const struct hdd_request_params params = {
+				.priv_size = 0,
+				.timeout_ms = MON_MODE_MSG_TIMEOUT,
+			};
 
 			mon_ctx = WLAN_HDD_GET_MONITOR_CTX_PTR(adapter);
 			if(!mon_ctx) {
@@ -5767,30 +5463,33 @@ static int __iw_mon_setint_getnone(struct net_device *dev,
 				break;
 
 			mon_ctx->state = set_value;
-			magic = MON_MODE_MSG_MAGIC;
-			init_completion(&cmp_var);
-			if (wlan_hdd_mon_postMsg(&magic, &cmp_var, mon_ctx,
-			    hdd_monPostMsgCb) != VOS_STATUS_SUCCESS) {
+			request = hdd_request_alloc(&params);
+			if (!request) {
+				hddLog(VOS_TRACE_LEVEL_ERROR, FL("Request allocation failure"));
+				ret = -ENOMEM;
+				break;
+			}
+			cookie = hdd_request_cookie(request);
+			if (wlan_hdd_mon_postMsg(cookie, mon_ctx,
+						 hdd_mon_post_msg_cb)
+				!= VOS_STATUS_SUCCESS) {
 				hddLog(LOGE, FL("failed to post MON MODE REQ"));
 				mon_ctx->state =
 					(mon_ctx->state==MON_MODE_START) ?
 					MON_MODE_STOP : MON_MODE_START;
-				magic = 0;
 				ret = -EIO;
-				break;
+			} else {
+				ret = hdd_request_wait_for_response(request);
+				if (ret){
+					hddLog(LOGE, FL("failed to wait on monitor mode completion %d"),
+							ret);
+				} else if (mon_ctx->state == MON_MODE_STOP) {
+					hddLog(LOG1, FL("Enable BMPS"));
+					hdd_enable_bmps_imps(hdd_ctx);
+					hdd_restore_roaming(hdd_ctx);
+				}
 			}
-
-			waitRet = wait_for_completion_timeout(&cmp_var,
-						MON_MODE_MSG_TIMEOUT);
-			magic = 0;
-			if (waitRet <= 0 ){
-				hddLog(LOGE, FL("failed to wait on monitor mode completion %ld"),
-				       waitRet);
-			} else if (mon_ctx->state == MON_MODE_STOP) {
-				hddLog(LOG1, FL("Enable BMPS"));
-				hdd_enable_bmps_imps(hdd_ctx);
-				hdd_restore_roaming(hdd_ctx);
-			}
+			hdd_request_put(request);
 		}
 		break;
 
@@ -6404,10 +6103,14 @@ static int __iw_setint_getnone(struct net_device *dev,
         }
         case WE_SET_MONITOR_STATE:
         {
-           v_U32_t magic = 0;
-           struct completion cmpVar;
-           long waitRet = 0;
            tVOS_CON_MODE mode = hdd_get_conparam();
+           int ret;
+           void *cookie;
+           struct hdd_request *request;
+           static const struct hdd_request_params params = {
+               .priv_size = 0,
+               .timeout_ms = MON_MODE_MSG_TIMEOUT,
+           };
 
            if( VOS_MONITOR_MODE != mode)
            {
@@ -6431,26 +6134,31 @@ static int __iw_setint_getnone(struct net_device *dev,
                break;
            }
            pMonCtx->state = set_value;
-           magic = MON_MODE_MSG_MAGIC;
-           init_completion(&cmpVar);
+           request = hdd_request_alloc(&params);
+           if (!request) {
+               hddLog(VOS_TRACE_LEVEL_ERROR, FL("Request allocation failure"));
+               ret = -ENOMEM;
+               break;
+           }
+           cookie = hdd_request_cookie(request);
+
            if (VOS_STATUS_SUCCESS !=
-                         wlan_hdd_mon_postMsg(&magic, &cmpVar,
-                                               pMonCtx, hdd_monPostMsgCb)) {
+                         wlan_hdd_mon_postMsg(cookie, pMonCtx,
+                                              hdd_mon_post_msg_cb)) {
                 VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                           FL("failed to post MON MODE REQ"));
                 pMonCtx->state = (pMonCtx->state==MON_MODE_START)?
                                    MON_MODE_STOP : MON_MODE_START;
-                magic = 0;
                 ret = -EIO;
-                break;
+           } else {
+               ret = hdd_request_wait_for_response(request);
+               if (ret) {
+                   VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                             FL("failed to wait on monitor mode completion %d"),
+                                 ret);
+               }
            }
-           waitRet = wait_for_completion_timeout(&cmpVar, MON_MODE_MSG_TIMEOUT);
-           magic = 0;
-           if (waitRet <= 0 ){
-               VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                    FL("failed to wait on monitor mode completion %ld"),
-                        waitRet);
-           }
+           hdd_request_put(request);
            break;
         }
         case WE_SET_PKT_STATS_ENABLE_DISABLE:
@@ -6752,39 +6460,27 @@ static int iw_setchar_getnone(struct net_device *dev,
     return ret;
 }
 
-static void hdd_GetCurrentAntennaIndex(int antennaId, void *pContext)
+struct get_antenna_idx_priv {
+	int antenna_id;
+};
+
+static void hdd_get_current_antenna_index_cb(int antenna_id, void *context)
 {
-   struct statsContext *context;
-   hdd_adapter_t *pAdapter;
+	struct hdd_request *request;
+	struct get_antenna_idx_priv *priv;
 
-   if (NULL == pContext)
-   {
-      hddLog(VOS_TRACE_LEVEL_ERROR,
-             "%s: Bad param, pContext [%pK]",
-             __func__, pContext);
-      return;
-   }
+	request = hdd_request_get(context);
+	if (!request) {
+		hddLog(VOS_TRACE_LEVEL_ERROR, FL("Obsolete request"));
+		return;
+	}
 
-   context = pContext;
-   pAdapter      = context->pAdapter;
+	priv = hdd_request_priv(request);
+	priv->antenna_id = antenna_id;
 
-   spin_lock(&hdd_context_lock);
+	hdd_request_complete(request);
+	hdd_request_put(request);
 
-   if ((NULL == pAdapter) || (ANTENNA_CONTEXT_MAGIC != context->magic))
-   {
-      /* the caller presumably timed out so there is nothing we can do */
-      spin_unlock(&hdd_context_lock);
-      hddLog(VOS_TRACE_LEVEL_WARN,
-             "%s: Invalid context, pAdapter [%pK] magic [%08x]",
-              __func__, pAdapter, context->magic);
-      return;
-   }
-
-   context->magic = 0;
-   pAdapter->antennaIndex = antennaId;
-
-   complete(&context->completion);
-   spin_unlock(&hdd_context_lock);
 }
 
 static VOS_STATUS wlan_hdd_get_current_antenna_index(hdd_adapter_t *pAdapter,
@@ -6792,8 +6488,14 @@ static VOS_STATUS wlan_hdd_get_current_antenna_index(hdd_adapter_t *pAdapter,
 {
    hdd_context_t *pHddCtx;
    eHalStatus halStatus;
-   struct statsContext context;
-   long lrc;
+   int ret;
+   void *cookie;
+   struct hdd_request *request;
+   struct get_antenna_idx_priv *priv;
+   static const struct hdd_request_params params = {
+        .priv_size = sizeof(*priv),
+        .timeout_ms = WLAN_WAIT_TIME_STATS,
+   };
 
    ENTER();
    if (NULL == pAdapter)
@@ -6814,46 +6516,50 @@ static VOS_STATUS wlan_hdd_get_current_antenna_index(hdd_adapter_t *pAdapter,
                __func__);
        return VOS_STATUS_E_NOSUPPORT;
    }
-   init_completion(&context.completion);
-   context.pAdapter = pAdapter;
-   context.magic = ANTENNA_CONTEXT_MAGIC;
+
+   request = hdd_request_alloc(&params);
+   if (!request) {
+           hddLog(VOS_TRACE_LEVEL_ERROR, FL("Request allocation failure"));
+           return VOS_STATUS_E_NOMEM;
+   }
+   cookie = hdd_request_cookie(request);
 
    halStatus = sme_GetCurrentAntennaIndex(pHddCtx->hHal,
-                                         hdd_GetCurrentAntennaIndex,
-                                         &context, pAdapter->sessionId);
+                                         hdd_get_current_antenna_index_cb,
+                                         cookie, pAdapter->sessionId);
    if (eHAL_STATUS_SUCCESS != halStatus)
    {
-       spin_lock(&hdd_context_lock);
-       context.magic = 0;
-       spin_unlock(&hdd_context_lock);
        hddLog(VOS_TRACE_LEVEL_ERROR,"%s: Unable to retrieve Antenna Index",
               __func__);
        /* we'll returned a cached value below */
        *antennaIndex = -1;
-       return VOS_STATUS_E_FAILURE;
    }
    else
    {
        /* request was sent -- wait for the response */
-       lrc = wait_for_completion_interruptible_timeout(&context.completion,
-                                    msecs_to_jiffies(WLAN_WAIT_TIME_STATS));
-       if (lrc <= 0)
+       ret = hdd_request_wait_for_response(request);
+       if (ret)
        {
-           spin_lock(&hdd_context_lock);
-           context.magic = 0;
-           spin_unlock(&hdd_context_lock);
-           hddLog(VOS_TRACE_LEVEL_ERROR, "%s:SME %s while retrieving Antenna"
-                                         " Index",
-                  __func__, (0 == lrc) ? "timeout" : "interrupt");
+           hddLog(VOS_TRACE_LEVEL_ERROR,
+                  FL("SME timeout while retrieving Antenna  Index"));
            *antennaIndex = -1;
-           return VOS_STATUS_E_FAILURE;
+       }
+       else
+       {
+           priv = hdd_request_priv(request);
+           pAdapter->antennaIndex = priv->antenna_id;
        }
    }
-   spin_lock(&hdd_context_lock);
-   context.magic = 0;
-   spin_unlock(&hdd_context_lock);
 
-   *antennaIndex = pAdapter->antennaIndex;
+   if (*antennaIndex != -1)
+       *antennaIndex = pAdapter->antennaIndex;
+
+   /*
+    * either we never sent a request, we sent a request and received a
+    * response or we sent a request and timed out. Regardless we are
+    * done with the request.
+    */
+    hdd_request_put(request);
 
    EXIT();
    return VOS_STATUS_SUCCESS;
@@ -8213,10 +7919,14 @@ static int __iw_set_var_ints_getnone(struct net_device *dev,
 #endif
         case WE_CONFIGURE_MONITOR_MODE:
            {
-               v_U32_t magic = 0;
-               struct completion cmpVar;
-               long waitRet = 0;
                tVOS_CON_MODE mode = hdd_get_conparam();
+               int ret;
+               void *cookie;
+               struct hdd_request *request;
+               static const struct hdd_request_params params = {
+                   .priv_size = 0,
+                   .timeout_ms = MON_MODE_MSG_TIMEOUT,
+               };
 
                if (VOS_MONITOR_MODE != mode) {
                   hddLog(LOGE, FL("invalid mode %d"), mode);
@@ -8250,34 +7960,41 @@ static int __iw_set_var_ints_getnone(struct net_device *dev,
                   pMonCtx->typeSubtypeBitmap = 0xFFFF00000000;
                }
                if (MON_MODE_START == pMonCtx->state) {
-                    magic = MON_MODE_MSG_MAGIC;
-                    init_completion(&cmpVar);
+                    request = hdd_request_alloc(&params);
+                    if (!request) {
+                        hddLog(VOS_TRACE_LEVEL_ERROR, FL("Request allocation failure"));
+                        return -ENOMEM;
+                    }
+                    cookie = hdd_request_cookie(request);
+
                     if (VOS_STATUS_SUCCESS !=
-                            wlan_hdd_mon_postMsg(&magic, &cmpVar,
-                                                  pMonCtx, hdd_monPostMsgCb)) {
+                            wlan_hdd_mon_postMsg(cookie, pMonCtx,
+                                                 hdd_mon_post_msg_cb)) {
                         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                                     FL("failed to post MON MODE REQ"));
-                        magic = 0;
-                        return -EIO;
-                    }
-                    waitRet = wait_for_completion_timeout(&cmpVar,
-                                                       MON_MODE_MSG_TIMEOUT);
-                    magic = 0;
-                    if (waitRet <= 0 ) {
-                        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                            FL("failed to wait on monitor mode completion %ld"),
-                                waitRet);
-                    }
-               }
+                        ret = -EIO;
+                    } else {
+                        ret = hdd_request_wait_for_response(request);
+                        if (ret)
+                            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                                FL("failed to wait on monitor mode completion %d"),
+                                     ret);
+                   }
+                   hdd_request_put(request);
+              }
            }
          break;
 
         case WE_SET_MONITOR_MODE_FILTER:
            {
-               v_U32_t magic = 0;
-               struct completion cmpVar;
-               long waitRet = 0;
                tVOS_CON_MODE mode = hdd_get_conparam();
+               int ret;
+               void *cookie;
+               struct hdd_request *request;
+               static const struct hdd_request_params params = {
+                   .priv_size = 0,
+                   .timeout_ms = MON_MODE_MSG_TIMEOUT,
+               };
 
                if (VOS_MONITOR_MODE != mode) {
                   hddLog(LOGE, FL("invalid mode %d"), mode);
@@ -8305,24 +8022,23 @@ static int __iw_set_var_ints_getnone(struct net_device *dev,
                         __func__, pMonCtx->mmFilters[0].macAddr.bytes,
                        apps_args[6], apps_args[7], apps_args[8]);
                if (MON_MODE_START == pMonCtx->state) {
-                    magic = MON_MODE_MSG_MAGIC;
-                    init_completion(&cmpVar);
-                    if (VOS_STATUS_SUCCESS !=
-                            wlan_hdd_mon_postMsg(&magic, &cmpVar,
-                                                  pMonCtx, hdd_monPostMsgCb)) {
-                        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                                    FL("failed to post MON MODE REQ"));
-                        magic = 0;
-                        return -EIO;
+                    request = hdd_request_alloc(&params);
+                    if (!request) {
+                        hddLog(VOS_TRACE_LEVEL_ERROR, FL("Request allocation failure"));
+                        return -ENOMEM;
                     }
-                    waitRet = wait_for_completion_timeout(&cmpVar,
-                                                       MON_MODE_MSG_TIMEOUT);
-                    magic = 0;
-                    if (waitRet <= 0 ) {
-                        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                            FL("failed to wait on monitor mode completion %ld"),
-                                waitRet);
+                    cookie = hdd_request_cookie(request);
+
+                    if (VOS_STATUS_SUCCESS ==
+                            wlan_hdd_mon_postMsg(cookie, pMonCtx,
+                                                 hdd_mon_post_msg_cb)) {
+                        ret = hdd_request_wait_for_response(request);
+                        if (ret)
+                            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                                FL("failed to wait on monitor mode completion %d"),
+                                    ret);
                     }
+                    hdd_request_put(request);
                }
            }
          break;
@@ -8335,7 +8051,7 @@ static int __iw_set_var_ints_getnone(struct net_device *dev,
             break;
     }
     EXIT();
-    return 0;
+    return ret;
 }
 
 static int iw_hdd_set_var_ints_getnone(struct net_device *dev,
@@ -9312,32 +9028,21 @@ static int iw_set_keepalive_params(struct net_device *dev,
   --------------------------------------------------------------------------*/
 static void hdd_pkt_filter_done(void *data, v_U32_t status)
 {
-   struct statsContext *cbCtx = (struct statsContext *)data;
+	struct hdd_request *request;
 
-   hddLog(VOS_TRACE_LEVEL_INFO,
-              FL("Pkt Filter Clear Status : %d"), status);
+	hddLog(VOS_TRACE_LEVEL_INFO,
+		FL("Pkt Filter Clear Status : %d"), status);
 
-   if (data == NULL)
-   {
-       hddLog(VOS_TRACE_LEVEL_ERROR, FL("invalid context"));
-       return;
-   }
+	request = hdd_request_get(data);
+	if (!request) {
+		hddLog(VOS_TRACE_LEVEL_ERROR, FL("Obsolete request"));
+		if (ioctl_debug)
+			pr_info("%s: Obsolete request", __func__);
+		return;
+	}
 
-   spin_lock(&hdd_context_lock);
-   if (cbCtx->magic != CLEAR_FILTER_MAGIC)
-   {
-       spin_unlock(&hdd_context_lock);
-       hddLog(VOS_TRACE_LEVEL_ERROR, FL("invalid context, magic %x"), cbCtx->magic);
-       if (ioctl_debug)
-       {
-           pr_info("%s: Invalid context, magic [%08x]\n",
-                   __func__, cbCtx->magic);
-       }
-       return;
-   }
-
-   complete(&cbCtx->completion);
-   spin_unlock(&hdd_context_lock);
+	hdd_request_complete(request);
+	hdd_request_put(request);
 }
 
 int wlan_hdd_set_filter(hdd_adapter_t *pAdapter, tpPacketFilterCfg pRequest)
@@ -9346,8 +9051,13 @@ int wlan_hdd_set_filter(hdd_adapter_t *pAdapter, tpPacketFilterCfg pRequest)
     hdd_station_ctx_t *pHddStaCtx = &pAdapter->sessionCtx.station;
     tSirRcvPktFilterCfgType    packetFilterSetReq = {0};
     tSirRcvFltPktClearParam    packetFilterClrReq = {0};
-    struct statsContext        cbCtx;
     int i=0, status;
+    void *cookie;
+    struct hdd_request *request;
+    static const struct hdd_request_params params = {
+        .priv_size = 0,
+        .timeout_ms = PKT_FILTER_TIMEOUT,
+    };
 
     status = wlan_hdd_validate_context(pHddCtx);
     if (0 != status)
@@ -9441,25 +9151,30 @@ int wlan_hdd_set_filter(hdd_adapter_t *pAdapter, tpPacketFilterCfg pRequest)
                                  pHddStaCtx->conn_info.staId[0]);
             }
 
-            init_completion(&cbCtx.completion);
-            cbCtx.magic = CLEAR_FILTER_MAGIC;
-            cbCtx.pAdapter = pAdapter;
-            packetFilterClrReq.cbCtx = &cbCtx;
+            request = hdd_request_alloc(&params);
+            if (!request) {
+                hddLog(VOS_TRACE_LEVEL_ERROR, FL("Request allocation failure"));
+                return VOS_STATUS_E_NOMEM;
+            }
+            cookie = hdd_request_cookie(request);
+
+            packetFilterClrReq.cbCtx = cookie;
             packetFilterClrReq.filterId = pRequest->filterId;
             packetFilterClrReq.pktFilterCallback = hdd_pkt_filter_done;
-            if (eHAL_STATUS_SUCCESS != sme_ReceiveFilterClearFilter(pHddCtx->hHal, &packetFilterClrReq, pAdapter->sessionId))
+            if (eHAL_STATUS_SUCCESS != sme_ReceiveFilterClearFilter(
+                                                         pHddCtx->hHal,
+                                                         &packetFilterClrReq,
+                                                         pAdapter->sessionId))
             {
                 hddLog(VOS_TRACE_LEVEL_ERROR, "%s: Failure to execute Clear Filter",
                         __func__);
+                hdd_request_put(request);
                 return -EINVAL;
             }
 
-            status = wait_for_completion_interruptible_timeout(&cbCtx.completion,
-                                                   msecs_to_jiffies(PKT_FILTER_TIMEOUT));
-            spin_lock(&hdd_context_lock);
-            cbCtx.magic = 0;
-            spin_unlock(&hdd_context_lock);
-            if (0 >= status)
+            status = hdd_request_wait_for_response(request);
+            hdd_request_put(request);
+            if (status)
             {
                hddLog(LOGE, FL("failure waiting for pkt_filter_comp_var %d"),
                                 status);
@@ -11226,8 +10941,8 @@ static const iw_handler      we_handler[] =
    (iw_handler) NULL,            /* SIOCGIWNWID */
    (iw_handler) iw_set_freq,      /* SIOCSIWFREQ */
    (iw_handler) iw_get_freq,      /* SIOCGIWFREQ */
-   (iw_handler) iw_set_mode,      /* SIOCSIWMODE */
-   (iw_handler) iw_get_mode,      /* SIOCGIWMODE */
+   (iw_handler) NULL,             /* SIOCSIWMODE */
+   (iw_handler) NULL,             /* SIOCGIWMODE */
    (iw_handler) NULL,              /* SIOCSIWSENS */
    (iw_handler) NULL,              /* SIOCGIWSENS */
    (iw_handler) NULL,             /* SIOCSIWRANGE */

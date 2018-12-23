@@ -8721,6 +8721,7 @@ eHalStatus limAssocRspTxCompleteCnf(tpAniSirGlobal pMac, void *pData)
                 pNode, &pNext );
         pNode = pNext;
         pNext = NULL;
+        tmp_tx_context = NULL;
       }
       else
       {
@@ -8730,7 +8731,7 @@ eHalStatus limAssocRspTxCompleteCnf(tpAniSirGlobal pMac, void *pData)
       }
     }
 
-    if (!tmp_tx_context) {
+    if (!pNode) {
         limLog(pMac, LOGE, FL("context is NULL"));
         return eHAL_STATUS_SUCCESS;
     }
@@ -8834,7 +8835,7 @@ tANI_U8 lim_compute_ext_cap_ie_length (tDot11fIEExtCap *ext_cap) {
  *
  * Update the capability info in Assoc/Reassoc request frames and reset
  * the spectrum management, short preamble, immediate block ack bits
- * if the BSS doesnot support it
+ * and rrm bit mask if the BSS doesnot support it
  *
  * Return: None
  */
@@ -8854,6 +8855,12 @@ void lim_update_caps_info_for_bss(tpAniSirGlobal mac_ctx,
     if (!(bss_caps & LIM_IMMEDIATE_BLOCK_ACK_MASK)) {
           *caps &= (~LIM_IMMEDIATE_BLOCK_ACK_MASK);
           limLog(mac_ctx, LOG1, FL("Clearing Immed Blk Ack:no AP support"));
+    }
+
+    if (!(bss_caps & LIM_RRM_BIT_MASK)) {
+          *caps &= (~LIM_RRM_BIT_MASK);
+          limLog(mac_ctx, LOG1,
+                 FL("Clearing radio measurement :no AP support"));
     }
 }
 #ifdef SAP_AUTH_OFFLOAD
@@ -9044,6 +9051,11 @@ _sap_offload_parse_sta_vht(tpAniSirGlobal pmac,
         tpSirAssocReq assoc_req)
 {
     tpPESession session_entry = limIsApSessionActive(pmac);
+    if (session_entry == NULL)
+    {
+        limLog(pmac, LOGE, FL("Invalid Session Entry"));
+        goto error;
+    }
 
     if (IS_DOT11_MODE_HT(session_entry->dot11mode) &&
             assoc_req->HTCaps.present && assoc_req->wmeInfoPresent)
@@ -9168,7 +9180,11 @@ static void
     tHalBitVal qos_mode;
     tHalBitVal wsm_mode, wme_mode;
     tpPESession session_entry = limIsApSessionActive(pmac);
-
+    if (session_entry == NULL)
+    {
+        limLog(pmac, LOGE, FL("Invalid Session Entry"));
+        return;
+    }
     limGetQosMode(session_entry, &qos_mode);
     sta_ds->qosMode    = eANI_BOOLEAN_FALSE;
     sta_ds->lleEnabled = eANI_BOOLEAN_FALSE;

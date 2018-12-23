@@ -54,7 +54,7 @@
 #endif /* DHCP_SERVER_OFFLOAD */
 
 //Number of items that can be configured
-#define MAX_CFG_INI_ITEMS   512
+#define MAX_CFG_INI_ITEMS   1024
 
 #ifdef SAP_AUTH_OFFLOAD
 /* 802.11 pre-share key length */
@@ -1190,6 +1190,11 @@ typedef enum
 #define CFG_REORDER_TIME_VO_MAX                            1000
 #define CFG_REORDER_TIME_VO_DEFAULT                        40
 
+#define CFG_ENABLE_PN_REPLAY_NAME                          "PNreplayCheck"
+#define CFG_ENABLE_PN_REPLAY_MIN                           0
+#define CFG_ENABLE_PN_REPLAY_MAX                           1
+#define CFG_ENABLE_PN_REPLAY_DEFAULT                       0
+
 #if defined WLAN_FEATURE_VOWIFI
 #define CFG_RRM_ENABLE_NAME                              "gRrmEnable"
 #define CFG_RRM_ENABLE_MIN                               (0)
@@ -1607,6 +1612,27 @@ typedef enum
 
 /*
  * <ini>
+ * gindoor_channel_support - Mark indoor channels as enabled or passive
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini is used to control the state of indoor channels. If the
+ * value is 1 then the indoor channels will be marked as enabled and
+ * if the value is 0 then the indoor channels will be marked as
+ * DFS
+ *
+ * The default value is 0
+ * </ini>
+ */
+#define CFG_INDOOR_CHANNEL_SUPPORT_NAME     "gindoor_channel_support"
+#define CFG_INDOOR_CHANNEL_SUPPORT_MIN      (0)
+#define CFG_INDOOR_CHANNEL_SUPPORT_MAX      (1)
+#define CFG_INDOOR_CHANNEL_SUPPORT_DEFAULT  (0)
+
+
+/*
+ * <ini>
  * g_mark_indoor_as_disable - Enable/Disable Indoor channel
  * @Min: 0
  * @Max: 1
@@ -1742,6 +1768,26 @@ typedef enum
 #define CFG_ENABLE_TCP_DELACK_MIN            (0)
 #define CFG_ENABLE_TCP_DELACK_MAX            (1)
 #define CFG_ENABLE_TCP_DELACK_DEFAULT        (1)
+
+#define CFG_BTC_2M_DYN_LONG_WLAN_LEN_NAME      "gBTC2MDynLongWLAN"
+#define CFG_BTC_2M_DYN_LONG_WLAN_LEN_MIN       (15000)
+#define CFG_BTC_2M_DYN_LONG_WLAN_LEN_MAX       (55000)
+#define CFG_BTC_2M_DYN_LONG_WLAN_LEN_DEFAULT   (35000)
+
+#define CFG_BTC_2M_DYN_LONG_BT_LEN_NAME        "gBTC2MDynLongBT"
+#define CFG_BTC_2M_DYN_LONG_BT_LEN_MIN         (15000)
+#define CFG_BTC_2M_DYN_LONG_BT_LEN_MAX         (25000)
+#define CFG_BTC_2M_DYN_LONG_BT_LEN_DEFAULT     (25000)
+
+#define CFG_BTC_2M_DYN_LONG_BT_EXT_LEN_NAME        "gBTC2MDynLongBTExt"
+#define CFG_BTC_2M_DYN_LONG_BT_EXT_LEN_MIN         (5000)
+#define CFG_BTC_2M_DYN_LONG_BT_EXT_LEN_MAX         (15000)
+#define CFG_BTC_2M_DYN_LONG_BT_EXT_LEN_DEFAULT     (15000)
+
+#define CFG_BTC_2M_DYN_LONG_NUM_BT_EXT_NAME        "gBTC2MDynLongNumBTExt"
+#define CFG_BTC_2M_DYN_LONG_NUM_BT_EXT_MIN          (5)
+#define CFG_BTC_2M_DYN_LONG_NUM_BT_EXT_MAX          (15)
+#define CFG_BTC_2M_DYN_LONG_NUM_BT_EXT_DEFAULT      (15)
 
 #ifdef SAP_AUTH_OFFLOAD
 /* Enable/Disable SAP Authentication offload
@@ -2181,7 +2227,7 @@ static __inline tANI_U32 defHddRateToDefCfgRate( tANI_U32 defRateIndex )
 #define CFG_TDLS_SCAN_ENABLE            "gEnableTDLSScan"
 #define CFG_TDLS_SCAN_ENABLE_MIN        (0)
 #define CFG_TDLS_SCAN_ENABLE_MAX        (2)
-#define CFG_TDLS_SCAN_ENABLE_DEFAULT    (0)
+#define CFG_TDLS_SCAN_ENABLE_DEFAULT    (1)
 
 #define CFG_TDLS_ENABLE_DEFER_TIMER           "gTDLSEnableDeferTime"
 #define CFG_TDLS_ENABLE_DEFER_TIMER_MIN       (2000)
@@ -3142,7 +3188,7 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_FORCE_SCC_WITH_ECSA_NAME       "force_scc_with_ecsa"
 #define CFG_FORCE_SCC_WITH_ECSA_MIN        (0)
 #define CFG_FORCE_SCC_WITH_ECSA_MAX        (1)
-#define CFG_FORCE_SCC_WITH_ECSA_DEFAULT    (0)
+#define CFG_FORCE_SCC_WITH_ECSA_DEFAULT    (1)
 
 #define CFG_STA_SAP_SCC_ON_DFS_CHAN             "sta_sap_scc_on_dfs_chan"
 #define CFG_STA_SAP_SCC_ON_DFS_CHAN_MIN         (0)
@@ -3160,20 +3206,47 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 
 /*
  * gNumBuffBTCSco is used to set block ack buffer size for
- * aggregation during SCO. If this is set to 0, aggregation
+ * aggregation during SCO. If this is set to 0 or 1, aggregation
  * during SCO feature is disabled. To enable aggregation
- * during SCO, gNumBuffBTCSco should be set to non zero value.
+ * during SCO, gNumBuffBTCSco should be set to be greater than 1.
  */
+#define CFG_NUM_BUFF_BTC_SCO_INVALID     1
+
 #define CFG_NUM_BUFF_BTC_SCO_NAME       "gNumBuffBTCSco"
 #define CFG_NUM_BUFF_BTC_SCO_MIN        (0)
 #define CFG_NUM_BUFF_BTC_SCO_MAX        (10)
 #define CFG_NUM_BUFF_BTC_SCO_DEFAULT    (0)
+
 
 /* Value for ENABLE_POWERSAVE_OFFLOAD*/
 #define CFG_ENABLE_POWERSAVE_OFFLOAD_NAME       "gEnablePowerSaveOffload"
 #define CFG_ENABLE_POWERSAVE_OFFLOAD_MIN        (1)
 #define CFG_ENABLE_POWERSAVE_OFFLOAD_MAX        (2)
 #define CFG_ENABLE_POWERSAVE_OFFLOAD_DEFAULT    (1)
+
+/*
+ * <ini>
+ * force_rsne_override - force rsnie override from user
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini is used to enable/disable test mode to force rsne override used in
+ * security enhancement test cases to pass the RSNIE sent by user in
+ * assoc request.
+ *
+ * Related: None
+ *
+ * Supported Feature: STA
+ *
+ * Usage: internal
+ *
+ * </ini>
+ */
+#define CFG_FORCE_RSNE_OVERRIDE_NAME    "force_rsne_override"
+#define CFG_FORCE_RSNE_OVERRIDE_MIN     (0)
+#define CFG_FORCE_RSNE_OVERRIDE_MAX     (1)
+#define CFG_FORCE_RSNE_OVERRIDE_DEFAULT (0)
 
 /*--------------------------------------------------------------------------- 
   Type declarations
@@ -3453,6 +3526,7 @@ typedef struct
    v_U16_t                      BeReorderAgingTime;
    v_U16_t                      ViReorderAgingTime;
    v_U16_t                      VoReorderAgingTime;
+   v_BOOL_t                     enablePNReplay;
 
    /* Wowl pattern */
    char                        wowlPattern[1024];         
@@ -3784,6 +3858,12 @@ typedef struct
    /* control marking indoor channel passive to disable */
    bool                        disable_indoor_channel;
    uint32_t                    enable_power_save_offload;
+   uint32_t                    btc_dyn_wlan_len;
+   uint32_t                    btc_dyn_bt_len;
+   uint32_t                    btc_dyn_bt_ext_len;
+   uint32_t                    btc_dyn_num_bt_ext;
+   bool                        indoor_channel_support;
+   bool                        force_rsne_override;
 
 } hdd_config_t;
 
