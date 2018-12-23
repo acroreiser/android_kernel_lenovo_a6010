@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -871,7 +871,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
             return;
         }
         if (addnIE1Len <= WNI_CFG_PROBE_RSP_ADDNIE_DATA1_LEN && addnIE1Len &&
-                     (nBytes + addnIE1Len) <= SIR_MAX_PACKET_SIZE)
+                     (nBytes + addnIE1Len) <= SCH_MAX_PROBE_RESP_SIZE)
         {
             if ( eSIR_SUCCESS != wlan_cfgGetStr(pMac,
                                      WNI_CFG_PROBE_RSP_ADDNIE_DATA1, &addIE[0],
@@ -895,7 +895,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
             return;
         }
         if (addnIE2Len <= WNI_CFG_PROBE_RSP_ADDNIE_DATA2_LEN && addnIE2Len &&
-                     (nBytes + addnIE2Len) <= SIR_MAX_PACKET_SIZE)
+                     (nBytes + addnIE2Len) <= SCH_MAX_PROBE_RESP_SIZE)
         {
             if ( eSIR_SUCCESS != wlan_cfgGetStr(pMac,
                                      WNI_CFG_PROBE_RSP_ADDNIE_DATA2, &addIE[addnIE1Len],
@@ -919,7 +919,7 @@ limSendProbeRspMgmtFrame(tpAniSirGlobal pMac,
             return;
         }
         if (addnIE3Len <= WNI_CFG_PROBE_RSP_ADDNIE_DATA3_LEN && addnIE3Len &&
-                     (nBytes + addnIE3Len) <= SIR_MAX_PACKET_SIZE)
+                     (nBytes + addnIE3Len) <= SCH_MAX_PROBE_RESP_SIZE)
         {
             if ( eSIR_SUCCESS != wlan_cfgGetStr(pMac,
                                      WNI_CFG_PROBE_RSP_ADDNIE_DATA3,
@@ -2615,9 +2615,6 @@ limSendAssocReqMgmtFrame(tpAniSirGlobal   pMac,
         mlmAssocCnf.sessionId = psessionEntry->peSessionId;
 
         mlmAssocCnf.resultCode = eSIR_SME_RESOURCES_UNAVAILABLE;
-
-        palPktFree( pMac->hHdd, HAL_TXRX_FRM_802_11_MGMT,
-                ( void* ) pFrame, ( void* ) pPacket );
 
         limPostSmeMessage( pMac, LIM_MLM_ASSOC_CNF,
                 ( tANI_U32* ) &mlmAssocCnf);
@@ -5874,6 +5871,8 @@ tSirRetStatus limSendAddBAReq( tpAniSirGlobal pMac,
         txFlag |= HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME;
     }
 
+    txFlag |= HAL_USE_PEER_STA_REQUESTED_MASK;
+
     MTRACE(macTrace(pMac, TRACE_CODE_TX_MGMT,
            psessionEntry->peSessionId,
            pMacHdr->fc.subType));
@@ -6100,6 +6099,8 @@ tSirRetStatus limSendAddBARsp( tpAniSirGlobal pMac,
         txFlag |= HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME;
     }
 
+    txFlag |= HAL_USE_PEER_STA_REQUESTED_MASK;
+
     MTRACE(macTrace(pMac, TRACE_CODE_TX_MGMT,
            psessionEntry->peSessionId,
            pMacHdr->fc.subType));
@@ -6308,6 +6309,8 @@ tSirRetStatus limSendDelBAInd( tpAniSirGlobal pMac,
     {
         txFlag |= HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME;
     }
+
+   txFlag |= HAL_USE_PEER_STA_REQUESTED_MASK;
 
    MTRACE(macTrace(pMac, TRACE_CODE_TX_MGMT,
           psessionEntry->peSessionId,

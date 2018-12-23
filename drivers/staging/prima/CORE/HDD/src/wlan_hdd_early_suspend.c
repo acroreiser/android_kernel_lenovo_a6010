@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -43,7 +43,14 @@
 #include <linux/wait.h>
 #include <wlan_hdd_includes.h>
 #include <wlan_qct_driver.h>
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)) && \
+    defined(WLAN_OPEN_SOURCE)
+#include <linux/device.h>
+#include <linux/pm_wakeup.h>
+#else
 #include <linux/wakelock.h>
+#endif
 
 #include "halTypes.h"
 #include "sme_Api.h"
@@ -2214,6 +2221,25 @@ static inline void hdd_wlan_ssr_shutdown_event(void)
 };
 #endif
 
+/**
+ * hdd_send_hang_reason() - Send hang reason to the userspace
+ *
+ * Return: None
+ */
+static void hdd_send_hang_reason(hdd_context_t *hdd_ctx)
+{
+	unsigned int reason = 0;
+
+	if(!hdd_ctx) {
+		hddLog(VOS_TRACE_LEVEL_FATAL,"%s: HDD context is Null",__func__);
+		return;
+	}
+
+	vos_get_recovery_reason(&reason);
+	vos_reset_recovery_reason();
+	wlan_hdd_send_hang_reason_event(hdd_ctx, reason);
+}
+
 /* the HDD interface to WLAN driver shutdown,
  * the primary shutdown function in SSR
  */
@@ -2257,6 +2283,10 @@ VOS_STATUS hdd_wlan_shutdown(void)
 
    /* set default value of Tcp delack and stop timer */
    hdd_set_default_stop_delack_timer(pHddCtx);
+
+   if (VOS_TIMER_STATE_RUNNING ==
+       vos_timer_getCurrentState(&pHddCtx->tdls_source_timer))
+       vos_timer_stop(&pHddCtx->tdls_source_timer);
 
    /* DeRegister with platform driver as client for Suspend/Resume */
    vosStatus = hddDeregisterPmOps(pHddCtx);
@@ -2306,6 +2336,7 @@ VOS_STATUS hdd_wlan_shutdown(void)
    set_bit(MC_POST_EVENT, &vosSchedContext->mcEventFlag);
    wake_up_interruptible(&vosSchedContext->mcWaitQueue);
    wait_for_completion(&vosSchedContext->McShutdown);
+   vosSchedContext->McThread = NULL;
 
    /* Wait for TX to exit */
    hddLog(VOS_TRACE_LEVEL_FATAL, "%s: Shutting down TX thread",__func__);
@@ -2313,14 +2344,15 @@ VOS_STATUS hdd_wlan_shutdown(void)
    set_bit(TX_POST_EVENT, &vosSchedContext->txEventFlag);
    wake_up_interruptible(&vosSchedContext->txWaitQueue);
    wait_for_completion(&vosSchedContext->TxShutdown);
+   vosSchedContext->TxThread = NULL;
 
    /* Wait for RX to exit */
    hddLog(VOS_TRACE_LEVEL_FATAL, "%s: Shutting down RX thread",__func__);
    set_bit(RX_SHUTDOWN_EVENT, &vosSchedContext->rxEventFlag);
    set_bit(RX_POST_EVENT, &vosSchedContext->rxEventFlag);
    wake_up_interruptible(&vosSchedContext->rxWaitQueue);
-
    wait_for_completion(&vosSchedContext->RxShutdown);
+   vosSchedContext->RxThread = NULL;
 
 #ifdef WLAN_BTAMP_FEATURE
    vosStatus = WLANBAP_Stop(pVosContext);
@@ -2400,6 +2432,7 @@ VOS_STATUS hdd_wlan_shutdown(void)
                                            __func__);
    }
    hdd_wlan_ssr_shutdown_event();
+   hdd_send_hang_reason(pHddCtx);
    hddLog(VOS_TRACE_LEVEL_FATAL, "%s: WLAN driver shutdown complete"
                                    ,__func__);
    return VOS_STATUS_SUCCESS;
