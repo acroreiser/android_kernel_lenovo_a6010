@@ -87,7 +87,7 @@ static u16 nls_upper(struct super_block *sb, u16 a)
 /*======================================================================*/
 /*  Global Function Definitions                                         */
 /*======================================================================*/
-u16 *nls_wstrchr(u16 *str, u16 wchar)
+static u16 *nls_wstrchr(u16 *str, u16 wchar)
 {
 	while (*str) {
 		if (*(str++) == wchar)
