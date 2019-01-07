@@ -191,6 +191,18 @@ config LZO_DECOMPRESS
 
 source "lib/xz/Kconfig"
 
+config LZ4_COMPRESS
+	tristate "LZ4 compression"
+
+config LZ4HC_COMPRESS
+	tristate "LZ4HC compression"
+	depends on LZ4_COMPRESS
+
+config LZ4_DECOMPRESS
+	tristate
+	depends on LZ4_COMPRESS
+	default y
+
 #
 # These all provide a common interface (hence the apparent duplication with
 # ZLIB_INFLATE; DECOMPRESS_GZIP is just a wrapper.)
