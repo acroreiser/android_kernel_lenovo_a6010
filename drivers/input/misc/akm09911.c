@@ -35,9 +35,10 @@
 #include <linux/regulator/consumer.h>
 #include <linux/of_gpio.h>
 #include <linux/sensors.h>
+#include <linux/hardware_info.h>
 
 #define AKM_DEBUG_IF			0
-#define AKM_HAS_RESET			1
+#define AKM_HAS_RESET			0
 #define AKM_INPUT_DEVICE_NAME	"compass"
 #define AKM_DRDY_TIMEOUT_MS		100
 #define AKM_BASE_NUM			10
@@ -111,6 +112,9 @@ struct akm_compass_data {
 	int	last_x;
 	int	last_y;
 	int	last_z;
+
+	/* dummy value to avoid sensor event get eaten */
+	int	rep_cnt;
 
 	struct regulator	*vdd;
 	struct regulator	*vio;
@@ -465,7 +469,41 @@ static int AKECS_GetData_Poll(
 
 	return 0;
 }
+static long AKECS_GetData_Poll_self(struct akm_compass_data *akm,uint8_t *rbuf,int size)
+{
+	uint8_t buffer[AKM_SENSOR_DATA_SIZE];
+	int err;
 
+	/* Read status */
+	buffer[0] = AKM_REG_STATUS;
+	err = akm_i2c_rxdata(akm->i2c, buffer, 1);
+	if (err < 0) {
+		dev_err(&akm->i2c->dev, "%s failed.", __func__);
+
+		return err;
+	}
+
+
+	/* Check ST bit */
+	//if (!(AKM_DRDY_IS_HIGH(buffer[0])))
+	//	return -EAGAIN;
+
+	/* Read rest data */
+	buffer[1] = AKM_REG_STATUS + 1;
+	err = akm_i2c_rxdata(akm->i2c, &(buffer[1]), AKM_SENSOR_DATA_SIZE-1);
+	if (err < 0) {
+		dev_err(&akm->i2c->dev, "%s failed.x", __func__);
+		printk("xmm--------103x\n");
+		return err;
+	}
+
+	memcpy(rbuf, buffer, size);
+
+	atomic_set(&akm->drdy, 0);
+
+
+	return 0;
+}
 static int AKECS_GetOpenStatus(
 	struct akm_compass_data *akm)
 {
@@ -491,6 +529,315 @@ static int AKECS_Release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+/*----------------------------shipment test------------------------------------------------*/
+/*!
+ @return If @a testdata is in the range of between @a lolimit and @a hilimit,
+ the return value is 1, otherwise -1.
+ @param[in] testno   A pointer to a text string.
+ @param[in] testname A pointer to a text string.
+ @param[in] testdata A data to be tested.
+ @param[in] lolimit  The maximum allowable value of @a testdata.
+ @param[in] hilimit  The minimum allowable value of @a testdata.
+ @param[in,out] pf_total
+ */
+int TEST_DATA(const char testno[],const char testname[],const int testdata,const int lolimit,const int hilimit,int * pf_total)
+{
+	int pf;                     //Pass;1, Fail;-1
+
+	if ((testno == NULL) && (strncmp(testname, "START", 5) == 0)) {
+		// Display header
+		printk("--------------------------------------------------------------------\n");
+		printk(" Test No. Test Name    Fail    Test Data    [      Low         High]\n");
+		printk("--------------------------------------------------------------------\n");
+
+		pf = 1;
+	} else if ((testno == NULL) && (strncmp(testname, "END", 3) == 0)) {
+		// Display result
+		printk("--------------------------------------------------------------------\n");
+		if (*pf_total == 1) {
+			printk("Factory shipment test was passed.\n\n");
+		} else {
+			printk("Factory shipment test was failed.\n\n");
+		}
+
+		pf = 1;
+	} else {
+		if ((lolimit <= testdata) && (testdata <= hilimit)) {
+			//Pass
+			pf = 1;
+		} else {
+			//Fail
+			pf = -1;
+		}
+
+		//display result
+		printk(" %7s  %-10s      %c    %9d    [%9d    %9d]\n",
+				 testno, testname, ((pf == 1) ? ('.') : ('F')), testdata,
+				 lolimit, hilimit);
+	}
+
+	//Pass/Fail check
+	if (*pf_total != 0) {
+		if ((*pf_total == 1) && (pf == 1)) {
+			*pf_total = 1;            //Pass
+		} else {
+			*pf_total = -1;           //Fail
+		}
+	}
+	return pf;
+}
+
+/*!
+ Execute "Onboard Function Test" (NOT includes "START" and "END" command).
+ @retval 1 The test is passed successfully.
+ @retval -1 The test is failed.
+ @retval 0 The test is aborted by kind of system error.
+ */
+int FST_AK09911(void)
+{
+	struct akm_compass_data *akm_self = s_akm;
+	int   pf_total;  //p/f flag for this subtest
+	char    i2cData[16];
+	int   hdata[3];
+	int   asax;
+	int   asay;
+	int   asaz;
+
+	//***********************************************
+	//  Reset Test Result
+	//***********************************************
+	pf_total = 1;
+
+	//***********************************************
+	//  Step1
+	//***********************************************
+
+	// Reset device.
+	if (AKECS_Reset(akm_self,0) < 0) {
+		printk("%s:%d Error.\n", __FUNCTION__, __LINE__);
+		return 0;
+	}
+//ret = akm_i2c_rxdata(akm->i2c, &i2c_buf[1], i2c_buf[0]);
+	// Read values from WIA.
+	i2cData[0] = AK09911_REG_WIA1;
+	if (akm_i2c_rxdata(akm_self->i2c,i2cData, 2) < 0) {
+		printk("%s:%d Error.\n", __FUNCTION__, __LINE__);
+		return 0;
+	}
+
+	// TEST
+	TEST_DATA(TLIMIT_NO_RST_WIA1_09911,   TLIMIT_TN_RST_WIA1_09911,   (int)i2cData[0],  TLIMIT_LO_RST_WIA1_09911,   TLIMIT_HI_RST_WIA1_09911,   &pf_total);
+	TEST_DATA(TLIMIT_NO_RST_WIA2_09911,   TLIMIT_TN_RST_WIA2_09911,   (int)i2cData[1],  TLIMIT_LO_RST_WIA2_09911,   TLIMIT_HI_RST_WIA2_09911,   &pf_total);
+
+	// Set to FUSE ROM access mode
+	if (AKECS_SetMode(akm_self,AK09911_MODE_FUSE_ACCESS) < 0) {
+		printk("%s:%d Error.\n", __FUNCTION__, __LINE__);
+		return 0;
+	}
+
+	// Read values from ASAX to ASAZ
+	i2cData[0] = AK09911_FUSE_ASAX;
+
+	//akm_i2c_rxdata
+	if (akm_i2c_rxdata(akm_self->i2c,i2cData, 3) < 0) {
+		printk("%s:%d Error.\n", __FUNCTION__, __LINE__);
+		return 0;
+	}
+	asax = (int)i2cData[0];
+	asay = (int)i2cData[1];
+	asaz = (int)i2cData[2];
+
+	// TEST
+	TEST_DATA(TLIMIT_NO_ASAX_09911, TLIMIT_TN_ASAX_09911, asax, TLIMIT_LO_ASAX_09911, TLIMIT_HI_ASAX_09911, &pf_total);
+
+	TEST_DATA(TLIMIT_NO_ASAY_09911, TLIMIT_TN_ASAY_09911, asay, TLIMIT_LO_ASAY_09911, TLIMIT_HI_ASAY_09911, &pf_total);
+
+	TEST_DATA(TLIMIT_NO_ASAZ_09911, TLIMIT_TN_ASAZ_09911, asaz, TLIMIT_LO_ASAZ_09911, TLIMIT_HI_ASAZ_09911, &pf_total);
+
+
+	// Set to PowerDown mode
+	if (AKECS_SetMode(akm_self,AK09911_MODE_POWERDOWN) < 0) {
+		printk("%s:%d Error.\n", __FUNCTION__, __LINE__);
+		return 0;
+	}
+
+	//***********************************************
+	//  Step2
+	//***********************************************
+
+	// Set to SNG measurement pattern (Set CNTL register)
+	if (AKECS_SetMode(akm_self,AK09911_MODE_SNG_MEASURE) < 0) {
+		printk("%s:%d Error.\n", __FUNCTION__, __LINE__);
+		return 0;
+	}
+	msleep(100);
+	// Wait for DRDY pin changes to HIGH.
+	//usleep(AKM_MEASURE_TIME_US);
+	// Get measurement data from AK09911
+	// ST1 + (HXL + HXH) + (HYL + HYH) + (HZL + HZH) + TEMP + ST2
+	// = 1 + (1 + 1) + (1 + 1) + (1 + 1) + 1 + 1 = 9yte
+	//if (AKD_GetMagneticData(i2cData) != AKD_SUCCESS) {
+	if (AKECS_GetData_Poll_self(akm_self,i2cData,AKM_SENSOR_DATA_SIZE) < 0) {
+		printk("%s:%d Error.\n", __FUNCTION__, __LINE__);
+
+		return 0;
+	}
+
+	//hdata[0] = (int)((((uint)(i2cData[2]))<<8)+(uint)(i2cData[1]));
+	//hdata[1] = (int)((((uint)(i2cData[4]))<<8)+(uint)(i2cData[3]));
+	//hdata[2] = (int)((((uint)(i2cData[6]))<<8)+(uint)(i2cData[5]));
+
+	hdata[0] = (s16)(i2cData[1] | (i2cData[2] << 8));
+	hdata[1] = (s16)(i2cData[3] | (i2cData[4] << 8));
+	hdata[2] = (s16)(i2cData[5] | (i2cData[6] << 8));
+
+	// TEST
+	i2cData[0] &= 0x7F;
+	TEST_DATA(TLIMIT_NO_SNG_ST1_09911,  TLIMIT_TN_SNG_ST1_09911,  (int)i2cData[0], TLIMIT_LO_SNG_ST1_09911,  TLIMIT_HI_SNG_ST1_09911,  &pf_total);
+
+	// TEST
+	TEST_DATA(TLIMIT_NO_SNG_HX_09911,   TLIMIT_TN_SNG_HX_09911,   hdata[0],          TLIMIT_LO_SNG_HX_09911,   TLIMIT_HI_SNG_HX_09911,   &pf_total);
+	TEST_DATA(TLIMIT_NO_SNG_HY_09911,   TLIMIT_TN_SNG_HY_09911,   hdata[1],          TLIMIT_LO_SNG_HY_09911,   TLIMIT_HI_SNG_HY_09911,   &pf_total);
+	TEST_DATA(TLIMIT_NO_SNG_HZ_09911,   TLIMIT_TN_SNG_HZ_09911,   hdata[2],          TLIMIT_LO_SNG_HZ_09911,   TLIMIT_HI_SNG_HZ_09911,   &pf_total);
+	TEST_DATA(TLIMIT_NO_SNG_ST2_09911,  TLIMIT_TN_SNG_ST2_09911,  (int)i2cData[8], TLIMIT_LO_SNG_ST2_09911,  TLIMIT_HI_SNG_ST2_09911,  &pf_total);
+
+	// Set to Self-test mode (Set CNTL register)
+	if (AKECS_SetMode(akm_self,AK09911_MODE_SELF_TEST) < 0) {
+		printk("%s:%d Error.\n", __FUNCTION__, __LINE__);
+		return 0;
+	}
+	msleep(100);
+	// Wait for DRDY pin changes to HIGH.
+	//usleep(AKM_MEASURE_TIME_US);
+	// Get measurement data from AK09911
+	// ST1 + (HXL + HXH) + (HYL + HYH) + (HZL + HZH) + TEMP + ST2
+	// = 1 + (1 + 1) + (1 + 1) + (1 + 1) + 1 + 1 = 9byte
+	//if (AKD_GetMagneticData(i2cData) != AKD_SUCCESS) {
+	if (AKECS_GetData_Poll_self(akm_self,i2cData,AKM_SENSOR_DATA_SIZE) < 0) {
+		printk("%s:%d Error.\n", __FUNCTION__, __LINE__);
+
+		return 0;
+	}
+
+	// TEST
+	i2cData[0] &= 0x7F;
+	TEST_DATA(TLIMIT_NO_SLF_ST1_09911, TLIMIT_TN_SLF_ST1_09911, (int)i2cData[0], TLIMIT_LO_SLF_ST1_09911, TLIMIT_HI_SLF_ST1_09911, &pf_total);
+
+	//hdata[0] = (int)((((uint)(i2cData[2]))<<8)+(uint)(i2cData[1]));
+	//hdata[1] = (int)((((uint)(i2cData[4]))<<8)+(uint)(i2cData[3]));
+	//hdata[2] = (int)((((uint)(i2cData[6]))<<8)+(uint)(i2cData[5]));
+
+	hdata[0] = (s16)(i2cData[1] | (i2cData[2] << 8));
+	hdata[1] = (s16)(i2cData[3] | (i2cData[4] << 8));
+	hdata[2] = (s16)(i2cData[5] | (i2cData[6] << 8));
+
+	// TEST
+	TEST_DATA(
+			  TLIMIT_NO_SLF_RVHX_09911,
+			  TLIMIT_TN_SLF_RVHX_09911,
+			  (hdata[0])*(asax/128 + 1),
+			  TLIMIT_LO_SLF_RVHX_09911,
+			  TLIMIT_HI_SLF_RVHX_09911,
+			  &pf_total
+			  );
+
+
+	TEST_DATA(
+			  TLIMIT_NO_SLF_RVHY_09911,
+			  TLIMIT_TN_SLF_RVHY_09911,
+			  (hdata[1])*(asay/128 + 1),
+			  TLIMIT_LO_SLF_RVHY_09911,
+			  TLIMIT_HI_SLF_RVHY_09911,
+			  &pf_total
+			  );
+
+
+	TEST_DATA(
+			  TLIMIT_NO_SLF_RVHZ_09911,
+			  TLIMIT_TN_SLF_RVHZ_09911,
+			  (hdata[2])*(asaz/128 + 1),
+			  TLIMIT_LO_SLF_RVHZ_09911,
+			  TLIMIT_HI_SLF_RVHZ_09911,
+			  &pf_total
+			  );
+
+
+		TEST_DATA(
+			TLIMIT_NO_SLF_ST2_09911,
+			TLIMIT_TN_SLF_ST2_09911,
+			(int)i2cData[8],
+			TLIMIT_LO_SLF_ST2_09911,
+			TLIMIT_HI_SLF_ST2_09911,
+			&pf_total
+			);
+
+
+	return pf_total;
+}
+
+
+/*!
+ Execute "Onboard Function Test" (includes "START" and "END" command).
+ @retval 1 The test is passed successfully.
+ @retval -1 The test is failed.
+ @retval 0 The test is aborted by kind of system error.
+ */
+int FctShipmntTestProcess_Body(void)
+{
+	int pf_total = 1;
+
+	//***********************************************
+	//    Reset Test Result
+	//***********************************************
+	TEST_DATA(NULL, "START", 0, 0, 0, &pf_total);
+
+	//***********************************************
+	//    Step 1 to 2
+	//***********************************************
+	pf_total = FST_AK09911();
+
+
+	//***********************************************
+	//    Judge Test Result
+	//***********************************************
+	TEST_DATA(NULL, "END", 0, 0, 0, &pf_total);
+	printk("xmmpf_total------xxxzzzxxxzzz%d\n",pf_total);
+
+
+	return pf_total;
+}
+
+static ssize_t store_shipment_test(struct device *dev, struct device_attribute *attr,char const *buf, size_t count)
+{
+	//struct i2c_client *client = this_client;
+	//struct akm09911_i2c_data *data = i2c_get_clientdata(client);
+	//int layout = 0;
+
+	return count;
+}
+static ssize_t show_shipment_test(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	char result[10];
+	int res = 0;
+	res = FctShipmntTestProcess_Body();
+	if(1 == res)
+	{
+	   printk("shipment_test pass\n");
+	   strcpy(result,"y");
+	}
+	else if(-1 == res)
+	{
+	   printk("shipment_test fail\n");
+	   strcpy(result,"n");
+	}
+	else
+	{
+	  printk("shipment_test NaN\n");
+	  strcpy(result,"NaN");
+	}
+
+	return sprintf(buf, "%s\n", result);
+}
 static long
 AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -1251,6 +1598,7 @@ static struct device_attribute akm_compass_attributes[] = {
 	__ATTR(delay_mag,  0660, akm_delay_mag_show,  akm_delay_mag_store),
 	__ATTR(delay_fusion, 0660, akm_delay_fusion_show,
 			akm_delay_fusion_store),
+	__ATTR(shipmenttest,  0660, show_shipment_test,  store_shipment_test),
 #if AKM_DEBUG_IF
 	__ATTR(mode,  0220, NULL, akm_sysfs_mode_store),
 	__ATTR(bdata, 0440, akm_sysfs_bdata_show, NULL),
@@ -1502,10 +1850,11 @@ static int akm_compass_suspend(struct device *dev)
 	akm->state.power_on = akm->power_enabled;
 	if (akm->state.power_on)
 		akm_compass_power_set(akm, false);
-
+#if 0
 	ret = pinctrl_select_state(akm->pinctrl, akm->pin_sleep);
 	if (ret)
 		dev_err(dev, "Can't select pinctrl state\n");
+#endif
 
 	dev_dbg(&akm->i2c->dev, "suspended\n");
 
@@ -1517,10 +1866,11 @@ static int akm_compass_resume(struct device *dev)
 	struct akm_compass_data *akm = dev_get_drvdata(dev);
 	int ret = 0;
 	uint8_t mode;
-
+#if 0
 	ret = pinctrl_select_state(akm->pinctrl, akm->pin_default);
 	if (ret)
 		dev_err(dev, "Can't select pinctrl state\n");
+#endif
 
 	if (akm->state.power_on) {
 		ret = akm_compass_power_set(akm, true);
@@ -1740,12 +2090,13 @@ static int akm_compass_parse_dt(struct device *dev,
 	akm->use_hrtimer = of_property_read_bool(np, "akm,use-hrtimer");
 	akm->gpio_rstn = of_get_named_gpio_flags(dev->of_node,
 			"akm,gpio_rstn", 0, NULL);
-
+#if AKM_HAS_RESET
 	if (!gpio_is_valid(akm->gpio_rstn)) {
 		dev_err(dev, "gpio reset pin %d is invalid.\n",
 			akm->gpio_rstn);
 		return -EINVAL;
 	}
+#endif	
 
 	return 0;
 }
@@ -1755,8 +2106,9 @@ static int akm_compass_parse_dt(struct device *dev,
 {
 	return -EINVAL;
 }
-#endif /* !CONFIG_OF */
+#endif/* !CONFIG_OF */
 
+#if 0
 static int akm_pinctrl_init(struct akm_compass_data *akm)
 {
 	struct i2c_client *client = akm->i2c;
@@ -1781,6 +2133,7 @@ static int akm_pinctrl_init(struct akm_compass_data *akm)
 
 	return 0;
 }
+#endif
 
 static int akm_report_data(struct akm_compass_data *akm)
 {
@@ -1930,10 +2283,9 @@ static int case_test(struct akm_compass_data *akm, const char test_name[],
 		dev_dbg(&akm->i2c->dev, "Test Name    Fail    Test Data    [      Low         High]\n");
 		dev_dbg(&akm->i2c->dev, "----------------------------------------------------------\n");
 	} else if (strcmp(test_name, "END") == 0) {
-		dev_dbg(&akm->i2c->dev, "----------------------------------------------------------\n");
-		if (*fail_total == 0)
+		if (*fail_total == 0){
 			dev_dbg(&akm->i2c->dev, "Factory shipment test passed.\n\n");
-		else
+		}else
 			dev_dbg(&akm->i2c->dev, "%d test cases failed.\n\n",
 					*fail_total);
 	} else {
@@ -2183,6 +2535,7 @@ int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	s_akm->i2c = client;
 	/* set client data */
 	i2c_set_clientdata(client, s_akm);
+#if 0
 
 	/* initialize pinctrl */
 	if (!akm_pinctrl_init(s_akm)) {
@@ -2192,6 +2545,7 @@ int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			goto exit2;
 		}
 	}
+#endif
 
 	/* Pull up the reset pin */
 	AKECS_Reset(s_akm, 1);
@@ -2274,7 +2628,7 @@ int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	s_akm->delay[MAG_DATA_FLAG] = sensors_cdev.delay_msec * 1000000;
 
-	err = sensors_classdev_register(&s_akm->input->dev, &s_akm->cdev);
+	err = sensors_classdev_register(&client->dev, &s_akm->cdev);
 
 	if (err) {
 		dev_err(&client->dev, "class device create failed: %d\n", err);
@@ -2282,6 +2636,8 @@ int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	akm_compass_power_set(s_akm, false);
+	
+	hardwareinfo_set_prop(HARDWARE_MAGNETOMETER,"akm09911");
 
 	dev_info(&client->dev, "successfully probed.");
 	return 0;
