@@ -632,3 +632,9 @@ config SND_SOC_MSM_HDMI_CODEC_RX
 	help
 	HDMI audio drivers should be built only if the platform
         supports hdmi panel.
+
+config PHANTOM_GAIN_CONTROL
+       bool "Port Of Flar's Sound Codec for msm8916-wcd"
+       help
+       A simple Port Of flar's Sound Driver from Tom-Tom Sound sc
+       to msm8916-wcd
