@@ -41,6 +41,7 @@
 		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
 		qcom,mdss-dsi-underflow-color = <0xff>;
 		qcom,mdss-dsi-border-color = <0>;
+		qcom,ulps-enabled;
 		qcom,mdss-dsi-on-command = [39 01 00 00 00 00 04 FF 98 81 07
     39 01 00 00 00 00 02 03 21
     39 01 00 00 00 00 02 04 06
