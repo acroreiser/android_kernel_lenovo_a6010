@@ -455,13 +455,14 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_slave_info *slave_info;
 	const char *sensor_name;
 	uint32_t retry = 0;
+	uint32_t addDelay = 0;
 
 	if (!s_ctrl) {
 		pr_err("%s:%d failed: %p\n",
 			__func__, __LINE__, s_ctrl);
 		return -EINVAL;
 	}
-	
+
 	power_info = &s_ctrl->sensordata->power_info;
 	sensor_i2c_client = s_ctrl->sensor_i2c_client;
 	slave_info = s_ctrl->sensordata->slave_info;
@@ -482,7 +483,15 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			sensor_i2c_client);
 		if (rc < 0)
 			return rc;
-		rc = msm_sensor_check_id(s_ctrl);
+
+/* add a little delay while cci comes up to reduce multiple time sensor inits and power consumption (Based on op5's latest drop) */
+		while (addDelay < 3){
+			rc = msm_sensor_check_id(s_ctrl);
+			if(!rc) break;
+			msleep(35);
+			addDelay++;
+		}
+
 		if (rc < 0) {
 			msm_camera_power_down(power_info,
 				s_ctrl->sensor_device_type, sensor_i2c_client);
