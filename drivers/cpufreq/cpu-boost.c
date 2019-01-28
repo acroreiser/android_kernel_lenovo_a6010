@@ -25,6 +25,8 @@
 #include <linux/time.h>
 #include <linux/cpu_boost.h>
 
+#include "../../kernel/sched/sched.h"
+
 struct cpu_sync {
 	int cpu;
 	unsigned int input_boost_min;
