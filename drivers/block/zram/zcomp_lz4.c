@@ -27,7 +27,11 @@ static int zcomp_lz4_compress(const unsigned char *src, unsigned char *dst,
 		size_t *dst_len, void *private)
 {
 	/* return  : Success if return 0 */
+#ifdef CONFIG_ZRAM_LZ4HC_COMPRESS
+	return lz4hc_compress(src, PAGE_SIZE, dst, dst_len, private);
+#else
 	return lz4_compress(src, PAGE_SIZE, dst, dst_len, private);
+#endif
 }
 
 static int zcomp_lz4_decompress(const unsigned char *src, size_t src_len,
