@@ -40,7 +40,7 @@
 #include <linux/proc_fs.h>
 #include <linux/anon_inodes.h>
 #include <uapi/linux/pidfd.h>
-//#include <linux/sched/signal.h>
+#include <linux/cgroup-defs.h>
 
 #define pid_hashfn(nr, ns)	\
 	hash_long((unsigned long)nr + (unsigned long)ns, pidhash_shift)
