@@ -576,6 +576,7 @@ static int32_t msm_sensor_get_power_settings(void *setting,
 	rc = msm_sensor_get_power_up_settings(setting, slave_info, power_info);
 	if (rc < 0) {
 		pr_err("failed");
+		kfree(power_info->power_setting);
 		return -EINVAL;
 	}
 
@@ -803,7 +804,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 	camera_info = kzalloc(sizeof(struct msm_camera_slave_info), GFP_KERNEL);
 	if (!camera_info) {
 		pr_err("failed: no memory slave_info %p", camera_info);
-		goto free_slave_info;
+		goto free_power_settings;
 
 	}
 
@@ -962,6 +963,9 @@ camera_power_down:
 	s_ctrl->func_tbl->sensor_power_down(s_ctrl);
 free_camera_info:
 	kfree(camera_info);
+free_power_settings:
+	kfree(s_ctrl->sensordata->power_info.power_setting);
+	kfree(s_ctrl->sensordata->power_info.power_down_setting);
 free_slave_info:
 	kfree(slave_info);
 	return rc;
