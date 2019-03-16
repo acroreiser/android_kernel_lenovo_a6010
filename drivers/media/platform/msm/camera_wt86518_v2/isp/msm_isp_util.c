@@ -801,7 +801,7 @@ static long msm_isp_ioctl_unlocked(struct v4l2_subdev *sd,
 		break;
 
 	default:
-		pr_err_ratelimited_ratelimited("%s: Invalid ISP command\n", __func__);
+		pr_err_ratelimited("%s: Invalid ISP command\n", __func__);
 		rc = -EINVAL;
 	}
 	return rc;
@@ -1644,7 +1644,7 @@ irqreturn_t msm_isp_process_irq(int irq_num, void *data)
 		read_irq_status(vfe_dev, &irq_status0, &irq_status1);
 
 	if ((irq_status0 == 0) && (irq_status1 == 0)) {
-		pr_err_ratelimited_ratelimited("%s:VFE%d irq_status0 & 1 are both 0\n",
+		pr_err_ratelimited("%s:VFE%d irq_status0 & 1 are both 0\n",
 			__func__, vfe_dev->pdev->id);
 		return IRQ_HANDLED;
 	}
@@ -1672,7 +1672,7 @@ irqreturn_t msm_isp_process_irq(int irq_num, void *data)
 	spin_lock_irqsave(&vfe_dev->tasklet_lock, flags);
 	queue_cmd = &vfe_dev->tasklet_queue_cmd[vfe_dev->taskletq_idx];
 	if (queue_cmd->cmd_used) {
-		pr_err_ratelimited_ratelimited("%s: Tasklet queue overflow: %d\n",
+		pr_err_ratelimited("%s: Tasklet queue overflow: %d\n",
 			__func__, vfe_dev->pdev->id);
 		list_del(&queue_cmd->list);
 	} else {
