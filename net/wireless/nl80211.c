@@ -11029,6 +11029,11 @@ void cfg80211_ch_switch_notify(struct net_device *dev,
 		goto out;
 
 	wdev->channel = chandef->chan;
+
+	if (wdev->iftype == NL80211_IFTYPE_STATION &&
+	    !WARN_ON(!wdev->current_bss))
+		wdev->current_bss->pub.channel = chandef->chan;
+
 	nl80211_ch_switch_notify(rdev, dev, chandef, GFP_KERNEL);
 out:
 	wdev_unlock(wdev);
