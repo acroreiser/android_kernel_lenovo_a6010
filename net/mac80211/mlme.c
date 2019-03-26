@@ -1010,9 +1010,6 @@ static void ieee80211_chswitch_work(struct work_struct *work)
 		local->hw.conf.chandef = local->_oper_chandef;
 	}
 
-	/* XXX: shouldn't really modify cfg80211-owned data! */
-	ifmgd->associated->channel = local->_oper_chandef.chan;
-
 	/* XXX: wait for a beacon first? */
 	ieee80211_wake_queues_by_reason(&local->hw,
 					IEEE80211_MAX_QUEUE_MAP,
