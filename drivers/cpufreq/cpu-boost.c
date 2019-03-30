@@ -85,8 +85,8 @@ static int set_input_boost_freq(const char *buf, const struct kernel_param *kp)
 	if (!ntokens) {
 		if (sscanf(buf, "%u\n", &val) != 1)
 			return -EINVAL;
-		for_each_possible_cpu(i)
-			per_cpu(sync_info, i).input_boost_freq = val;
+
+			per_cpu(sync_info, 0).input_boost_freq = val;
 		goto check_enable;
 	}
 
@@ -95,24 +95,22 @@ static int set_input_boost_freq(const char *buf, const struct kernel_param *kp)
 		return -EINVAL;
 
 	cp = buf;
-	for (i = 0; i < ntokens; i += 2) {
 		if (sscanf(cp, "%u:%u", &cpu, &val) != 2)
 			return -EINVAL;
-		if (cpu > num_possible_cpus())
+		if (cpu != 0)
 			return -EINVAL;
 
-		per_cpu(sync_info, cpu).input_boost_freq = val;
+		per_cpu(sync_info, 0).input_boost_freq = val;
 		cp = strchr(cp, ' ');
 		cp++;
-	}
+
 
 check_enable:
-	for_each_possible_cpu(i) {
-		if (per_cpu(sync_info, i).input_boost_freq) {
+
+		if (per_cpu(sync_info, 0).input_boost_freq) {
 			enabled = true;
-			break;
 		}
-	}
+
 	input_boost_enabled = enabled;
 
 	return 0;
@@ -123,11 +121,10 @@ static int get_input_boost_freq(char *buf, const struct kernel_param *kp)
 	int cnt = 0, cpu;
 	struct cpu_sync *s;
 
-	for_each_possible_cpu(cpu) {
-		s = &per_cpu(sync_info, cpu);
+		s = &per_cpu(sync_info, 0);
 		cnt += snprintf(buf + cnt, PAGE_SIZE - cnt,
 				"%d:%u ", cpu, s->input_boost_freq);
-	}
+
 	cnt += snprintf(buf + cnt, PAGE_SIZE - cnt, "\n");
 	return cnt;
 }
@@ -476,7 +473,7 @@ static int cpu_boost_init(void)
 	int cpu, ret;
 	struct cpu_sync *s;
 
-	cpu_boost_wq = alloc_workqueue("cpuboost_wq", WQ_HIGHPRI, 0);
+	cpu_boost_wq = alloc_workqueue("cpuboost_wq", WQ_HIGHPRI|WQ_POWER_EFFICIENT, 0);
 	if (!cpu_boost_wq)
 		return -EFAULT;
 
