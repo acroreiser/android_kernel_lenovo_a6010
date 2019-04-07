@@ -788,7 +788,7 @@ static irqreturn_t ft5x06_ts_interrupt(int irq, void *dev_id)
 			x += 5000;
 #endif
 
-                if (y == 2000 && data->disable_keys)
+                if (y == (2000 - 679) && data->disable_keys)
                         break;
 
 		input_mt_slot(ip_dev, id);
