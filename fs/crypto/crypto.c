@@ -450,7 +450,7 @@ fail:
 static int __init fscrypt_init(void)
 {
 	fscrypt_read_workqueue = alloc_workqueue("fscrypt_read_queue",
-							WQ_HIGHPRI, 0);
+							WQ_HIGHPRI | WQ_POWER_EFFICIENT, 0);
 	if (!fscrypt_read_workqueue)
 		goto fail;
 
