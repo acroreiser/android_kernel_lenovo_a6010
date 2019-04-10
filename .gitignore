@@ -19,6 +19,9 @@
 *.so.dbg
 *.mod.c
 *.i
+*.zip
+*.md5
+*.rej
 *.lst
 *.symtypes
 *.order
