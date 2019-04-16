@@ -46,8 +46,8 @@
  * (to see the precise effective timeslice length of your workload,
  *  run vmstat and monitor the context-switches (cs) field)
  */
-unsigned int sysctl_sched_latency = 6000000ULL;
-unsigned int normalized_sysctl_sched_latency = 6000000ULL;
+unsigned int sysctl_sched_latency = 5000000ULL;
+unsigned int normalized_sysctl_sched_latency = 5000000ULL;
 
 /*
  * The initial- and re-scaling of tunables is configurable
@@ -77,7 +77,7 @@ static unsigned int sched_nr_latency = 8;
  * After fork, child runs first. If set to 0 (default) then
  * parent will (try to) run first.
  */
-unsigned int sysctl_sched_child_runs_first __read_mostly;
+unsigned int sysctl_sched_child_runs_first __read_mostly = 1;
 
 /*
  * Controls whether, when SD_SHARE_PKG_RESOURCES is on, if all
@@ -118,7 +118,7 @@ unsigned int __read_mostly sysctl_sched_shares_window = 10000000UL;
  *
  * default: 5 msec, units: microseconds
   */
-unsigned int sysctl_sched_cfs_bandwidth_slice = 5000UL;
+unsigned int sysctl_sched_cfs_bandwidth_slice = 3000UL;
 #endif
 
 /*
