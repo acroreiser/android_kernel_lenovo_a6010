@@ -82,6 +82,11 @@ ui_print " ";
 ui_print "###sourcecode###";
 ui_print " ";
 
+while read LINE
+    do ui_print "$LINE"
+done < /tmp/anykernel/info.txt
+
+ui_print " ";
 
 umount /system;
 mount -o ro -t auto /system;
@@ -159,5 +164,6 @@ fi;
 
 umount /system;
 umount /data;
+ui_print " ";
 ui_print "* Finished, please reboot.";
 ui_print " ";
