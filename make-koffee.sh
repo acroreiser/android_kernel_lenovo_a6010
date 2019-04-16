@@ -96,7 +96,7 @@ make_flashable()
 		cp -R $BUILD_PATH/anykernel_a6000/* $REPACK_PATH
 		echo "--------------------------------------" > $REPACK_PATH/info.txt
 		echo "| Build  date:	$DATE" >> $REPACK_PATH/info.txt
-		echo "| Version:	$BOEFFLA_VERSION" >> $REPACK_PATH/info.txt
+	#	echo "| Version:	$BOEFFLA_VERSION" >> $REPACK_PATH/info.txt
 		echo "| Configuration file:	$DEFCONFIG" >> $REPACK_PATH/info.txt
 		echo "| Release:	$BVERN" >> $REPACK_PATH/info.txt
 		echo "| Building for:	$DEVICE" >> $REPACK_PATH/info.txt
@@ -130,16 +130,16 @@ make_flashable()
 
 
 	# create zip file
-	zip -r9 ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}.zip * -x ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}.zip
+	zip -r9 ${KERNEL_NAME}-r${BUILD_NUMBER}.zip * -x ${KERNEL_NAME}-r${BUILD_NUMBER}.zip
 
 	# sign recovery zip if there are keys available
 	if [ -f "$BUILD_PATH/tools_boeffla/testkey.x509.pem" ]; then
-		java -jar $BUILD_PATH/tools_boeffla/signapk.jar -w $BUILD_PATH/tools_boeffla/testkey.x509.pem $BUILD_PATH/tools_boeffla/testkey.pk8 ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}.zip ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-signed.zip
-		cp ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-signed.zip $BUILD_PATH/${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-${DEVICE}-signed.zip
-		md5sum $BUILD_PATH/${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-${DEVICE}-signed.zip > $BUILD_PATH/${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-${DEVICE}-signed.zip.md5
+		java -jar $BUILD_PATH/tools_boeffla/signapk.jar -w $BUILD_PATH/tools_boeffla/testkey.x509.pem $BUILD_PATH/tools_boeffla/testkey.pk8 ${KERNEL_NAME}-r${BUILD_NUMBER}.zip ${KERNEL_NAME}-r${BUILD_NUMBER}-signed.zip
+		cp ${KERNEL_NAME}-r${BUILD_NUMBER}-signed.zip $BUILD_PATH/${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE}-signed.zip
+		md5sum $BUILD_PATH/${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE}-signed.zip > $BUILD_PATH/${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE}-signed.zip.md5
 	else
-		cp ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}.zip $BUILD_PATH/${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-${DEVICE}.zip
-		md5sum $BUILD_PATH/${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-${DEVICE}.zip > $BUILD_PATH/${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-${DEVICE}.zip.md5
+		cp ${KERNEL_NAME}-r${BUILD_NUMBER}.zip $BUILD_PATH/${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE}.zip
+		md5sum $BUILD_PATH/${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE}.zip > $BUILD_PATH/${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE}.zip.md5
 	fi
 
 
@@ -223,7 +223,7 @@ fi
 if [ $? -eq 0 ]; then
 	echo "--------------------------------------"
 	echo "| Build  date:	$DATE"
-	echo "| Version:	$BOEFFLA_VERSION"
+#	echo "| Version:	$BOEFFLA_VERSION"
 	echo "| Configuration file:	$DEFCONFIG"
 	echo "| Release:	$BVERN"
 	echo "| Building for:	$DEVICE"
@@ -265,8 +265,8 @@ if [ "$DONTPACK" = "false" ]; then
 	if [ $? -eq 0 ]; then
 		echo "--------------------------------------"
 		cat $REPACK_PATH/info.txt
-		echo "> Flashable ZIP: $(ls | grep ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-${DEVICE} | grep .zip | head -n 1)"
-		echo "> MD5sum: $(ls | grep ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}-${DEVICE} | grep .md5)"
+		echo "> Flashable ZIP: $(ls | grep ${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE} | grep .zip | head -n 1)"
+		echo "> MD5sum: $(ls | grep ${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE} | grep .md5)"
 		echo "--------------------------------------"
 		echo "*** $KERNEL_NAME is ready! ***"
 	else
