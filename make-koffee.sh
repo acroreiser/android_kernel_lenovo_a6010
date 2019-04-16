@@ -14,6 +14,7 @@ SKIP_MODULES=true
 DONTPACK=false
 USER=$USER
 DATE=`date`
+BUILD_HOST=`hostname`
 BUILD_PATH=`pwd`
 CLEAN=false
 
@@ -40,6 +41,7 @@ usage() {
 	echo "	-C 			cleanup before building"
 	echo "	-R 			save your arguments to reuse (just run make-koffee.sh on next builds)"
 	echo "	-U <username> 			set build user"
+	echo "	-H <hostname> 			set build host"
 	echo "	-N <release_number> 			set release number"
 	echo "	-v 			show build script version"
 	echo "	-h 			show this help"
@@ -69,7 +71,7 @@ make_config()
 
 build_kernel()
 {
-	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER CROSS_COMPILE=$TOOLCHAIN zImage-dtb
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN zImage-dtb
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -79,7 +81,7 @@ build_kernel()
 
 build_modules()
 {
-	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER CROSS_COMPILE=$TOOLCHAIN modules
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN modules
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -95,15 +97,15 @@ make_flashable()
 	if [ "$DEVICE" == "a6010" ] || [ "$DEVICE" == "a6000" ]; then
 		cp -R $BUILD_PATH/anykernel_a6000/* $REPACK_PATH
 		echo "--------------------------------------" > $REPACK_PATH/info.txt
-		echo "| Build  date:	$DATE" >> $REPACK_PATH/info.txt
+		echo "| Build  date:    $DATE" >> $REPACK_PATH/info.txt
 	#	echo "| Version:	$BOEFFLA_VERSION" >> $REPACK_PATH/info.txt
-		echo "| Configuration file:	$DEFCONFIG" >> $REPACK_PATH/info.txt
-		echo "| Release:	$BVERN" >> $REPACK_PATH/info.txt
-		echo "| Building for:	$DEVICE" >> $REPACK_PATH/info.txt
-		echo "| Build  user:	$USER" >> $REPACK_PATH/info.txt
-		echo "| Build  host:	`hostname`" >> $REPACK_PATH/info.txt
-		echo "| Build  toolchain:	$TVERSION" >> $REPACK_PATH/info.txt
-		echo "| Number of threads:	$THREADS" >> $REPACK_PATH/info.txt
+		echo "| Configuration file:    $DEFCONFIG" >> $REPACK_PATH/info.txt
+		echo "| Release:    $BVERN" >> $REPACK_PATH/info.txt
+		echo "| Building for:    $DEVICE" >> $REPACK_PATH/info.txt
+		echo "| Build  user:    $USER" >> $REPACK_PATH/info.txt
+		echo "| Build  host:    $BUILD_HOST" >> $REPACK_PATH/info.txt
+		echo "| Build  toolchain:    $TVERSION" >> $REPACK_PATH/info.txt
+		echo "| Number of threads:    $THREADS" >> $REPACK_PATH/info.txt
 		echo "--------------------------------------" >> $REPACK_PATH/info.txt
 	else
 		echo "Attempt to create flashable for an unknown device. Aborting..."
@@ -142,15 +144,13 @@ make_flashable()
 		md5sum $BUILD_PATH/${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE}.zip > $BUILD_PATH/${KERNEL_NAME}-r${BUILD_NUMBER}-${DEVICE}.zip.md5
 	fi
 
-
-
 	cd $BUILD_PATH
 	return 0
 }
 
 # Pre
 
-while getopts "hvO:j:Kd:kB:S:N:CU:t:" opt
+while getopts "hvO:j:Kd:kB:S:N:CU:H:t:" opt
 do
 case $opt in
 	h) usage; exit 0;;
@@ -160,6 +160,7 @@ case $opt in
 	O) CUST_CONF=$OPTARG; DEFCONFIG=custom; KCONF_REPLACE=true;;
 	C) CLEAN=true;;
 	N) BUILD_NUMBER=$OPTARG;;
+	H) BUILD_HOST=$OPTARG;;
 	S) DEVICE=$OPTARG;;
 	K) KCONFIG=true;;
 	k) DONTPACK=true;;
@@ -228,7 +229,7 @@ if [ $? -eq 0 ]; then
 	echo "| Release:	$BVERN"
 	echo "| Building for:	$DEVICE"
 	echo "| Build  user:	$USER"
-	echo "| Build  host:	`hostname`"
+	echo "| Build  host:	$BUILD_HOST"
 	echo "| Build  toolchain:	$TVERSION"
 	echo "| Number of threads:	$THREADS"
 	echo "--------------------------------------"
@@ -284,7 +285,7 @@ else
 	echo "| Release:	$BVERN"
 	echo "| Building for:	$DEVICE"
 	echo "| Build  user:	$USER"
-	echo "| Build  host:	`hostname`"
+	echo "| Build  host:	$BUILD_HOST"
 	echo "| Build  toolchain:	$TVERSION"
 	echo "| Number of threads:	$THREADS"
 	echo "> zImage: arch/arm/boot/zImage"
