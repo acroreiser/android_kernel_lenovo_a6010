@@ -136,7 +136,12 @@ static const DECLARE_TLV_DB_SCALE(digital_gain, 0, 1, 0);
 static const DECLARE_TLV_DB_SCALE(analog_gain, 0, 25, 1);
 static struct snd_soc_dai_driver msm8x16_wcd_i2s_dai[];
 
+
 #ifdef CONFIG_MACH_WT86518
+#ifdef CONFIG_PHANTOM_GAIN_CONTROL
+static struct snd_soc_codec *sound_control_codec_ptr;
+static int lgain,rgain = 0;
+#endif
 static struct switch_dev accdet_data;
 static int accdet_state = 0;
 static struct delayed_work analog_switch_enable;
@@ -4151,9 +4156,21 @@ static int msm8x16_wcd_hph_pa_event(struct snd_soc_dapm_widget *w,
 #ifdef CONFIG_MACH_WT86518
 		usleep_range(10000, 10100);
 		if(!state)
+		{
+#ifdef CONFIG_PHANTOM_GAIN_CONTROL
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL, 0);
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL, 0);
+#endif
 			gpio_direction_output(EXT_SPK_AMP_HEADSET_GPIO, false);
+		}
 		else
+		{
+#ifdef CONFIG_PHANTOM_GAIN_CONTROL
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL, lgain);
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL, rgain);
+#endif
 			schedule_delayed_work(&analog_switch_enable, msecs_to_jiffies(500));
+		}
 #endif
 		break;
 
@@ -5456,15 +5473,11 @@ static void msm8x16_wcd_configure_cap(struct snd_soc_codec *codec,
 	}
 }
 #ifdef CONFIG_PHANTOM_GAIN_CONTROL
-static struct snd_soc_codec *sound_control_codec_ptr;
 
 static ssize_t headphone_gain_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "%d %d\n",
-		snd_soc_read(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL),
-		snd_soc_read(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL)
-	);
+	return snprintf(buf, PAGE_SIZE, "%d %d\n", lgain, rgain);
 }
 
 static ssize_t headphone_gain_store(struct kobject *kobj,
@@ -5481,8 +5494,15 @@ static ssize_t headphone_gain_store(struct kobject *kobj,
 	if (input_r < -84 || input_r > 20)
 		input_r = 0;
 
-	snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL, input_l);
-	snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL, input_r);
+	lgain = input_l;
+	rgain = input_r;
+
+	if(msm8x16_wcd_codec_get_headset_state())
+	{
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL, lgain);
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL, rgain);
+	}
+
 
 	return count;
 }
@@ -5519,39 +5539,9 @@ static struct kobj_attribute mic_gain_attribute =
 		mic_gain_show,
 		mic_gain_store);
 
-static ssize_t speaker_gain_show(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%d\n",
-		snd_soc_read(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL));
-}
-
-static ssize_t speaker_gain_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
-{
-
-	int input;
-
-	sscanf(buf, "%d", &input);
-
-	if (input < -10 || input > 20)
-		input = 0;
-
-	snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL, input);
-	snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL, input);
-
-	return count;
-}
-
-static struct kobj_attribute speaker_gain_attribute =
-	__ATTR(speaker_gain, 0664,
-		speaker_gain_show,
-		speaker_gain_store);
-
 static struct attribute *sound_control_attrs[] = {
 		&headphone_gain_attribute.attr,
 		&mic_gain_attribute.attr,
-		&speaker_gain_attribute.attr,
 		NULL,
 };
 
