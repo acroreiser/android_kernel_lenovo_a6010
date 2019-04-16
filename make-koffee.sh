@@ -6,7 +6,7 @@ TOOLCHAIN='arm-eabi-4.7/bin/arm-eabi-'
 KCONFIG=false
 CUST_CONF=no
 BUILD_NUMBER=1
-DEVICE=a6000
+DEVICE=a6010
 KCONF_REPLACE=false
 KERNEL_NAME="Hyperloop"
 BOEFFLA_VERSION="1"
@@ -92,7 +92,7 @@ make_flashable()
 
 	mkdir -p $REPACK_PATH
 	# copy anykernel template over
-	if [ "$DEVICE" == "a6000" ]; then
+	if [ "$DEVICE" == "a6010" ] || [ "$DEVICE" == "a6000" ]; then
 		cp -R $BUILD_PATH/anykernel_a6000/* $REPACK_PATH
 		echo "--------------------------------------" > $REPACK_PATH/info.txt
 		echo "| Build  date:	$DATE" >> $REPACK_PATH/info.txt
@@ -195,13 +195,6 @@ then
 	DEFCONFIG=".config"
 fi
 
-if [ "$DEFCONFIG" == "lineageos_i9300_defconfig" ]; then
-	DEVICE="m0"
-fi
- 
-if [ "$DEFCONFIG" == "lineageos_n7100_defconfig" ]; then
-	DEVICE="t03g"
-fi
 
 if [ -z $TOOLCHAIN ]; then
 	echo "FATAL: No toolchain prefix specified!" 
