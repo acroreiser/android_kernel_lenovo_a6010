@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016,2019 Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,7 +24,7 @@
 #define ADM_LSM_PORT_ID 0xADCB
 
 typedef void (*lsm_app_cb)(uint32_t opcode, uint32_t token,
-		       uint32_t *payload, void *priv);
+		       uint32_t *payload, uint16_t client_size, void *priv);
 
 struct lsm_sound_model {
 	dma_addr_t      phys;
