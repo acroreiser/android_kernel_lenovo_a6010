@@ -71,9 +71,11 @@ static int sockev_client_cb(struct notifier_block *nb,
 
 	sock = (struct socket *)data;
 	if (socknlmsgsk == 0)
-		goto done;
+		goto sk_null;
 	if ((socknlmsgsk == NULL) || (sock == NULL) || (sock->sk == NULL))
-		goto done;
+		goto sk_null;
+
+	sock_hold(sk);
 
 	if (sock->sk->sk_family != AF_INET && sock->sk->sk_family != AF_INET6)
 		goto done;
@@ -104,6 +106,8 @@ static int sockev_client_cb(struct notifier_block *nb,
 
 	nlmsg_notify(socknlmsgsk, skb, 0, SKNLGRP_SOCKEV, 0, GFP_KERNEL);
 done:
+	sock_put(sk);
+sk_null:
 	return 0;
 }
 
