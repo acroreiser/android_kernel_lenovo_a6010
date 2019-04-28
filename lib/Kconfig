@@ -194,9 +194,6 @@ source "lib/xz/Kconfig"
 config LZ4_COMPRESS
 	tristate "LZ4 compression"
 
-config ZBEWALGO_COMPRESS
-	tristate
-
 config LZ4HC_COMPRESS
 	tristate "LZ4HC compression"
 	depends on LZ4_COMPRESS
