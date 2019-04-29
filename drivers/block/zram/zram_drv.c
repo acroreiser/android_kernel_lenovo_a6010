@@ -43,7 +43,7 @@ static DEFINE_IDR(zram_index_idr);
 /* idr index must be protected */
 static DEFINE_MUTEX(zram_index_mutex);
 
-static const char *default_compressor = "lz4";
+static const char *default_compressor = "lz4hc";
 
 /* Module params (documentation at end) */
 static unsigned int num_devices = 1;
