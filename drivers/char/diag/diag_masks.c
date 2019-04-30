@@ -429,7 +429,7 @@ static int diag_cmd_get_build_mask(unsigned char *src_buf, int src_len,
 	struct diag_build_mask_req_t *req = NULL;
 	struct diag_msg_build_mask_t rsp;
 
-	if (!src_buf || !dest_buf || src_len <= 0 || dest_len <= 0 ||
+	if (!src_buf || !dest_buf || dest_len <= 0 ||
 		src_len < sizeof(struct diag_build_mask_req_t)) {
 		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d\n",
 		       __func__, src_buf, src_len, dest_buf, dest_len);
@@ -483,9 +483,9 @@ static int diag_cmd_get_msg_mask(unsigned char *src_buf, int src_len,
 	struct diag_build_mask_req_t *req = NULL;
 	struct diag_msg_build_mask_t rsp;
 
-	if (!src_buf || !dest_buf || src_len <= 0 || dest_len <= 0 ||
-            (src_len < sizeof(struct diag_build_mask_req_t))) {
-		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d",
+	if (!src_buf || !dest_buf || dest_len <= 0 ||
+	    (src_len < sizeof(struct diag_build_mask_req_t))) {
+		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d\n",
 		       __func__, src_buf, src_len, dest_buf, dest_len);
 		return -EINVAL;
 	}
@@ -537,8 +537,9 @@ static int diag_cmd_set_msg_mask(unsigned char *src_buf, int src_len,
 	struct diag_msg_mask_t *mask_next = NULL;
 	uint32_t *temp = NULL;
 
-	if (!src_buf || !dest_buf || src_len <= 0 || dest_len <= 0) {
-		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d",
+	if (!src_buf || !dest_buf || dest_len <= 0 ||
+		(src_len < sizeof(struct diag_msg_build_mask_t))) {
+		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d\n",
 		       __func__, src_buf, src_len, dest_buf, dest_len);
 		return -EINVAL;
 	}
@@ -595,7 +596,9 @@ static int diag_cmd_set_msg_mask(unsigned char *src_buf, int src_len,
 			break;
 		}
 		mask_size = mask_size * sizeof(uint32_t);
-		memcpy(mask->ptr + offset, src_buf + header_len, mask_size);
+		if (mask_size && src_len >= header_len + mask_size)
+			memcpy(mask->ptr + offset, src_buf + header_len,
+				mask_size);
 		msg_mask.status = DIAG_CTRL_MASK_VALID;
 		break;
 	}
@@ -639,8 +642,9 @@ static int diag_cmd_set_all_msg_mask(unsigned char *src_buf, int src_len,
 	struct diag_msg_config_rsp_t *req = NULL;
 	struct diag_msg_mask_t *mask = (struct diag_msg_mask_t *)msg_mask.ptr;
 
-	if (!src_buf || !dest_buf || src_len <= 0 || dest_len <= 0) {
-		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d",
+	if (!src_buf || !dest_buf || dest_len <= 0 ||
+		(src_len < sizeof(struct diag_msg_config_rsp_t))) {
+		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d\n",
 		       __func__, src_buf, src_len, dest_buf, dest_len);
 		return -EINVAL;
 	}
@@ -724,7 +728,8 @@ static int diag_cmd_update_event_mask(unsigned char *src_buf, int src_len,
 	struct diag_event_mask_config_t rsp;
 	struct diag_event_mask_config_t *req;
 
-	if (!src_buf || !dest_buf || src_len <= 0 || dest_len <= 0) {
+	if (!src_buf || !dest_buf || dest_len <= 0 ||
+		src_len < sizeof(struct diag_event_mask_config_t)) {
 		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d",
 		       __func__, src_buf, src_len, dest_buf, dest_len);
 		return -EINVAL;
@@ -739,7 +744,8 @@ static int diag_cmd_update_event_mask(unsigned char *src_buf, int src_len,
 	}
 
 	mutex_lock(&event_mask.lock);
-	memcpy(event_mask.ptr, src_buf + header_len, mask_len);
+	if (src_len >= header_len + mask_len)
+		memcpy(event_mask.ptr, src_buf + header_len, mask_len);
 	event_mask.status = DIAG_CTRL_MASK_VALID;
 	mutex_unlock(&event_mask.lock);
 	diag_update_userspace_clients(EVENT_MASKS_TYPE);
@@ -771,7 +777,7 @@ static int diag_cmd_toggle_events(unsigned char *src_buf, int src_len,
 	uint8_t toggle = 0;
 	struct diag_event_report_t header;
 
-	if (!src_buf || !dest_buf || src_len <= 0 || dest_len <= 0) {
+	if (!src_buf || !dest_buf || src_len <= sizeof(uint8_t) || dest_len <= 0) {
 		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d",
 		       __func__, src_buf, src_len, dest_buf, dest_len);
 		return -EINVAL;
@@ -817,7 +823,8 @@ static int diag_cmd_get_log_mask(unsigned char *src_buf, int src_len,
 	struct diag_log_config_req_t *req;
 	struct diag_log_config_rsp_t rsp;
 
-	if (!src_buf || !dest_buf || src_len <= 0 || dest_len <= 0) {
+	if (!src_buf || !dest_buf || dest_len <= 0 ||
+		src_len < sizeof(struct diag_log_config_req_t)) {
 		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d",
 		       __func__, src_buf, src_len, dest_buf, dest_len);
 		return -EINVAL;
@@ -925,7 +932,8 @@ static int diag_cmd_set_log_mask(unsigned char *src_buf, int src_len,
 	struct diag_log_config_req_t *req;
 	struct diag_log_config_set_rsp_t rsp;
 
-	if (!src_buf || !dest_buf || src_len <= 0 || dest_len <= 0) {
+	if (!src_buf || !dest_buf || dest_len <= 0 ||
+		src_len < sizeof(struct diag_log_config_req_t)) {
 		pr_err("diag: Invalid input in %s, src_buf: %pK, src_len: %d, dest_buf: %pK, dest_len: %d",
 		       __func__, src_buf, src_len, dest_buf, dest_len);
 		return -EINVAL;
@@ -959,7 +967,7 @@ static int diag_cmd_set_log_mask(unsigned char *src_buf, int src_len,
 			mask->num_items = LOG_SIZE_TO_ITEMS(mask_size);
 			req->num_items = mask->num_items;
 		}
-		if (mask_size > 0)
+		if (mask_size > 0 && src_len >= read_len + mask_size)
 			memcpy(mask->ptr, src_buf + read_len, mask_size);
 		log_mask.status = DIAG_CTRL_MASK_VALID;
 		break;
