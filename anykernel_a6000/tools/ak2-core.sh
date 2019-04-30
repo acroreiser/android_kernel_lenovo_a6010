@@ -70,7 +70,15 @@ dump_boot()
 	sed -i s/'1 800000:90'/'1 200000:90'/ /tmp/anykernel/ramdisk/init.qcom.power.rc
 
 	ui_print "";
+	ui_print "";
 	
+	COMPZRAM=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /comp_ | awk '{print $3}')
+	COMPZSWAP=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /compr | awk '{print $3}')
+	ui_print "* Switch to lz4hc for zswap and deflate for zram (if needed)";
+	sed  "s/[[:<:]]comp_algorithm $COMPZRAM[[:>:]]/comp_algorithm deflate/" -i /tmp/anykernel/ramdisk/init.target.rc
+	sed  "s/[[:<:]]compressor $COMPZSWAP[[:>:]]/compressor lz4hc/" -i /tmp/anykernel/ramdisk/init.target.rc
+	ui_print "";	
+
 	if [ -d $ramdisk/su ]; then
 			ui_print "  SuperSu systemless detected...";
 			ui_print " ";
