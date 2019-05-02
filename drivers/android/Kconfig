@@ -31,6 +31,9 @@ config ANDROID_BINDER_DEVICES
 	  created. Each binder device has its own context manager, and is
 	  therefore logically separated from the other devices.
 
+config BINDER_SHUT_UP
+		bool "Supress Android Binder logging"
+
 config ANDROID_BINDER_IPC_SELFTEST
         bool "Android Binder IPC Driver Selftest"
         depends on ANDROID_BINDER_IPC
