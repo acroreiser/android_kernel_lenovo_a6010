@@ -1095,6 +1095,7 @@ struct audit_buffer *audit_log_start(struct audit_context *ctx, gfp_t gfp_mask,
 				     int type)
 {
 	struct audit_buffer	*ab	= NULL;
+#ifndef CONFIG_AUDIT_SILENCE
 	struct timespec		t;
 	unsigned int		uninitialized_var(serial);
 	int reserve;
@@ -1148,6 +1149,7 @@ struct audit_buffer *audit_log_start(struct audit_context *ctx, gfp_t gfp_mask,
 
 	audit_log_format(ab, "audit(%lu.%03lu:%u): ",
 			 t.tv_sec, t.tv_nsec/1000000, serial);
+#endif
 	return ab;
 }
 
@@ -1720,6 +1722,7 @@ void audit_log_end(struct audit_buffer *ab)
 void audit_log(struct audit_context *ctx, gfp_t gfp_mask, int type,
 	       const char *fmt, ...)
 {
+#ifndef CONFIG_AUDIT_SILENCE
 	struct audit_buffer *ab;
 	va_list args;
 
@@ -1730,7 +1733,9 @@ void audit_log(struct audit_context *ctx, gfp_t gfp_mask, int type,
 		va_end(args);
 		audit_log_end(ab);
 	}
+#endif
 }
+
 
 #ifdef CONFIG_SECURITY
 /**
@@ -1745,6 +1750,7 @@ void audit_log(struct audit_context *ctx, gfp_t gfp_mask, int type,
  */
 void audit_log_secctx(struct audit_buffer *ab, u32 secid)
 {
+#ifndef CONFIG_AUDIT_SILENCE
 	u32 len;
 	char *secctx;
 
@@ -1754,6 +1760,7 @@ void audit_log_secctx(struct audit_buffer *ab, u32 secid)
 		audit_log_format(ab, " obj=%s", secctx);
 		security_release_secctx(secctx, len);
 	}
+#endif
 }
 EXPORT_SYMBOL(audit_log_secctx);
 #endif

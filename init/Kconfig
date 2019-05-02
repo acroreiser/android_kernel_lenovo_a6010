@@ -262,6 +262,9 @@ config AUDITSYSCALL
 	  can be used independently or with another kernel subsystem,
 	  such as SELinux.
 
+config AUDIT_SILENCE
+	bool "Supress audit messages in kernel syslog"
+
 config AUDIT_WATCH
 	def_bool y
 	depends on AUDITSYSCALL
