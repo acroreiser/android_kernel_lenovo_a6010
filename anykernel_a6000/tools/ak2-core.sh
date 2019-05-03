@@ -69,15 +69,46 @@ dump_boot()
 	ui_print "* Applying fixup for 800MHz stuck on interactive governor (if needed)";
 	sed -i s/'1 800000:90'/'1 200000:90'/ /tmp/anykernel/ramdisk/init.qcom.power.rc
 
-	ui_print "";
-	ui_print "";
+	ui_print " ";
 	
 	COMPZRAM=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /comp_ | awk '{print $3}')
 	COMPZSWAP=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /compr | awk '{print $3}')
-	ui_print "* Switch to lz4hc for zswap and deflate for zram (if needed)";
-	sed  "s/[[:<:]]comp_algorithm $COMPZRAM[[:>:]]/comp_algorithm deflate/" -i /tmp/anykernel/ramdisk/init.target.rc
+	ui_print "* Switch to lz4hc for zswap and zram (if needed)";
+	sed  "s/[[:<:]]comp_algorithm $COMPZRAM[[:>:]]/comp_algorithm lz4hc/" -i /tmp/anykernel/ramdisk/init.target.rc
 	sed  "s/[[:<:]]compressor $COMPZSWAP[[:>:]]/compressor lz4hc/" -i /tmp/anykernel/ramdisk/init.target.rc
-	ui_print "";	
+
+	ui_print " "
+	ui_print "* Tweaking ramdisk"
+	sed "s/read_ahead_kb 64/read_ahead_kb 2048/g" -i /tmp/anykernel/ramdisk/init.target.rc
+	sed "s/read_ahead_kb 128/read_ahead_kb 2048/g" -i /tmp/anykernel/ramdisk/init.target.rc
+	sed "/scheduler noop/d" -i /tmp/anykernel/ramdisk/init.target.rc
+	IOSCHED=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep "/scheduler" | awk '{print $3}')
+	sed  "s/[[:<:]]scheduler $IOSCHED[[:>:]]/scheduler bfq/" -i /tmp/anykernel/ramdisk/init.target.rc
+	sed "s/lmk_fast_run 0/lmk_fast_run 1/g" -i /tmp/anykernel/ramdisk/init.target.rc
+	sed "s/swappiness 35/swappiness 100/g" -i /tmp/anykernel/ramdisk/init.target.rc
+	sed "s/vfs_cache_pressure 65/vfs_cache_pressure 25/g" -i /tmp/anykernel/ramdisk/init.target.rc
+
+	if [ "$(cat /proc/meminfo | head -n 1 | awk '{print $2}')" -lt "1100000" ]; then
+		ui_print " ";
+		ui_print "* 1/8 model detected, additionally tweaking ramdisk";
+		ZSWAPPOOL=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /max_pool_percent | awk '{print $3}')
+		sed  "s/[[:<:]]max_pool_percent $ZSWAPPOOL[[:>:]]/max_pool_percent 0/" -i /tmp/anykernel/ramdisk/init.target.rc
+		ZSWAPENABLED=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep zswap/parameters/enabled | awk '{print $3}')
+		sed  "s/[[:<:]]zswap\/parameters\/enabled $ZSWAPENABLED[[:>:]]/zswap\/parameters\/enabled 0/" -i /tmp/anykernel/ramdisk/init.target.rc
+		sed "s/enable_adaptive_lmk 0/enable_adaptive_lmk 1/g" -i /tmp/anykernel/ramdisk/init.target.rc
+		ZRAMSIZE=$(cat /tmp/anykernel/ramdisk/fstab.qcom | grep block/zram0 | awk '{print $5}')
+		sed "s/$ZRAMSIZE/zramsize=419430400/" -i /tmp/anykernel/ramdisk/fstab.qcom
+	else
+		ui_print " ";
+		ui_print "* 2/16 model detected, additionally tweaking ramdisk";
+		sed "s/nr_requests 300/nr_requests 1024/g" -i /tmp/anykernel/ramdisk/init.target.rc
+		sed "s/nr_requests 128/nr_requests 1024/g" -i /tmp/anykernel/ramdisk/init.target.rc
+		sed "s/enable_process_reclaim 1/enable_process_reclaim 0/g" -i /tmp/anykernel/ramdisk/init.target.rc
+	
+
+
+	fi	
+
 
 	if [ -d $ramdisk/su ]; then
 			ui_print "  SuperSu systemless detected...";
