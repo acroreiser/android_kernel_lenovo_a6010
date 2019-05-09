@@ -638,3 +638,6 @@ config PHANTOM_GAIN_CONTROL
        help
        A simple Port Of flar's Sound Driver from Tom-Tom Sound sc
        to msm8916-wcd
+
+config 8916_IMPEDANCE_TUNE
+	   bool "Ability to manually set headphone impedance"
