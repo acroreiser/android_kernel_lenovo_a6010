@@ -137,6 +137,10 @@ static const DECLARE_TLV_DB_SCALE(analog_gain, 0, 25, 1);
 static struct snd_soc_dai_driver msm8x16_wcd_i2s_dai[];
 
 
+#ifdef CONFIG_8916_IMPEDANCE_TUNE
+static int h_imped = 0;
+#endif
+
 #ifdef CONFIG_MACH_WT86518
 #ifdef CONFIG_PHANTOM_GAIN_CONTROL
 static struct snd_soc_codec *sound_control_codec_ptr;
@@ -3883,7 +3887,7 @@ static uint32_t wcd_get_impedance_value(uint32_t imped)
 			break;
 	}
 
-	pr_debug("%s: selected impedance value = %d\n",
+	pr_err("%s: selected impedance value = %d\n",
 		 __func__, wcd_imped_val[i]);
 	return wcd_imped_val[i];
 }
@@ -3895,8 +3899,16 @@ void wcd_imped_config(struct snd_soc_codec *codec,
 	int codec_version;
 	struct msm8x16_wcd_priv *msm8x16_wcd =
 				snd_soc_codec_get_drvdata(codec);
-
-	value = wcd_get_impedance_value(imped);
+#ifdef CONFIG_8916_IMPEDANCE_TUNE
+	if (h_imped > 0) 
+	{
+		value = h_imped;
+		pr_err("%s, used manually selected impedance = %d Ohm\n",
+			__func__, value);
+	}
+	else
+#endif
+		value = wcd_get_impedance_value(imped);
 
 	if (value < wcd_imped_val[0]) {
 		pr_debug("%s, detected impedance is less than 4 Ohm\n",
@@ -5472,6 +5484,47 @@ static void msm8x16_wcd_configure_cap(struct snd_soc_codec *codec,
 				0x40, 0x00);
 	}
 }
+
+#ifdef CONFIG_8916_IMPEDANCE_TUNE
+static ssize_t headphone_impedance_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", h_imped);
+}
+
+static ssize_t headphone_impedance_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+
+	int input_l;
+
+	sscanf(buf, "%d", &input_l);
+
+	if (input_l < 4 || input_l > 48)
+		h_imped = 0;
+
+	h_imped = input_l;
+
+	return count;
+}
+
+static struct kobj_attribute headphone_impedance_attribute =
+	__ATTR(headphone_impedance, 0644,
+		headphone_impedance_show,
+		headphone_impedance_store);
+
+static struct attribute *impe_control_attrs[] = {
+		&headphone_impedance_attribute.attr,
+		NULL,
+};
+
+static struct attribute_group impe_control_attr_group = {
+		.attrs = impe_control_attrs,
+};
+
+static struct kobject *impe_control_kobj;
+#endif
+
 #ifdef CONFIG_PHANTOM_GAIN_CONTROL
 
 static ssize_t headphone_gain_show(struct kobject *kobj,
@@ -6117,6 +6170,18 @@ static int msm8x16_wcd_spmi_probe(struct spmi_device *spmi)
 		goto err_supplies;
 	}
 	dev_set_drvdata(&spmi->dev, msm8x16);
+
+#ifdef CONFIG_8916_IMPEDANCE_TUNE
+	impe_control_kobj = kobject_create_and_add("impe_control", kernel_kobj);
+	if (impe_control_kobj == NULL) {
+		pr_warn("%s kobject create failed!\n", __func__);
+        }
+
+	ret = sysfs_create_group(impe_control_kobj, &impe_control_attr_group);
+        if (ret) {
+		pr_warn("%s sysfs file create failed!\n", __func__);
+	}
+#endif
 
 #ifdef CONFIG_PHANTOM_GAIN_CONTROL
 	sound_control_kobj = kobject_create_and_add("sound_control", kernel_kobj);
