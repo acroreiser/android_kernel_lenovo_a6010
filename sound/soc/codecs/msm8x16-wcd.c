@@ -3915,7 +3915,7 @@ void wcd_imped_config(struct snd_soc_codec *codec,
 			 __func__);
 		return;
 	}
-	if (value >= wcd_imped_val[ARRAY_SIZE(wcd_imped_val) - 1]) {
+	if (value > wcd_imped_val[ARRAY_SIZE(wcd_imped_val) - 1]) {
 		pr_err("%s, invalid imped, greater than 48 Ohm\n = %d\n",
 			__func__, value);
 		return;
