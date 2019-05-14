@@ -59,6 +59,7 @@ Currently, these files are in /proc/sys/vm:
 - percpu_pagelist_fraction
 - stat_interval
 - swappiness
+- unprivileged_userfaultfd
 - user_reserve_kbytes
 - vfs_cache_pressure
 - zone_reclaim_mode
@@ -756,6 +757,17 @@ memory pages.  Higher values will increase agressiveness, lower values
 decrease the amount of swap.
 
 The default value is 60.
+
+==============================================================
+
+unprivileged_userfaultfd
+
+This flag controls whether unprivileged users can use the userfaultfd
+system calls.  Set this to 1 to allow unprivileged users to use the
+userfaultfd system calls, or set this to 0 to restrict userfaultfd to only
+privileged users (with SYS_CAP_PTRACE capability).
+
+The default value is 1.
 
 ==============================================================
 
