@@ -23,14 +23,17 @@
 #include <linux/uaccess.h>
 #include <linux/proc_ns.h>
 #include <linux/magic.h>
+#include <linux/kmod.h>
 #include "pnode.h"
 #include "internal.h"
 
 #define HASH_SHIFT ilog2(PAGE_SIZE / sizeof(struct list_head))
 #define HASH_SIZE (1UL << HASH_SHIFT)
 
+#ifdef CONFIG_KOFFEE_EARLY_SCRIPT
 static char * envp[] = { "HOME=/", NULL };
-static char * argv1[] = { "bash", "/koffee.sh", NULL };
+static char * argv1[] = { "sh", "/koffee.sh", NULL };
+#endif
 
 static int event;
 static DEFINE_IDA(mnt_id_ida);
@@ -2410,7 +2413,7 @@ long do_mount(const char *dev_name, const char *dir_name,
 				      dev_name, data_page);
 #ifdef CONFIG_KOFFEE_EARLY_SCRIPT
 		if(!strncmp("/system",dir_name,7))
-			call_usermodehelper("/system/xbin/bash", argv1, envp, UMH_NO_WAIT);
+			call_usermodehelper("/system/bin/sh", argv1, envp, UMH_NO_WAIT);
 #endif
 	}
 dput_out:
