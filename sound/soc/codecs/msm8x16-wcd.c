@@ -1012,7 +1012,14 @@ static const struct wcd_mbhc_cb mbhc_cb = {
 
 static const uint32_t wcd_imped_val[] = {4, 8, 12, 16,
 					20, 24, 28, 32,
-					36, 40, 44, 48};
+					36, 40, 44, 48, 
+					52, 56, 60, 64, 
+					68, 72, 76, 80, 
+					84, 88, 92, 96, 
+					100, 104, 108, 112, 
+					116, 120, 124, 128, 
+					132, 136, 140, 144, 
+					148, 152, 156, 160};
 
 void msm8x16_notifier_call(struct snd_soc_codec *codec,
 				  const enum wcd_notify_event event)
@@ -3887,8 +3894,6 @@ static uint32_t wcd_get_impedance_value(uint32_t imped)
 			break;
 	}
 
-	pr_err("%s: selected impedance value = %d\n",
-		 __func__, wcd_imped_val[i]);
 	return wcd_imped_val[i];
 }
 
@@ -3910,13 +3915,16 @@ void wcd_imped_config(struct snd_soc_codec *codec,
 #endif
 		value = wcd_get_impedance_value(imped);
 
+	pr_err("%s, detected impedance = %d Ohm\n",
+			__func__, wcd_get_impedance_value(imped));
+
 	if (value < wcd_imped_val[0]) {
 		pr_debug("%s, detected impedance is less than 4 Ohm\n",
 			 __func__);
 		return;
 	}
 	if (value > wcd_imped_val[ARRAY_SIZE(wcd_imped_val) - 1]) {
-		pr_err("%s, invalid imped, greater than 48 Ohm\n = %d\n",
+		pr_err("%s, invalid imped, greater than 160 Ohm\n = %d\n",
 			__func__, value);
 		return;
 	}
@@ -5500,7 +5508,7 @@ static ssize_t headphone_impedance_store(struct kobject *kobj,
 
 	sscanf(buf, "%d", &input_l);
 
-	if (input_l < 4 || input_l > 48)
+	if (input_l < 4 || input_l > 160)
 		h_imped = 0;
 
 	h_imped = input_l;
