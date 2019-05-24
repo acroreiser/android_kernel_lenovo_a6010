@@ -3532,7 +3532,7 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 	}
 
-	if (ret == -ENOSYS)
+	if (ret == -ENOSYS && cmd != 5401)
 		pr_err("unsupported ioctl (%x)\n", cmd);
 
 exit:

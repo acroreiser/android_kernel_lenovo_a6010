@@ -1039,7 +1039,7 @@ int mdss_dsi_reg_status_check(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 				value = (value << 8) | ctrl_pdata->status_buf.data[j];
 			}
 			
-			pr_err("%s: Read back value from panel is: %x\n", __func__, value);
+			pr_debug("%s: Read back value from panel is: %x\n", __func__, value);
 			
 			if(value != ctrl_pdata->status_value[i][1])
 			{
