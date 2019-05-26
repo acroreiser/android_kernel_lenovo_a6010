@@ -525,8 +525,10 @@ static int32_t msm_actuator_vreg_control(struct msm_actuator_ctrl_t *a_ctrl,
 static int32_t msm_actuator_power_down(struct msm_actuator_ctrl_t *a_ctrl)
 {
 	int32_t rc = 0;
+	int force = 1;
+
 	CDBG("Enter\n");
-	if (a_ctrl->actuator_state != ACTUATOR_POWER_DOWN) {
+	if (force || a_ctrl->actuator_state != ACTUATOR_POWER_DOWN) {
 
 		if (a_ctrl->func_tbl && a_ctrl->func_tbl->actuator_park_lens) {
 			rc = a_ctrl->func_tbl->actuator_park_lens(a_ctrl);
