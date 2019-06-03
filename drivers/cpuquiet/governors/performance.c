@@ -27,10 +27,10 @@
 
 #include "../cpuquiet.h"
 
-static struct work_struct runnables_work;
-static struct timer_list runnables_timer;
+static struct work_struct perfo_work;
+static struct timer_list perfo_timer;
 
-static bool runnables_enabled;
+static bool perfo_enabled;
 /* configurable parameters */
 static unsigned int sample_rate = 200;	  /* msec */
 
@@ -42,18 +42,18 @@ static unsigned int default_thresholds[] = {
 };
 
 static unsigned int nr_run_last;
-static unsigned int nr_run_hysteresis = 1;	     /* 1 / 2 thread */
+static unsigned int nr_run_hysteresis = 4;	     /* 1 / 2 thread */
 static unsigned int default_threshold_level = 4;	/* 1 / 4 thread */
 static unsigned int nr_run_thresholds[NR_CPUS];
 
-struct runnables_avg_sample {
+struct perfo_avg_sample {
 	u64 previous_integral;
 	unsigned int avg;
 	bool integral_sampled;
 	u64 prev_timestamp;
 };
 
-static DEFINE_PER_CPU(struct runnables_avg_sample, avg_nr_sample);
+static DEFINE_PER_CPU(struct perfo_avg_sample, avg_nr_sample);
 
 /*
  * EXP = alpha in the exponential moving average.
@@ -62,11 +62,11 @@ static DEFINE_PER_CPU(struct runnables_avg_sample, avg_nr_sample);
  */
 #define EXP    1677
 
-static unsigned int get_avg_nr_runnables(void)
+static unsigned int get_avg_nr_perfo(void)
 {
 	unsigned int i, sum = 0;
 	static unsigned int avg;
-	struct runnables_avg_sample *sample;
+	struct perfo_avg_sample *sample;
 	u64 integral, old_integral, delta_integral, delta_time, cur_time;
 
 	for_each_online_cpu(i) {
@@ -126,16 +126,16 @@ static int get_action(unsigned int nr_run)
 	return 0;
 }
 
-static void runnables_avg_sampler(unsigned long data)
+static void perfo_avg_sampler(unsigned long data)
 {
 	unsigned int nr_run, avg_nr_run;
 	int action;
 
-	if (!runnables_enabled)
+	if (!perfo_enabled)
 		return;
 
-	avg_nr_run = get_avg_nr_runnables();
-	mod_timer(&runnables_timer, jiffies + msecs_to_jiffies(sample_rate));
+	avg_nr_run = get_avg_nr_perfo();
+	mod_timer(&perfo_timer, jiffies + msecs_to_jiffies(sample_rate));
 
 	for (nr_run = 1; nr_run < ARRAY_SIZE(nr_run_thresholds); nr_run++) {
 		unsigned int nr_threshold = nr_run_thresholds[nr_run - 1];
@@ -149,94 +149,69 @@ static void runnables_avg_sampler(unsigned long data)
 	action = get_action(nr_run);
 
 	if (action != 0)
-		schedule_work(&runnables_work);
+		schedule_work(&perfo_work);
 }
 
 static unsigned int get_lightest_loaded_cpu(void)
 {
-	unsigned long min_avg_runnables = ULONG_MAX;
+	unsigned long min_avg_perfo = ULONG_MAX;
 	unsigned int cpu = nr_cpu_ids;
 	int i;
 
 	for_each_online_cpu(i) {
-		struct runnables_avg_sample *s = &per_cpu(avg_nr_sample, i);
-		unsigned int nr_runnables = s->avg;
-		if (i > 0 && min_avg_runnables > nr_runnables) {
+		struct perfo_avg_sample *s = &per_cpu(avg_nr_sample, i);
+		unsigned int nr_perfo = s->avg;
+		if (i > 0 && min_avg_perfo > nr_perfo) {
 			cpu = i;
-			min_avg_runnables = nr_runnables;
+			min_avg_perfo = nr_perfo;
 		}
 	}
 
 	return cpu;
 }
 
-static void runnables_work_func(struct work_struct *work)
+static void perfo_work_func(struct work_struct *work)
 {
 	unsigned int cpu = nr_cpu_ids;
-	int action;
+	int action, i;
 
-	if (!runnables_enabled)
+	if (!perfo_enabled)
 		return;
 
 	action = get_action(nr_run_last);
-	if (action > 0)
-		cpu = cpumask_next_zero(0, cpu_online_mask);
-	else if (action < 0)
-		cpu = get_lightest_loaded_cpu();
 
 	if (cpu > nr_cpu_ids)
 		return;
 
 	if (action > 0)
-		cpuquiet_wake_cpu(cpu, false);
+		for_each_present_cpu(i)
+		{
+			if (!cpu_online(cpu))
+				cpuquiet_wake_cpu(i, false);
+		}
+
 	if (action < 0)
+	{
+		cpu = get_lightest_loaded_cpu();
 		cpuquiet_quiesce_cpu(cpu, false);
+	}
 }
 
-CPQ_SIMPLE_ATTRIBUTE(sample_rate, 0644, uint);
-CPQ_SIMPLE_ATTRIBUTE(nr_run_hysteresis, 0644, uint);
-
-static struct attribute *runnables_attrs[] = {
-	&sample_rate_attr.attr,
-	&nr_run_hysteresis_attr.attr,
-	NULL,
-};
-
-static struct attribute_group runnables_group = {
-	.name = "runnable_threads",
-	.attrs = runnables_attrs,
-};
-
-static int runnables_sysfs_init(void)
+static void perfo_stop(void)
 {
-	return cpuquiet_register_attrs(&runnables_group);
+	perfo_enabled = false;
+	del_timer_sync(&perfo_timer);
+	cancel_work_sync(&perfo_work);
 }
 
-static void runnables_sysfs_exit(void)
+static int perfo_start(void)
 {
-	cpuquiet_unregister_attrs(&runnables_group);
-}
+	int i, arch_specific_sample_rate;
 
-static void runnables_stop(void)
-{
-	runnables_enabled = false;
-	del_timer_sync(&runnables_timer);
-	cancel_work_sync(&runnables_work);
-	//runnables_sysfs_exit();
-}
+	INIT_WORK(&perfo_work, perfo_work_func);
 
-static int runnables_start(void)
-{
-	int i, err, arch_specific_sample_rate;
-
-/*	err = runnables_sysfs_init();
-	if (err)
-		return err;
-*/
-	INIT_WORK(&runnables_work, runnables_work_func);
-
-	init_timer(&runnables_timer);
-	runnables_timer.function = runnables_avg_sampler;
+	init_timer(&perfo_timer);
+	perfo_timer.function = perfo_avg_sampler;
 
 	arch_specific_sample_rate = cpuquiet_get_avg_hotplug_latency();
 	if (arch_specific_sample_rate)
@@ -256,34 +231,34 @@ static int runnables_start(void)
 				NR_FSHIFT / default_threshold_level;
 	}
 
-	runnables_enabled = true;
+	perfo_enabled = true;
 
-	runnables_avg_sampler(0);
+	perfo_avg_sampler(0);
 
 	return 0;
 }
 
-static struct cpuquiet_governor runnables_governor = {
-	.name			= "runnable",
-	.start			= runnables_start,
-	.stop			= runnables_stop,
+static struct cpuquiet_governor perfo_governor = {
+	.name			= "performance",
+	.start			= perfo_start,
+	.stop			= perfo_stop,
 	.owner			= THIS_MODULE,
 };
 
-static int __init init_runnables(void)
+static int __init init_perfo(void)
 {
-	return cpuquiet_register_governor(&runnables_governor);
+	return cpuquiet_register_governor(&perfo_governor);
 }
 
-static void __exit exit_runnables(void)
+static void __exit exit_perfo(void)
 {
-	cpuquiet_unregister_governor(&runnables_governor);
+	cpuquiet_unregister_governor(&perfo_governor);
 }
 
 MODULE_LICENSE("GPL");
-#ifdef CONFIG_CPU_QUIET_DEFAULT_GOV_RUNNABLE
-fs_initcall(init_runnables);
+#ifdef CONFIG_CPU_QUIET_DEFAULT_GOV_PERFORMANCE
+fs_initcall(init_perfo);
 #else
-module_init(init_runnables);
+module_init(init_perfo);
 #endif
-module_exit(exit_runnables);
+module_exit(exit_perfo);
