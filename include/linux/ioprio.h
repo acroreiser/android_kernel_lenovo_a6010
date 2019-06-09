@@ -18,6 +18,15 @@
  */
 #define IOPRIO_NORM	(4)
 
+//forward-ported for fiops elevator
+static inline int task_ioprio(struct io_context *ioc)
+{
+	if (ioprio_valid(ioc->ioprio))
+		return IOPRIO_PRIO_DATA(ioc->ioprio);
+
+	return IOPRIO_NORM;
+}
+
 /*
  * if process has set io priority explicitly, use that. if not, convert
  * the cpu scheduler nice value to an io priority
