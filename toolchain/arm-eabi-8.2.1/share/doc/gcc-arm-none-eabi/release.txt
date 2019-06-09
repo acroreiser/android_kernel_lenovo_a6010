@@ -1,0 +1,90 @@
+Release notes for
+*************************************************
+GNU Tools for Arm Embedded Processors 8
+                               - Q4 2018
+*************************************************
+
+This release includes the following items:
+* Bare metal EABI pre-built binaries for running on a Windows host
+* Bare metal EABI pre-built binaries for running on a Linux host
+* Bare metal EABI pre-built binaries for running on a Mac OS X host
+* Source code package (together with build scripts and instructions to setup
+  build environment), composed of:
+
+  * gcc : gcc-8-branch revision 267074
+    svn://gcc.gnu.org/svn/gcc/branches/gcc-8-branch
+
+  * binutils : 2.31 with mainline backports
+    git://sourceware.org/git/binutils-gdb.git commit fe554d200d1befdc3bddc9e14f8593ea3446c351
+
+  * newlib and newlib-nano :
+    git://sourceware.org/git/newlib-cygwin.git commit df6915f029ac9acd2b479ea898388cbd7dda4974
+
+  * gdb : 8.2 without target sim support
+    git://sourceware.org/git/binutils-gdb.git commit fe554d200d1befdc3bddc9e14f8593ea3446c351
+
+Note that some or all of the following prerequisites are downloaded when
+building from source:
+
+  * EnvVarUpdate NSIS script :
+    http://nsis.sourceforge.net/mediawiki/images/a/ad/EnvVarUpdate.7z
+
+  * expat 2.1.1 :
+    http://jaist.dl.sourceforge.net/project/expat/expat/2.1.1/expat-2.1.1.tar.bz2
+
+  * gmp 6.1.0 : ftp://gcc.gnu.org/pub/gcc/infrastructure/gmp-6.1.0.tar.bz2
+
+  * isl 0.15 : ftp://gcc.gnu.org/pub/gcc/infrastructure/isl-0.15.tar.bz2
+
+  * libelf 0.8.13 : http://www.mr511.de/software/libelf-0.8.13.tar.gz
+
+  * libiconv 1.14 :
+    http://ftp.gnu.org/gnu/libiconv/libiconv-1.14.tar.gz
+
+  * mpc 1.0.3 : ftp://gcc.gnu.org/pub/gcc/infrastructure/mpc-1.0.3.tar.gz
+
+  * mpfr 3.1.4 : ftp://gcc.gnu.org/pub/gcc/infrastructure/mpfr-3.1.4.tar.bz2
+
+  * python 2.7.13 : https://www.python.org/ftp/python/2.7.13/python-2.7.13.msi
+
+  * zlib 1.2.8
+    http://sourceforge.net/projects/libpng/files/zlib/1.2.8/zlib-1.2.8.tar.gz/download
+
+Minimum host requirements:
+* Windows 7 32/64 bits or later (with installer and alternative zip package)
+* Linux
+  - Ubuntu 14.04 64 bits or later (tarball)
+  - Ubuntu supported releases 32 bits and 64 bits (PPA)
+    https://www.ubuntu.com/info/release-end-of-life
+  - RHEL 7 64 bits (tarball)
+* Mac OS X 10.13 and newer 64 bits (tarball)
+
+Supported target OS:
+* Bare metal EABI only
+
+Features:
+* All GCC 8 features, plus latest mainline features
+
+Tests:
+* Targets
+  + variety of Cortex-M0/M0+/M3/M4/M7/A9 boards
+  + Qemu
+  + Arm Fast Models
+* Hosts
+  + Windows 7 32/64 bits (with installer and alternative zip package)
+  + Linux 64 bits
+    - Ubuntu 14.04 and 16.04 (tarball and PPA)
+    - RHEL 7 (tarball)
+  + Mac OS X 10.13 (tarball)
+
+Important changes in 8-2018Q4 major release:
+* Minimum host requirement moved from Mac OS X 10.7.3 to 10.13.
+
+Known Changes and Issues:
+* Thumb1 code size regression due to new register allocation:
+  https://gcc.gnu.org/bugzilla/show_bug.cgi?id=59535
+* Multilib is now enabled with --with-multilib-list=rmprofile when building the
+  toolchain from source
+* Windows installer now accepts the following options when running in silent mode:
+  - /P Adds the installation bin directory to the system PATH
+  - /R Adds an InstallFolder registry entry for the install.
