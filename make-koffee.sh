@@ -2,7 +2,7 @@
 
 VERSION=0.6
 DEFCONFIG=
-TOOLCHAIN='arm-eabi-4.7/bin/arm-eabi-'
+TOOLCHAIN='toolchain/arm-eabi-4.7/bin/arm-eabi-'
 KCONFIG=false
 CUST_CONF=no
 BUILD_NUMBER=1
@@ -33,7 +33,7 @@ usage() {
 	echo "	-d 			defconfig for the kernel. Will try to use already generated .config if not specified"
 	echo "	-S 			set device codename (a6000 for Lenovo a6000/a6010, m0 for i9300 or t03g for n7100)"
 	echo "	-O <file> 			external/other defconfig."
-	echo "	-t <toolchain_prefix> 			toolchain prefix for custom toolchain"
+	echo "	-t <toolchain_prefix> 			toolchain prefix for custom toolchain (default GCC 4.7)"
 	echo ""
 	echo "Extra options:"
 	echo "	-j <number_of_cpus> 			set number of CPUs to use"
