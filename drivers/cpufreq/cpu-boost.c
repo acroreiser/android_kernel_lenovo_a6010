@@ -118,7 +118,8 @@ check_enable:
 
 static int get_input_boost_freq(char *buf, const struct kernel_param *kp)
 {
-	int cnt = 0, cpu;
+	int cnt = 0;
+	int cpu = 0;
 	struct cpu_sync *s;
 
 		s = &per_cpu(sync_info, 0);
