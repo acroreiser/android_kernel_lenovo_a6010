@@ -471,7 +471,8 @@ static int switch_to_rt_policy(void)
 	int err;
 
 	/* Nobody should be attempting hotplug from these policy contexts. */
-	if (policy == SCHED_BATCH || policy == SCHED_IDLE)
+	if (policy == SCHED_BATCH || policy == SCHED_IDLE ||
+					policy == SCHED_DEADLINE)
 		return -EPERM;
 
 	if (policy == SCHED_FIFO || policy == SCHED_RR)
