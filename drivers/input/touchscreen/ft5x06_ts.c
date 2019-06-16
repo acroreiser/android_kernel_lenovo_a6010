@@ -275,14 +275,6 @@ struct ft5x06_ts_data {
         bool disable_keys;
 };
 
-#ifdef CONFIG_WAKE_GESTURES
-struct ft5x06_ts_data *ft5x06_ts = NULL;
-
-bool scr_suspended_ft(void) {
-	return ft5x06_ts->suspended;
-}
-#endif
-
 static int ft5x06_ts_start(struct device *dev);
 static int ft5x06_ts_stop(struct device *dev);
 
