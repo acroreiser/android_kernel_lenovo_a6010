@@ -584,7 +584,7 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 	pr_debug("%s: intf_num=%d ctx=%pK koff_cnt=%d\n", __func__,
 			ctl->intf_num, ctx, atomic_read(&ctx->koff_cnt));
 
-	rc = wait_event_timeout(ctx->pp_waitq,
+	rc = wait_event_interruptible_timeout(ctx->pp_waitq,
 			atomic_read(&ctx->koff_cnt) == 0,
 			KOFF_TIMEOUT);
 
