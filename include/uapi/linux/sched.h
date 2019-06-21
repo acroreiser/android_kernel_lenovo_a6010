@@ -43,6 +43,6 @@
 #define SCHED_IDLE		5
 /* Can be ORed in to make sure the process is reverted back to SCHED_NORMAL on fork */
 #define SCHED_RESET_ON_FORK     0x40000000
-
+#define SCHED_FLAG_KEEP_POLICY		0x08
 
 #endif /* _UAPI_LINUX_SCHED_H */
