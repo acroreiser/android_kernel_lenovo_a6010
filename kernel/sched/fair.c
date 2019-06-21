@@ -2955,7 +2955,7 @@ static inline void update_entity_load_avg(struct sched_entity *se,
 		 * See cpu_util().
 		 */
 		cpufreq_update_util(rq->clock,
-				    min(cfs_rq->runnable_load_avg, max), max);
+				    uclamp_util(rq, min(cfs_rq->runnable_load_avg, max)), max);
 	}
 }
 
@@ -8259,6 +8259,10 @@ const struct sched_class fair_sched_class = {
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	.task_move_group	= task_move_group_fair,
+#endif
+
+#ifdef CONFIG_UCLAMP_TASK
+	.uclamp_enabled		= 1,
 #endif
 };
 
