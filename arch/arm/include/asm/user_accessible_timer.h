@@ -18,9 +18,7 @@
 extern unsigned long zero_pfn;
 
 #define CONFIG_ARM_USER_ACCESSIBLE_TIMER_BASE 0
-static inline void setup_user_timer_offset(unsigned long addr)
-{
-}
+
 static inline int get_timer_page_address(void)
 {
 	return ARM_USER_ACCESSIBLE_TIMERS_INVALID_PAGE;
@@ -28,9 +26,6 @@ static inline int get_timer_page_address(void)
 static inline int get_user_accessible_timers_base(void)
 {
 	return 0;
-}
-static inline void set_user_accessible_timer_flag(bool flag)
-{
 }
 
 #endif

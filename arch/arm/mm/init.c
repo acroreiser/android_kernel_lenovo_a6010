@@ -711,6 +711,11 @@ void __init mem_init(void)
 			"    fixmap  : 0x%08lx - 0x%08lx   (%4ld kB)\n",
 			MLK(UL(CONFIG_VECTORS_BASE), UL(CONFIG_VECTORS_BASE) +
 				(PAGE_SIZE)),
+#ifdef CONFIG_ARM_USE_USER_ACCESSIBLE_TIMERS
+			MLK(UL(CONFIG_ARM_USER_ACCESSIBLE_TIMER_BASE),
+				UL(CONFIG_ARM_USER_ACCESSIBLE_TIMER_BASE)
+					+ (PAGE_SIZE)),
+#endif
 #ifdef CONFIG_HAVE_TCM
 			MLK(DTCM_OFFSET, (unsigned long) dtcm_end),
 			MLK(ITCM_OFFSET, (unsigned long) itcm_end),
