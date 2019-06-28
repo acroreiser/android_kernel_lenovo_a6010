@@ -102,9 +102,11 @@ static struct work_struct s2w_input_work;
 static struct work_struct dt2w_input_work;
 static int vib_strength = BASE_STRENGTH;
 
+extern bool is_touch_screen_suspended(void);
+
 static bool is_suspended(void)
 {
-	return scr_suspended_ft();
+	return is_touch_screen_suspended();
 }
 
 /* dev-harsh1998 Call check implementation */
