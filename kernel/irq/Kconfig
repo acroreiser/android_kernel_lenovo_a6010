@@ -57,7 +57,7 @@ config IRQ_DOMAIN_DEBUG
 
 # Support forced irq threading
 config IRQ_FORCED_THREADING
-       bool
+       bool "Enforce IRQ threading"
 
 config SPARSE_IRQ
 	bool "Support sparse irq numbering" if MAY_HAVE_SPARSE_IRQ
