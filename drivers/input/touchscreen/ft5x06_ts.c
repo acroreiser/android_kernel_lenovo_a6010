@@ -278,6 +278,11 @@ struct ft5x06_ts_data {
 static int ft5x06_ts_start(struct device *dev);
 static int ft5x06_ts_stop(struct device *dev);
 
+struct ft5x06_ts_data *screen_suspend_check = NULL;
+bool is_touch_screen_suspended(void){
+	return screen_suspend_check->suspended;
+}
+
 static struct sensors_classdev __maybe_unused sensors_proximity_cdev = {
 	.name = "ft5x06-proximity",
 	.vendor = "FocalTech",
