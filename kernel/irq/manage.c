@@ -26,6 +26,7 @@ __read_mostly bool force_irqthreads;
 
 static int __init setup_forced_irqthreads(char *arg)
 {
+	pr_info("forced threading enabled\n");
 	force_irqthreads = true;
 	return 0;
 }
