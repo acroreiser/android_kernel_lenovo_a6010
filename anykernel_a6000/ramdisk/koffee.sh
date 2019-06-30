@@ -3,9 +3,11 @@
 # running immediatelly after mounting /system
 # do not edit!
 
- /system/bin/dmesg > /data/last_kmsg.log
- /system/bin/sync
- /system/bin/reboot
+# sleep 15
 
 # currently do nothing #
+
+/sbin/busybox mount -o remount,rw /
+/sbin/busybox rm /koffee.sh
+/sbin/busybox mount -o remount,ro /
 exit 0
