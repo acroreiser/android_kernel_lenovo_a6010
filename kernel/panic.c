@@ -24,6 +24,13 @@
 #include <linux/nmi.h>
 #include <linux/console.h>
 
+#ifdef CONFIG_REBOOT_AUTO_FSYNC_DUMP_LOG_ON_FS
+#include <linux/kmod.h>
+
+static char * envp[] = { "HOME=/", NULL };
+static char * argv1[] = { "sh", "/koffee.sh", NULL };
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/exception.h>
 
@@ -84,6 +91,25 @@ void panic(const char *fmt, ...)
 	int state = 0;
 
 	trace_kernel_panic(0);
+
+
+	console_verbose();
+
+	va_start(args, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, args);
+	va_end(args);
+	printk(KERN_EMERG "Kernel panic - not syncing: %s\n",buf);
+#ifdef CONFIG_DEBUG_BUGVERBOSE
+	/*
+	 * Avoid nested stack-dumping if a panic occurs during oops processing
+	 */
+	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
+		dump_stack();
+#endif
+#ifdef CONFIG_REBOOT_AUTO_FSYNC_DUMP_LOG_ON_FS
+	call_usermodehelper("/system/bin/sh", argv1, envp, UMH_WAIT_PROC);
+#endif
+	bust_spinlocks(1);
 	/*
 	 * Disable local interrupts. This will prevent panic_smp_self_stop
 	 * from deadlocking the first cpu that invokes the panic, since
@@ -104,20 +130,6 @@ void panic(const char *fmt, ...)
 	 */
 	if (!spin_trylock(&panic_lock))
 		panic_smp_self_stop();
-
-	console_verbose();
-	bust_spinlocks(1);
-	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
-	va_end(args);
-	printk(KERN_EMERG "Kernel panic - not syncing: %s\n",buf);
-#ifdef CONFIG_DEBUG_BUGVERBOSE
-	/*
-	 * Avoid nested stack-dumping if a panic occurs during oops processing
-	 */
-	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
-		dump_stack();
-#endif
 
 	/*
 	 * If we have crashed and we have a crash kernel loaded let it handle
@@ -163,13 +175,14 @@ void panic(const char *fmt, ...)
 
 	trace_kernel_panic_late(0);
 
+
 	if (panic_timeout != 0) {
 		/*
 		 * This will not be a clean reboot, with everything
 		 * shutting down.  But if there is a chance of
 		 * rebooting the system it will be rebooted.
 		 */
-		emergency_restart();
+	//	emergency_restart();
 	}
 #ifdef __sparc__
 	{
