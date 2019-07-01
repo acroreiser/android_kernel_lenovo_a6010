@@ -66,6 +66,10 @@ dump_boot()
 		exit 1;
 	fi;
 
+	###KOFFEE_EARLY_SCRIPT###
+	###ENHANCEIO###
+	###PANIC_LOG_ON_FS###
+
 	ui_print "* Applying fixup for 800MHz stuck on interactive governor (if needed)";
 	sed -i s/'1 800000:90'/'1 200000:90'/ /tmp/anykernel/ramdisk/init.qcom.power.rc
 

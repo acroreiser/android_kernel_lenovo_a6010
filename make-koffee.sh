@@ -112,6 +112,22 @@ make_flashable()
 		exit 1
 	fi
 
+	if [ "$(cat .config | grep ENHANCEIO | grep not)" != "" ]; then 
+		rm $REPACK_PATH/ramdisk/sbin/eioctl
+		sed -i "s;###ENHANCEIO###;rm /tmp/anykernel/ramdisk/sbin/eioctl;" $REPACK_PATH/tools/ak2-core.sh;
+		
+	fi
+
+	if [ "$(cat .config | grep PANIC_LOG_ON_FS | grep not)" != "" ]; then 
+		rm $REPACK_PATH/ramdisk/panic_log.sh
+		sed -i "s;###PANIC_LOG_ON_FS###;rm /tmp/anykernel/ramdisk/panic_log.sh;" $REPACK_PATH/tools/ak2-core.sh;
+	fi
+
+	if [ "$(cat .config | grep KOFFEE_EARLY_SCRIPT | grep not)" != "" ]; then 
+		rm $REPACK_PATH/ramdisk/koffee.sh
+		sed -i "s;###KOFFEE_EARLY_SCRIPT###;rm /tmp/anykernel/ramdisk/koffee.sh;" $REPACK_PATH/tools/ak2-core.sh;
+	fi
+
 	cd $REPACK_PATH
 	# delete placeholder files
 	find . -name placeholder -delete
