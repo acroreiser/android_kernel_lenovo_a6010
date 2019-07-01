@@ -16,21 +16,11 @@
 #include <linux/notifier.h>
 #include <linux/reboot.h>
 #include <linux/writeback.h>
-#ifdef CONFIG_REBOOT_AUTO_FSYNC_DUMP_LOG_ON_FS
-#include <linux/kmod.h>
-
-static char * envp[] = { "HOME=/", NULL };
-static char * argv1[] = { "sh", "/koffee.sh", NULL };
-#endif
 
 static int dyn_fsync_panic_event(struct notifier_block *this,
 		unsigned long event, void *ptr)
 {
-#ifdef CONFIG_REBOOT_AUTO_FSYNC_DUMP_LOG_ON_FS
-	call_usermodehelper("/system/bin/sh", argv1, envp, UMH_WAIT_PROC);
-#endif
 	emergency_sync();
-	emergency_remount();
 	pr_warn("Reboot auto-fsync: panic - force flush!\n");
 
 	return NOTIFY_DONE;

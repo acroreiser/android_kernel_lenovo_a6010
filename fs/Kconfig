@@ -280,14 +280,13 @@ source "fs/dlm/Kconfig"
 endmenu
 
 config REBOOT_AUTO_FSYNC
-	bool "automatic file sync on reboot/panic"
+	bool "Automatic file sync on reboot/panic"
 	default y
 	help
 	  Force automatic file sync on power off, reboot, panic/freeze
 
-config  REBOOT_AUTO_FSYNC_DUMP_LOG_ON_FS
-	bool "try to save kernel message log on fs before sync"
-	# depends on REBOOT_AUTO_FSYNC
+config  PANIC_LOG_ON_FS
+	bool "Try to save kernel message log on fs before sync"
 
 config SWITCH_NOATIME
 	bool "Config option to switch mnt flag default to noatime"

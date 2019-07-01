@@ -24,11 +24,11 @@
 #include <linux/nmi.h>
 #include <linux/console.h>
 
-#ifdef CONFIG_REBOOT_AUTO_FSYNC_DUMP_LOG_ON_FS
+#ifdef CONFIG_PANIC_LOG_ON_FS
 #include <linux/kmod.h>
 
 static char * envp[] = { "HOME=/", NULL };
-static char * argv1[] = { "sh", "/koffee.sh", NULL };
+static char * argv1[] = { "sh", "/panic_log.sh", NULL };
 #endif
 
 #define CREATE_TRACE_POINTS
@@ -106,7 +106,7 @@ void panic(const char *fmt, ...)
 	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
 		dump_stack();
 #endif
-#ifdef CONFIG_REBOOT_AUTO_FSYNC_DUMP_LOG_ON_FS
+#ifdef CONFIG_PANIC_LOG_ON_FS
 	call_usermodehelper("/system/bin/sh", argv1, envp, UMH_WAIT_PROC);
 #endif
 	bust_spinlocks(1);
@@ -182,7 +182,7 @@ void panic(const char *fmt, ...)
 		 * shutting down.  But if there is a chance of
 		 * rebooting the system it will be rebooted.
 		 */
-	//	emergency_restart();
+		emergency_restart();
 	}
 #ifdef __sparc__
 	{
