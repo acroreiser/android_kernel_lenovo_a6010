@@ -90,9 +90,6 @@
 		qcom,mdss-dsi-reset-sequence = <1 50>, <0 20>, <1 5>;
 		qcom,mdss-pan-physical-width-dimension = <59>;
 		qcom,mdss-pan-physical-height-dimension = <104>;
-		qcom,mdss-dsi-pan-enable-dynamic-fps;
-		qcom,mdss-dsi-pan-fps-update = "dfps_immediate_porch_mode_hfp";
-		qcom,mdss-dsi-min-refresh-rate = <30>;
 
 	};
 };
