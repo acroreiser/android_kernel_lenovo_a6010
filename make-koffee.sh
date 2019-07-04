@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=0.7
+VERSION=0.6
 DEFCONFIG=lineageos_a6010_defconfig
 TOOLCHAIN='toolchain/arm-eabi-4.9/bin/arm-eabi-'
 KCONFIG=false
@@ -17,7 +17,7 @@ DATE=`date`
 BUILD_HOST=`hostname`
 BUILD_PATH=`pwd`
 CLEAN=false
-BITS=
+
 
 usage() {
 	echo "$KERNEL_NAME build script v$VERSION"
@@ -29,7 +29,6 @@ usage() {
 	echo "make-koffee.sh [-d/-D/-O <file>] [-K] [-U <user>] [-N <BUILD_NUMBER>] [-k] [-R] -t <toolchain_prefix> -d <defconfig>"
 	echo ""
 	echo "Main options:"
-	echo "	-A 			for 64bit kernel (for future purposes)"
 	echo "	-K 			call Kconfig (use only with ready config!)"
 	echo "	-d 			defconfig for the kernel. Will try to use already generated .config if not specified"
 	echo "	-S 			set device codename (a6000 for Lenovo a6000/a6010, m0 for i9300 or t03g for n7100)"
@@ -40,6 +39,7 @@ usage() {
 	echo "	-j <number_of_cpus> 			set number of CPUs to use"
 	echo "	-k 			make only zImage, do not pack into zip"
 	echo "	-C 			cleanup before building"
+	echo "	-R 			save your arguments to reuse (just run make-koffee.sh on next builds)"
 	echo "	-U <username> 			set build user"
 	echo "	-H <hostname> 			set build host"
 	echo "	-N <release_number> 			set release number"
@@ -61,17 +61,17 @@ make_config()
 		DEFCONFIG=custom
 	else
 		if [ ! -f "`pwd`/.config" ] || [ "$KCONF_REPLACE" = true ]; then
-			make ARCH=arm$BITS $JOBS $DEFCONFIG &>/dev/null
+			make ARCH=arm $JOBS $DEFCONFIG &>/dev/null
 		fi
 	fi
 	if [ "$KCONFIG" = "true" ]; then
-		make ARCH=arm$BITS $JOBS menuconfig
+		make ARCH=arm $JOBS menuconfig
 	fi
 }
 
 build_kernel()
 {
-	make ARCH=arm$BITS KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN zImage-dtb
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN zImage-dtb
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -81,7 +81,7 @@ build_kernel()
 
 build_modules()
 {
-	make ARCH=arm$BITS KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN modules
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN modules
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -98,6 +98,7 @@ make_flashable()
 		cp -R $BUILD_PATH/anykernel_a6000/* $REPACK_PATH
 		echo "--------------------------------------" > $REPACK_PATH/info.txt
 		echo "| Build  date:    $DATE" >> $REPACK_PATH/info.txt
+	#	echo "| Version:	$BOEFFLA_VERSION" >> $REPACK_PATH/info.txt
 		echo "| Configuration file:    $DEFCONFIG" >> $REPACK_PATH/info.txt
 		echo "| Release:    $BVERN" >> $REPACK_PATH/info.txt
 		echo "| Building for:    $DEVICE" >> $REPACK_PATH/info.txt
@@ -165,7 +166,7 @@ make_flashable()
 
 # Pre
 
-while getopts "hvO:j:Kd:kS:N:CU:H:t:A" opt
+while getopts "hvO:j:Kd:kB:S:N:CU:H:t:" opt
 do
 case $opt in
 	h) usage; exit 0;;
@@ -181,7 +182,6 @@ case $opt in
 	k) DONTPACK=true;;
 	d) DEFCONFIG="$OPTARG"; KCONF_REPLACE=true;;
 	U) USER=$OPTARG;;
-	A) BITS=64;;
 	*) usage; exit 0;;
 esac
 done
@@ -240,6 +240,7 @@ fi
 if [ $? -eq 0 ]; then
 	echo "--------------------------------------"
 	echo "| Build  date:	$DATE"
+#	echo "| Version:	$BOEFFLA_VERSION"
 	echo "| Configuration file:	$DEFCONFIG"
 	echo "| Release:	$BVERN"
 	echo "| Building for:	$DEVICE"
