@@ -143,7 +143,7 @@ make_flashable()
 	sed -i "s;###copyright###;${COPYRIGHT};" META-INF/com/google/android/update-binary;
 	BUILDINFO="Release ${BUILD_NUMBER}, $DATE"
 	sed -i "s;###buildinfo###;${BUILDINFO};" META-INF/com/google/android/update-binary;
-	SOURCECODE="Official source code:  coming soon!"
+	SOURCECODE="Official source code:  https://github.com/acroreiser/Hyperloop"
 	sed -i "s;###sourcecode###;${SOURCECODE};" META-INF/com/google/android/update-binary;
 
 
