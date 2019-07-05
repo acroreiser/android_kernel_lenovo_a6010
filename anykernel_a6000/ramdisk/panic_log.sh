@@ -4,7 +4,7 @@
 # do not edit!
 
 # Remount fs to sync mode
-/system/xbin/busybox mount -o remount,sync /data
+/system/xbin/busybox mount -o remount,barrier,sync /data
 
 # Dump kernel log to file
 /system/bin/dmesg > /data/last_kmsg.log
