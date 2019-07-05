@@ -70,9 +70,6 @@ static int  DYN_L_OFFSET;
 static int  DYN_H_OFFSET;
 #define DYN_CONDITION	7500
 #endif
-
-static unsigned int _irq_ps_sensor_enabled;
-
 //#define  DEBUG
 #ifdef DEBUG
 #define epl_info(fmt, ...) \
@@ -730,11 +727,7 @@ static void epl_sensor_irq_do_work(struct work_struct *work)
 	elan_sensor_I2C_Write(client, REG_7, W_SINGLE_BYTE, 0x02,
 			      EPL_DATA_UNLOCK);
 
-	if (_irq_ps_sensor_enabled == 0)
-	{
-		enable_irq(client->irq);
-		_irq_ps_sensor_enabled = 1;
-	}
+	enable_irq(client->irq);
 }
 
 static irqreturn_t elan_sensor_irq_handler(int irqNo, void *handle)
@@ -1458,7 +1451,7 @@ static int setup_interrupt(struct elan_epl_data *epld)
 	}
 	//use wake lock
 	//irq_set_irq_wake(client->irq, 1);
-	_irq_ps_sensor_enabled = 1;
+
 	return err;
 
 exit_free_irq:
@@ -1473,7 +1466,6 @@ static int elan_enable_ps_sensor(struct i2c_client *client, int val)
 	LOG_FUN();
 	pr_debug("epl2182 enable PS sensor -> %d\n", val);
 
-
 	if ((val != 0) && (val != 1)) {
 		pr_debug("%s:store unvalid value=%d\n", __func__, val);
 		return -EINVAL;
@@ -1482,24 +1474,16 @@ static int elan_enable_ps_sensor(struct i2c_client *client, int val)
 	if (val == 1) {
 		if (epld->enable_pflag == 0) {
 			epld->enable_pflag = 1;
-			if(_irq_ps_sensor_enabled == 0)
-			{
-				enable_irq(client->irq);
-				wake_lock(&g_ps_wlock);
-				_irq_ps_sensor_enabled = 1;
-			}
+			enable_irq(client->irq);
+			wake_lock(&g_ps_wlock);
 		}
 	} else {
 		if (epld->enable_pflag == 1) {
 			epld->enable_pflag = 0;
-			if(_irq_ps_sensor_enabled == 1){
-				disable_irq(client->irq);
-				wake_unlock(&g_ps_wlock);
-				_irq_ps_sensor_enabled = 0;
-			}
+			disable_irq_nosync(client->irq);
+			wake_unlock(&g_ps_wlock);
 		}
 	}
-
 
 	elan_sensor_restart_work();
 
@@ -1735,10 +1719,7 @@ static int elan_sensor_resume(struct device *dev)
 		elan_sensor_restart_work();
 	}else{
 		elan_plsensor_power_set(epld, true);
-		if (_irq_ps_sensor_enabled == 0){
-			enable_irq(epld->client->irq);
-			_irq_ps_sensor_enabled = 1;
-		}
+		enable_irq(epld->client->irq);
 	}
 	return 0;
 }
