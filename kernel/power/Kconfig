@@ -138,11 +138,6 @@ config PM_WAKELOCKS_GC
 	depends on PM_WAKELOCKS
 	default y
 
-config	BOEFFLA_WL_BLOCKER
- 	bool "Boeffla generic wakelock blocker driver"
- 	depends on PM
- 	default n
-
 config PM_RUNTIME
 	bool "Run-time PM core functionality"
 	depends on !IA64_HP_SIM
