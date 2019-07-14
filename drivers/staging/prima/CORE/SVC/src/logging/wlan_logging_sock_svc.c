@@ -1220,7 +1220,10 @@ static int wlan_logging_thread(void *Arg)
 	int ret_wait_status = 0;
 	int ret = 0;
 	unsigned long flags;
-	set_user_nice(current, -2);
+	struct sched_param scheduler_params = {0};
+
+	scheduler_params.sched_priority = 0;
+	sched_setscheduler(current, SCHED_IDLE, &scheduler_params);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0))
 	daemonize("wlan_logging_thread");
