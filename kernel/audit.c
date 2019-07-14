@@ -65,6 +65,8 @@
 #include <linux/tty.h>
 #include <linux/pid_namespace.h>
 
+#include <linux/sched.h>
+
 #include "audit.h"
 
 /* No auditing will take place until audit_initialized == AUDIT_INITIALIZED.
@@ -440,6 +442,12 @@ static void flush_hold_queue(void)
 
 static int kauditd_thread(void *dummy)
 {
+
+	struct sched_param scheduler_params = {0};
+
+	scheduler_params.sched_priority = 0;
+	sched_setscheduler(current, SCHED_IDLE, &scheduler_params);
+
 	set_freezable();
 	while (!kthread_should_stop()) {
 		struct sk_buff *skb;
