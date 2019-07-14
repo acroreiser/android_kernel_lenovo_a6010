@@ -2132,6 +2132,8 @@ static int cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
 static int attach_task_by_pid(struct cgroup *cgrp, u64 pid, bool threadgroup)
 {
 	struct task_struct *tsk;
+	struct sched_param param;
+
 	const struct cred *cred = current_cred(), *tcred;
 	int ret;
 
@@ -2206,6 +2208,13 @@ retry_find_task:
 	}
 
 	ret = cgroup_attach_task(cgrp, tsk, threadgroup);
+
+	if (!memcmp(tsk->comm, "gle.android.gms", sizeof("gle.android.gms")) || !memcmp(tsk->comm, ".gms.persistent", sizeof(".gms.persistent")) || !memcmp(tsk->comm, "id.gms.unstable", sizeof("id.gms.unstable")))
+	{
+			param.sched_priority = 0;
+			sched_setscheduler(tsk, SCHED_IDLE, &param);
+	}
+
 
 	threadgroup_unlock(tsk);
 
