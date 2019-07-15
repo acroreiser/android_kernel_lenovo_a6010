@@ -172,11 +172,6 @@ static int kjournald2(void *arg)
 	journal_t *journal = arg;
 	transaction_t *transaction;
 
-	struct sched_param scheduler_params = {0};
-
-	scheduler_params.sched_priority = 1;
-	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
-
 	/*
 	 * Set up an interval timer which can be used to trigger a commit wakeup
 	 * after the commit interval expires
