@@ -143,10 +143,6 @@ struct cpufreq_interactive_tunables {
 	 * frequency.
 	 */
 	unsigned int max_freq_hysteresis;
-
-	/* Use agressive frequency step calculation, above a given load threshold */
-	bool fastlane;
-	unsigned int fastlane_threshold;
 };
 
 /* For cases where we have single governor instance for system */
@@ -365,17 +361,6 @@ static unsigned int choose_freq(struct cpufreq_interactive_cpuinfo *pcpu,
 	return freq;
 }
 
-
-static unsigned int fastlane_freq(struct cpufreq_interactive_policyinfo *pcpu,
-		unsigned int cpu_load)
-{
-	unsigned int freq;
-
-	freq = pcpu->policy->min + cpu_load * (pcpu->policy->max - pcpu->policy->min) / 100;
-
-	return freq;
-}
-
 static u64 update_load(int cpu)
 {
 	struct cpufreq_interactive_cpuinfo *pcpu = &per_cpu(cpuinfo, cpu);
@@ -473,10 +458,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 		if (pcpu->policy->cur < tunables->hispeed_freq) {
 			new_freq = tunables->hispeed_freq;
 		} else {
-			if (tunables->fastlane && cpu_load > tunables->fastlane_threshold)
-				new_freq = fastlane_freq(ppol, cpu_load);
-			else
-				new_freq = choose_freq(ppol, loadadjfreq);
+			new_freq = choose_freq(pcpu, loadadjfreq);
 
 			if (new_freq < tunables->hispeed_freq)
 				new_freq = tunables->hispeed_freq;
@@ -486,10 +468,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 		new_freq = pcpu->policy->cpuinfo.min_freq;
 
 	} else {
-		if (tunables->fastlane && cpu_load > tunables->fastlane_threshold)
-			new_freq = fastlane_freq(ppol, cpu_load);
-		else
-			new_freq = choose_freq(ppol, loadadjfreq);
+		new_freq = choose_freq(pcpu, loadadjfreq);
 	}
 
 	if (pcpu->policy->cur >= tunables->hispeed_freq &&
@@ -1362,46 +1341,6 @@ static ssize_t store_use_migration_notif(
 	return count;
 }
 
-static ssize_t show_fastlane(
-		struct cpufreq_interactive_tunables *tunables, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%d\n", tunables->fastlane);
-}
-
-static ssize_t store_fastlane(
-			struct cpufreq_interactive_tunables *tunables,
-			const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = kstrtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	tunables->fastlane = val;
-	return count;
-}
-
-static ssize_t show_fastlane_threshold(
-		struct cpufreq_interactive_tunables *tunables, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%d\n", tunables->fastlane_threshold);
-}
-
-static ssize_t store_fastlane_threshold(
-			struct cpufreq_interactive_tunables *tunables,
-			const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = kstrtoul(buf, 0, &val);
-	if (ret < 0 || ret > 100)
-		return ret;
-	tunables->fastlane_threshold = val;
-	return count;
-}
-
 /*
  * Create show/store routines
  * - sys: One governor instance for complete SYSTEM
@@ -1453,8 +1392,6 @@ show_store_gov_pol_sys(use_sched_load);
 show_store_gov_pol_sys(use_migration_notif);
 show_store_gov_pol_sys(max_freq_hysteresis);
 show_store_gov_pol_sys(align_windows);
-show_store_gov_pol_sys(fastlane);
-show_store_gov_pol_sys(fastlane_threshold);
 
 #define gov_sys_attr_rw(_name)						\
 static struct global_attr _name##_gov_sys =				\
@@ -1482,8 +1419,6 @@ gov_sys_pol_attr_rw(use_sched_load);
 gov_sys_pol_attr_rw(use_migration_notif);
 gov_sys_pol_attr_rw(max_freq_hysteresis);
 gov_sys_pol_attr_rw(align_windows);
-gov_sys_pol_attr_rw(fastlane);
-gov_sys_pol_attr_rw(fastlane_threshold);
 
 static struct global_attr boostpulse_gov_sys =
 	__ATTR(boostpulse, 0200, NULL, store_boostpulse_gov_sys);
@@ -1508,8 +1443,6 @@ static struct attribute *interactive_attributes_gov_sys[] = {
 	&use_migration_notif_gov_sys.attr,
 	&max_freq_hysteresis_gov_sys.attr,
 	&align_windows_gov_sys.attr,
-	&fastlane_gov_sys.attr,
-	&fastlane_threshold_gov_sys.attr,
 	NULL,
 };
 
@@ -1535,8 +1468,6 @@ static struct attribute *interactive_attributes_gov_pol[] = {
 	&use_migration_notif_gov_pol.attr,
 	&max_freq_hysteresis_gov_pol.attr,
 	&align_windows_gov_pol.attr,
-	&fastlane_gov_pol.attr,
-	&fastlane_threshold_gov_pol.attr,
 	NULL,
 };
 
@@ -1611,8 +1542,6 @@ static struct cpufreq_interactive_tunables *alloc_tunable(
 	tunables->boostpulse_duration_val = DEFAULT_MIN_SAMPLE_TIME;
 	tunables->timer_slack_val = DEFAULT_TIMER_SLACK;
 	tunables->align_windows = true;
-	tunables->fastlane = false;
-	tunables->fastlane_threshold = 50;
 
 	spin_lock_init(&tunables->target_loads_lock);
 	spin_lock_init(&tunables->above_hispeed_delay_lock);
