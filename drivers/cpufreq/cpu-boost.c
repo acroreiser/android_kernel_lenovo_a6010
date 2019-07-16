@@ -54,7 +54,7 @@ static struct task_struct *cpu_boost_worker_thread;
 
 static int set_input_boost_freq(const char *buf, const struct kernel_param *kp)
 {
-	int i, ntokens = 0;
+	int ntokens = 0;
 	unsigned int val, cpu;
 	const char *cp = buf;
 	bool enabled = false;
