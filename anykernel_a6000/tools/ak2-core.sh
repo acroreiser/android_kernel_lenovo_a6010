@@ -99,7 +99,7 @@ dump_boot()
 		sed  "s/[[:<:]]max_pool_percent $ZSWAPPOOL[[:>:]]/max_pool_percent 0/" -i /tmp/anykernel/ramdisk/init.target.rc
 		ZSWAPENABLED=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep zswap/parameters/enabled | awk '{print $3}')
 		sed  "s/[[:<:]]zswap\/parameters\/enabled $ZSWAPENABLED[[:>:]]/zswap\/parameters\/enabled 0/" -i /tmp/anykernel/ramdisk/init.target.rc
-		sed "s/enable_adaptive_lmk 0/enable_adaptive_lmk 1/g" -i /tmp/anykernel/ramdisk/init.target.rc
+		sed "s/enable_adaptive_lmk 1/enable_adaptive_lmk 0/g" -i /tmp/anykernel/ramdisk/init.target.rc
 		ZRAMSIZE=$(cat /tmp/anykernel/ramdisk/fstab.qcom | grep block/zram0 | awk '{print $5}')
 		sed "s/$ZRAMSIZE/zramsize=419430400/" -i /tmp/anykernel/ramdisk/fstab.qcom
 	else
@@ -192,10 +192,6 @@ write_boot()
 			exit 1;
 		fi;
 	fi;
-
-	if [ $add_seandroidenforce == "1" ]; then
-		echo -n "SEANDROIDENFORCE" >> /tmp/anykernel/boot-new.img
-	fi
 
 	dd if=/tmp/anykernel/boot-new.img of=$BOOTBLK;
 }
