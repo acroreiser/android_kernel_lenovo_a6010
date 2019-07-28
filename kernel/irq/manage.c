@@ -463,7 +463,7 @@ void __enable_irq(struct irq_desc *desc, unsigned int irq, bool resume)
 	switch (desc->depth) {
 	case 0:
  err_out:
-		WARN(1, KERN_WARNING "Unbalanced enable for IRQ %d\n", irq);
+		//WARN(1, KERN_WARNING "Unbalanced enable for IRQ %d\n", irq);
 		break;
 	case 1: {
 		if (desc->istate & IRQS_SUSPENDED)
@@ -555,7 +555,7 @@ int irq_set_irq_wake(unsigned int irq, unsigned int on)
 		}
 	} else {
 		if (desc->wake_depth == 0) {
-			WARN(1, "Unbalanced IRQ %d wake disable\n", irq);
+			//WARN(1, "Unbalanced IRQ %d wake disable\n", irq);
 		} else if (--desc->wake_depth == 0) {
 			ret = set_irq_wake_real(irq, on);
 			if (ret)
