@@ -571,6 +571,7 @@ static void __init build_mem_type_table(void)
 	if (cpu_arch == CPU_ARCH_ARMv7 &&
 		(read_cpuid_ext(CPUID_EXT_MMFR0) & 0xF) >= 4) {
 		user_pmd_table |= PMD_PXNTABLE;
+		printk("PXN bit supported, enabling\n");
 	}
 #endif
 
