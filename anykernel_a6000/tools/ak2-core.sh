@@ -66,51 +66,54 @@ dump_boot()
 		exit 1;
 	fi;
 
+	ui_print " ** Doing some magic with ramdisk...";
+	ui_print " ";
 	###KOFFEE_EARLY_SCRIPT###
 	###ENHANCEIO###
 	###PANIC_LOG_ON_FS###
 
-	ui_print "* Applying fixup for 800MHz stuck on interactive governor (if needed)";
+	ui_print "* Applying fixup for 800MHz stuck on interactive governor (for old ROMs like AEX 6.1)";
 	sed -i s/'1 800000:90'/'1 200000:90'/ /tmp/anykernel/ramdisk/init.qcom.power.rc
 
 	ui_print " ";
 	
 	COMPZRAM=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /comp_ | awk '{print $3}')
-	COMPZSWAP=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /compr | awk '{print $3}')
-	ui_print "* Switch to lz4hc for zswap and zram (if needed)";
+	ui_print "* Switch to lz4hc for zram (we dont need fast compression, and can get benefit at better compression ratio)";
 	sed  "s/[[:<:]]comp_algorithm $COMPZRAM[[:>:]]/comp_algorithm lz4hc/" -i /tmp/anykernel/ramdisk/init.target.rc
-	sed  "s/[[:<:]]compressor $COMPZSWAP[[:>:]]/compressor lz4hc/" -i /tmp/anykernel/ramdisk/init.target.rc
 
 	ui_print " "
-	ui_print "* Tweaking ramdisk"
+	ui_print "* Tuning disk i/o subsystem"
 	sed "s/read_ahead_kb 64/read_ahead_kb 2048/g" -i /tmp/anykernel/ramdisk/init.target.rc
 	sed "s/read_ahead_kb 128/read_ahead_kb 2048/g" -i /tmp/anykernel/ramdisk/init.target.rc
 	sed "/scheduler noop/d" -i /tmp/anykernel/ramdisk/init.target.rc
 	IOSCHED=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep "/scheduler" | awk '{print $3}')
 	sed  "s/[[:<:]]scheduler $IOSCHED[[:>:]]/scheduler bfq/" -i /tmp/anykernel/ramdisk/init.target.rc
+
+	ui_print " "
+	ui_print "* Tuning virtual memory subsystem"
 	sed "s/lmk_fast_run 0/lmk_fast_run 1/g" -i /tmp/anykernel/ramdisk/init.target.rc
 	sed "s/swappiness 35/swappiness 100/g" -i /tmp/anykernel/ramdisk/init.target.rc
-	sed "s/vfs_cache_pressure 65/vfs_cache_pressure 25/g" -i /tmp/anykernel/ramdisk/init.target.rc
+	sed "s/vfs_cache_pressure 25/vfs_cache_pressure 0/g" -i /tmp/anykernel/ramdisk/init.target.rc
+	sed "s/vfs_cache_pressure 65/vfs_cache_pressure 0/g" -i /tmp/anykernel/ramdisk/init.target.rc
 
 	if [ "$(cat /proc/meminfo | head -n 1 | awk '{print $2}')" -lt "1100000" ]; then
 		ui_print " ";
 		ui_print "* 1/8 model detected, additionally tweaking ramdisk";
-		ZSWAPPOOL=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /max_pool_percent | awk '{print $3}')
-		sed  "s/[[:<:]]max_pool_percent $ZSWAPPOOL[[:>:]]/max_pool_percent 0/" -i /tmp/anykernel/ramdisk/init.target.rc
-		ZSWAPENABLED=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep zswap/parameters/enabled | awk '{print $3}')
-		sed  "s/[[:<:]]zswap\/parameters\/enabled $ZSWAPENABLED[[:>:]]/zswap\/parameters\/enabled 0/" -i /tmp/anykernel/ramdisk/init.target.rc
-		sed "s/enable_adaptive_lmk 1/enable_adaptive_lmk 0/g" -i /tmp/anykernel/ramdisk/init.target.rc
-		ZRAMSIZE=$(cat /tmp/anykernel/ramdisk/fstab.qcom | grep block/zram0 | awk '{print $5}')
+		ui_print " ";
+		ui_print "* We want to get more RAM... Lets go to do it!";
 		sed "s/$ZRAMSIZE/zramsize=419430400/" -i /tmp/anykernel/ramdisk/fstab.qcom
+
+		sed "s/nr_requests 300/nr_requests 512/g" -i /tmp/anykernel/ramdisk/init.target.rc
+		sed "s/nr_requests 128/nr_requests 512/g" -i /tmp/anykernel/ramdisk/init.target.rc
 	else
 		ui_print " ";
 		ui_print "* 2/16 model detected, additionally tweaking ramdisk";
+		ui_print " ";
+		ui_print "* We want to get more RAM... Lets go to do it!";
 		sed "s/nr_requests 300/nr_requests 1024/g" -i /tmp/anykernel/ramdisk/init.target.rc
 		sed "s/nr_requests 128/nr_requests 1024/g" -i /tmp/anykernel/ramdisk/init.target.rc
-		sed "s/enable_process_reclaim 1/enable_process_reclaim 0/g" -i /tmp/anykernel/ramdisk/init.target.rc
-	
-
-
+		ZRAMSIZE=$(cat /tmp/anykernel/ramdisk/fstab.qcom | grep block/zram0 | awk '{print $5}')
+		sed "s/$ZRAMSIZE/zramsize=734003200/" -i /tmp/anykernel/ramdisk/fstab.qcom
 	fi	
 
 
