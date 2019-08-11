@@ -340,16 +340,8 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
 	 * special [heap] marker for the heap:
 	 */
 	if (file) {
- size_t sz; 
 		seq_pad(m, ' ');
-/* Save current count. Once seq_path return negtive value, 
- * we need to restore saved count. Otherwise, seq_path will 
- * exhaust the buffer and make seq_read dead loop till 
- * m->buff allocation failure. 
- */ 
- sz = m->count; 
- if (seq_path(m, &file->f_path, "\n") < 0) 
- m->count = sz; 
+		seq_path(m, &file->f_path, "\n");
 		goto done;
 	}
 
