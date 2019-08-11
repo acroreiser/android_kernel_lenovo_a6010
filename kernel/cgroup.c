@@ -2209,7 +2209,11 @@ retry_find_task:
 
 	ret = cgroup_attach_task(cgrp, tsk, threadgroup);
 
-	if (!memcmp(tsk->comm, "gle.android.gms", sizeof("gle.android.gms")) || !memcmp(tsk->comm, ".gms.persistent", sizeof(".gms.persistent")) || !memcmp(tsk->comm, "id.gms.unstable", sizeof("id.gms.unstable")))
+	if (!memcmp(tsk->comm, "gle.android.gms", sizeof("gle.android.gms")) ||
+	    !memcmp(tsk->comm, ".gms.persistent", sizeof(".gms.persistent")) || 
+	    !memcmp(tsk->comm, "id.gms.unstable", sizeof("id.gms.unstable")) || 
+	    !memcmp(tsk->comm, "ocess.gservices", sizeof("ocess.gservices")) || 
+	    !memcmp(tsk->comm, "android.vending", sizeof("android.vending")))
 	{
 			param.sched_priority = 0;
 			sched_setscheduler(tsk, SCHED_IDLE, &param);
