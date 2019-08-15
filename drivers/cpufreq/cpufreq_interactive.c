@@ -1603,8 +1603,6 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		}
 
 		tunables->usage_count = 1;
-		tunables->use_migration_notif = 1;
-		tunables->use_sched_load = 1;
 		policy->governor_data = tunables;
 		if (!have_governor_per_policy()) {
 			WARN_ON(cpufreq_get_global_kobject());
