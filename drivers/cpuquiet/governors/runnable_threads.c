@@ -38,7 +38,7 @@ static unsigned int sample_rate = 200;	  /* msec */
 #define NR_FSHIFT      (1 << NR_FSHIFT_EXP)
 /* avg run threads * 8 (e.g., 11 = 1.375 threads) */
 static unsigned int default_thresholds[] = {
-	13, 22, 27, UINT_MAX
+	10, 18, 20, UINT_MAX
 };
 
 static unsigned int nr_run_last;
@@ -207,7 +207,6 @@ static struct attribute_group runnables_group = {
 	.attrs = runnables_attrs,
 };
 
-/*
 static int runnables_sysfs_init(void)
 {
 	return cpuquiet_register_attrs(&runnables_group);
@@ -217,7 +216,7 @@ static void runnables_sysfs_exit(void)
 {
 	cpuquiet_unregister_attrs(&runnables_group);
 }
-*/
+
 static void runnables_stop(void)
 {
 	runnables_enabled = false;
@@ -228,8 +227,7 @@ static void runnables_stop(void)
 
 static int runnables_start(void)
 {
-	int i, arch_specific_sample_rate;
-//  int err;
+	int i, err, arch_specific_sample_rate;
 
 /*	err = runnables_sysfs_init();
 	if (err)
