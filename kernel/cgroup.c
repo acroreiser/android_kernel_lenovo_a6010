@@ -2212,7 +2212,9 @@ retry_find_task:
 	if (!memcmp(tsk->comm, "gle.android.gms", sizeof("gle.android.gms")) ||
 	    !memcmp(tsk->comm, ".gms.persistent", sizeof(".gms.persistent")) || 
 	    !memcmp(tsk->comm, "id.gms.unstable", sizeof("id.gms.unstable")) || 
-	    !memcmp(tsk->comm, "ocess.gservices", sizeof("ocess.gservices")) || 
+	    !memcmp(tsk->comm, "ocess.gservices", sizeof("ocess.gservices")) ||
+	    !memcmp(tsk->comm, "roid.apps.turbo", sizeof("roid.apps.turbo")) ||
+	    !memcmp(tsk->comm, "dex2oat", sizeof("dex2oat")) ||
 	    !memcmp(tsk->comm, "android.vending", sizeof("android.vending")))
 	{
 			param.sched_priority = 0;
