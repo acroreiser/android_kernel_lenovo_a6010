@@ -74,12 +74,9 @@ dump_boot()
 
 	ui_print "* Applying fixup for 800MHz stuck on interactive governor (for old ROMs like AEX 6.1)";
 	sed -i s/'1 800000:90'/'1 200000:90'/ /tmp/anykernel/ramdisk/init.qcom.power.rc
-
-	ui_print " ";
 	
 	COMPZRAM=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /comp_ | awk '{print $3}')
-	ui_print "* Switch to lz4hc for zram (we dont need fast compression, and can get benefit at better compression ratio)";
-	sed  "s/[[:<:]]comp_algorithm $COMPZRAM[[:>:]]/comp_algorithm lz4hc/" -i /tmp/anykernel/ramdisk/init.target.rc
+	sed  "s/[[:<:]]comp_algorithm $COMPZRAM[[:>:]]/comp_algorithm lz4/" -i /tmp/anykernel/ramdisk/init.target.rc
 
 	ui_print " "
 	ui_print "* Tuning disk i/o subsystem"
