@@ -71,13 +71,13 @@
 #include "blk.h"
 
 /* Expiration time of sync (0) and async (1) requests, in jiffies. */
-static const int bfq_fifo_expire[2] = { HZ / 4, HZ / 8 };
+static const int bfq_fifo_expire[2] = { HZ / 16, HZ / 8 };
 
 /* Maximum backwards seek, in KiB. */
-static const int bfq_back_max = 16 * 1024;
+static const int bfq_back_max = 0;
 
 /* Penalty of a backwards seek, in number of sectors. */
-static const int bfq_back_penalty = 2;
+static const int bfq_back_penalty = 0;
 
 /* Idling period duration, in jiffies. */
 static int bfq_slice_idle = 0;
@@ -94,8 +94,8 @@ static const int bfq_max_budget_async_rq = 4;
 static const int bfq_async_charge_factor = 10;
 
 /* Default timeout values, in jiffies, approximating CFQ defaults. */
-static const int bfq_timeout_sync = 75;
-static int bfq_timeout_async = 40;
+static const int bfq_timeout_sync = 40;
+static int bfq_timeout_async = 80;
 
 struct kmem_cache *bfq_pool;
 
