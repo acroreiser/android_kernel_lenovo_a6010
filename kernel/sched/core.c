@@ -7996,6 +7996,7 @@ static cpumask_var_t cpu_isolated_map;
 static int __init isolated_cpu_setup(char *str)
 {
 	alloc_bootmem_cpumask_var(&cpu_isolated_map);
+	pr_info("isolated CPUs: %s\n", str);
 	cpulist_parse(str, cpu_isolated_map);
 	return 1;
 }
