@@ -98,15 +98,16 @@ make_flashable()
 		cp -R $BUILD_PATH/anykernel_a6000/* $REPACK_PATH
 		echo "--------------------------------------" > $REPACK_PATH/info.txt
 		echo "| Build  date:    $DATE" >> $REPACK_PATH/info.txt
-	#	echo "| Version:	$BOEFFLA_VERSION" >> $REPACK_PATH/info.txt
+	#deprecated	echo "| Version:	$BOEFFLA_VERSION" >> $REPACK_PATH/info.txt
 		echo "| Configuration file:    $DEFCONFIG" >> $REPACK_PATH/info.txt
 		echo "| Release:    $BVERN" >> $REPACK_PATH/info.txt
 		echo "| Building for:    $DEVICE" >> $REPACK_PATH/info.txt
 		echo "| Build  user:    $USER" >> $REPACK_PATH/info.txt
 		echo "| Build  host:    $BUILD_HOST" >> $REPACK_PATH/info.txt
 		echo "| Build  toolchain:    $TVERSION" >> $REPACK_PATH/info.txt
-		echo "| Number of threads:    $THREADS" >> $REPACK_PATH/info.txt
-		echo "--------------------------------------" >> $REPACK_PATH/info.txt
+		echo "| Kernel security patch level: $(cat patchlevel.txt)" >> $REPACK_PATH/info.txt
+	#deprecated	echo "| Number of threads:    $THREADS" >> $REPACK_PATH/info.txt
+	#	echo "--------------------------------------" >> $REPACK_PATH/info.txt
 	else
 		echo "Attempt to create flashable for an unknown device. Aborting..."
 		exit 1
