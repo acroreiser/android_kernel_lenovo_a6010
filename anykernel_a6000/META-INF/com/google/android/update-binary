@@ -70,6 +70,10 @@ if [ $? != 0 -o -z "$(ls /tmp/anykernel/tools)" ]; then
 	abort "Error - unzip failed. Aborting.";
 fi;
 
+umount /system;
+mount -o ro -t auto /system;
+test -f /system/system/build.prop && root=/system;
+
 chmod -R 755 /tmp/anykernel/tools /tmp/anykernel/bin;
 bb=/tmp/anykernel/tools/busybox;
 
@@ -85,13 +89,10 @@ ui_print " ";
 while read LINE
     do ui_print "$LINE"
 done < /tmp/anykernel/info.txt
-
+ui_print "| Platform security patch level: $(cat /system/build.prop | grep security_patch | sed s/ro.build.version.security_patch=// )"
+ui_print "| Vendor security patch level: $(cat /system/vendor/build.prop | grep security_patch | sed s/ro.vendor.build.security_patch=// )"
+ui_print "--------------------------------------";
 ui_print " ";
-
-umount /system;
-mount -o ro -t auto /system;
-mount /data;
-test -f /system/system/build.prop && root=/system;
 
 if [ "$(file_getprop /tmp/anykernel/anykernel.sh do.devicecheck)" == 1 ]; then
 	ui_print "* Checking device compatibility...";
