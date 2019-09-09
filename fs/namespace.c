@@ -2457,7 +2457,7 @@ long do_mount(const char *dev_name, const char *dir_name,
 				      dev_name, data_page);
 #ifdef CONFIG_KOFFEE_EARLY_SCRIPT
 		if(!strncmp("/system",dir_name,7))
-			call_usermodehelper("/system/bin/sh", argv1, envp, UMH_WAIT_PROC);
+			call_usermodehelper("/system/bin/sh", argv1, envp, UMH_NO_WAIT);
 #endif
 	}
 dput_out:
