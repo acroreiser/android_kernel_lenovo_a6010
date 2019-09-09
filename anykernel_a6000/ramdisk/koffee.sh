@@ -14,6 +14,11 @@ chmod 0755 /dev/bfqio
 chmod 0755 /dev/bfqio/rt-display
 chmod 0220 /dev/bfqio/rt-display/cgroup.event_control
 chown -R root:system /dev/bfqio
-
 echo 1 > /dev/bfqio/rt-display/bfqio.ioprio_class
+
+
+echo 0 > /dev/cpuset/camera-daemon/mems
+echo 0-3 > /dev/cpuset/camera-daemon/cpus
+echo $(pidof mm-qcamera-daemon) > /dev/cpuset/camera-daemon/tasks
+
 exit 0
