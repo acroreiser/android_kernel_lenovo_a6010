@@ -2497,7 +2497,7 @@ static inline int nr_big_tasks(struct rq *rq)
 
 #define sched_enable_power_aware 0
 
-static inline int select_best_cpu(struct task_struct *p, int target, int reason)
+static inline int select_best_cpu(struct task_struct *p, int target, int reason, int sync)
 {
 	return 0;
 }
@@ -4250,7 +4250,7 @@ static inline void destroy_cfs_bandwidth(struct cfs_bandwidth *cfs_b) {}
 static inline void unthrottle_offline_cfs_rqs(struct rq *rq) {}
 
 #endif /* CONFIG_CFS_BANDWIDTH */
-
+#ifdef CONFIG_SCHED_HMP
 /*
  * Return total number of tasks "eligible" to run on highest capacity cpu
  *
@@ -4274,7 +4274,7 @@ unsigned int nr_eligible_big_tasks(int cpu)
 
 	return nr_big;
 }
-
+#endif
 /**************************************************
  * CFS operations on tasks:
  */
