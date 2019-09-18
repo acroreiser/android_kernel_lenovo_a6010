@@ -2,7 +2,7 @@
 
 VERSION=0.6
 DEFCONFIG=lineageos_a6010_defconfig
-TOOLCHAIN='toolchain/arm-eabi-4.7/bin/arm-eabi-'
+TOOLCHAIN='toolchain/arm-eabi-4.9/bin/arm-eabi-'
 KCONFIG=false
 CUST_CONF=no
 BUILD_NUMBER=1
