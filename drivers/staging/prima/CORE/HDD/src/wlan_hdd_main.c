@@ -6970,14 +6970,8 @@ free_bcn_miss_rate_req:
                {
                    case FW_UBSP_STATS:
                    {
-                       tSirUbspFwStats *stats =
-                               &fwStatsRsp->fwStatsData.ubspStats;
                        memcpy(fwStatsRsp, fw_stats_result,
                               sizeof(tSirFwStatsResult));
-                       hddLog(VOS_TRACE_LEVEL_INFO,
-                              FL("ubsp_enter_cnt = %d ubsp_jump_ddr_cnt = %d"),
-                                 stats->ubsp_enter_cnt,
-                                 stats->ubsp_jump_ddr_cnt);
                    }
                    break;
 
