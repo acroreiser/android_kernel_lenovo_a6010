@@ -331,6 +331,15 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	unsigned int type = button->type ?: EV_KEY;
 	int state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
 
+#ifdef 	CONFIG_POWERKEY_HACK
+	if((button->code == KEY_POWER) && (!!state == 1) && (pm_autosleep_state() > 0))
+		pm_autosleep_set_state(0);
+	else
+	{
+		input_event(input, type, button->code, !!state);
+		input_sync(input);
+	}
+#else
 	if (type == EV_ABS) {
 		if (state)
 			input_event(input, type, button->code, button->value);
@@ -338,6 +347,7 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 		input_event(input, type, button->code, !!state);
 	}
 	input_sync(input);
+#endif
 }
 
 static void gpio_keys_gpio_work_func(struct work_struct *work)
