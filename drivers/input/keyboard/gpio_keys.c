@@ -30,6 +30,7 @@
 #include <linux/of_gpio.h>
 #include <linux/spinlock.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/autosleep.h>
 
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
