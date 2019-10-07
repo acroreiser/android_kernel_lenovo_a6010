@@ -334,7 +334,7 @@ static void queue_pending_output_urbs(struct snd_usb_endpoint *ep)
 
 		err = usb_submit_urb(ctx->urb, GFP_ATOMIC);
 		if (err < 0)
-			snd_printk(KERN_ERR "Unable to submit urb #%d: %d (urb %pK)\n",
+			snd_printk(KERN_ERR "Unable to submit urb #%d: %d (urb %p)\n",
 				   ctx->index, err, ctx->urb);
 		else
 			set_bit(ctx->index, &ep->active_mask);
