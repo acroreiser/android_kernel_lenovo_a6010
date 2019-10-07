@@ -433,7 +433,7 @@ struct snd_usb_endpoint *snd_usb_add_endpoint(struct snd_usb_audio *chip,
 		if (ep->ep_num == ep_num &&
 		    ep->iface == alts->desc.bInterfaceNumber &&
 		    ep->alt_idx == alts->desc.bAlternateSetting) {
-			snd_printdd(KERN_DEBUG "Re-using EP %x in iface %d,%d @%pK\n",
+			snd_printdd(KERN_DEBUG "Re-using EP %x in iface %d,%d @%p\n",
 					ep_num, ep->iface, ep->alt_idx, ep);
 			goto __exit_unlock;
 		}
