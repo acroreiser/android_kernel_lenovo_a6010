@@ -16,4 +16,7 @@ chmod 0220 /dev/bfqio/rt-display/cgroup.event_control
 chown -R root:system /dev/bfqio
 
 echo 1 > /dev/bfqio/rt-display/bfqio.ioprio_class
+
+mkdir -m 0777 /data/ureadahead
+/sbin/ureadahead --daemon --timeout=90
 exit 0

@@ -129,6 +129,11 @@ make_flashable()
 		sed -i "s;###KOFFEE_EARLY_SCRIPT###;rm /tmp/anykernel/ramdisk/koffee.sh;" $REPACK_PATH/tools/ak2-core.sh;
 	fi
 
+	if [ "$(cat .config | grep BLK_DEV_IO_TRACE | grep not)" != "" ]; then 
+		rm $REPACK_PATH/ramdisk/sbin/ureadahead
+		sed -i "s;###UREADAHEAD###;rm /tmp/anykernel/ramdisk/sbin/ureadahead;" $REPACK_PATH/tools/ak2-core.sh;
+	fi
+
 	cd $REPACK_PATH
 	# delete placeholder files
 	find . -name placeholder -delete
