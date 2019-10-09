@@ -29,11 +29,9 @@ static int dyn_fsync_panic_event(struct notifier_block *this,
 static int dyn_fsync_notify_sys(struct notifier_block *this, unsigned long code,
 				void *unused)
 {
-	if (code == SYS_DOWN || code == SYS_HALT) 
-	{
-		emergency_sync();
-		pr_warn("Reboot auto-fsync: reboot - force flush!\n");
-	}
+	emergency_sync();
+	pr_warn("Reboot auto-fsync: reboot - force flush!\n");
+
 	return NOTIFY_DONE;
 }
 
