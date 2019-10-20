@@ -409,6 +409,7 @@ struct rw_semaphore __sched *rwsem_down_write_failed(struct rw_semaphore *sem)
 
 		raw_spin_lock_irq(&sem->wait_lock);
 	}
+   __set_current_state(TASK_RUNNING);
 
 	list_del(&waiter.list);
 	raw_spin_unlock_irq(&sem->wait_lock);
