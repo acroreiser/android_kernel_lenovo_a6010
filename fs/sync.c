@@ -163,7 +163,7 @@ SYSCALL_DEFINE0(sync)
 	WARN_ON_ONCE((sync_seq & 0x1) != 1);
 	smp_mb(); /* Keep prior increment out of do_sync(). */
 
-	//do_sync();
+	do_sync();
 
 	/* Record the end of do_sync(). */
 	smp_mb(); /* Keep subsequent increment out of do_sync(). */
@@ -216,7 +216,7 @@ SYSCALL_DEFINE1(syncfs, int, fd)
 	sb = f.file->f_dentry->d_sb;
 
 	down_read(&sb->s_umount);
-	ret = 0; //sync_filesystem(sb);
+	ret = sync_filesystem(sb);
 	up_read(&sb->s_umount);
 
 	fdput(f);
@@ -271,12 +271,12 @@ static int do_fsync(unsigned int fd, int datasync)
 
 SYSCALL_DEFINE1(fsync, unsigned int, fd)
 {
-	return 0; //do_fsync(fd, 0);
+	return do_fsync(fd, 0);
 }
 
 SYSCALL_DEFINE1(fdatasync, unsigned int, fd)
 {
-	return 0; //do_fsync(fd, 1);
+	return do_fsync(fd, 1);
 }
 
 /**
@@ -422,7 +422,7 @@ SYSCALL_DEFINE4(sync_file_range, int, fd, loff_t, offset, loff_t, nbytes,
 		ret = filemap_fdatawait_range(mapping, offset, endbyte);
 
 out_put:
-	//fdput(f);
+	fdput(f);
 out:
 	return ret;
 }
