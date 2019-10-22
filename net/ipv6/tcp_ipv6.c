@@ -63,7 +63,6 @@
 #include <net/inet_common.h>
 #include <net/secure_seq.h>
 #include <net/tcp_memcontrol.h>
-#include <net/ll_poll.h>
 
 #include <asm/uaccess.h>
 
@@ -1530,7 +1529,6 @@ process:
 	th = (const struct tcphdr *)skb->data;
 	hdr = ipv6_hdr(skb);
 
-	sk_mark_ll(sk, skb);
 	skb->dev = NULL;
 
 	if (sk->sk_state == TCP_LISTEN) {
