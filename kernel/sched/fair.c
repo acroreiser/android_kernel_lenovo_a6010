@@ -6988,7 +6988,7 @@ out_one_pinned:
 
 	ld_moved = 0;
 out:
-	trace_sched_load_balance(this_cpu, idle, *balance,
+	trace_sched_load_balance(this_cpu, idle, *continue_balancing,
 				 group ? group->cpumask[0] : 0,
 				 busiest ? busiest->nr_running : 0,
 				 env.imbalance, env.flags, ld_moved,
