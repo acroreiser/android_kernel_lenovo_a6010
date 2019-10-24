@@ -233,7 +233,7 @@ static void tick_nohz_restart_sched_tick(struct tick_sched *ts, ktime_t now);
  * Re-evaluate the need for the tick on the current CPU
  * and restart it if necessary.
  */
-void __tick_nohz_full_check(void)
+void tick_nohz_full_check(void)
 {
 	struct tick_sched *ts = &__get_cpu_var(tick_cpu_sched);
 
@@ -247,7 +247,7 @@ void __tick_nohz_full_check(void)
 
 static void nohz_full_kick_work_func(struct irq_work *work)
 {
-	__tick_nohz_full_check();
+	tick_nohz_full_check();
 }
 
 static DEFINE_PER_CPU(struct irq_work, nohz_full_kick_work) = {
@@ -266,7 +266,7 @@ void tick_nohz_full_kick(void)
 
 static void nohz_full_kick_ipi(void *info)
 {
-	__tick_nohz_full_check();
+	tick_nohz_full_check();
 }
 
 /*
@@ -289,7 +289,7 @@ void tick_nohz_full_kick_all(void)
  * It might need the tick due to per task/process properties:
  * perf events, posix cpu timers, ...
  */
-void __tick_nohz_task_switch(struct task_struct *tsk)
+void tick_nohz_task_switch(struct task_struct *tsk)
 {
 	unsigned long flags;
 
