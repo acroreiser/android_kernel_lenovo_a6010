@@ -379,6 +379,7 @@ static int tick_nohz_init_all(void)
 
 void __init tick_nohz_init(void)
 {
+	int cpu;
 	if (!tick_nohz_full_running) {
 		if (tick_nohz_init_all() < 0)
 			return;
