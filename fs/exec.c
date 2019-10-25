@@ -148,8 +148,8 @@ SYSCALL_DEFINE1(uselib, const char __user *, library)
 	fsnotify_open(file);
 
 	tmp = getname(library);
-	trace_uselib(tmp);
-	putname(library);
+	trace_uselib(tmp->name);
+	putname(tmp);
 
 	error = -ENOEXEC;
 	if(file->f_op) {
@@ -791,6 +791,7 @@ EXPORT_SYMBOL(setup_arg_pages);
 struct file *open_exec(const char *name)
 {
 	struct file *file;
+	char *_name;
 	int err;
 	struct filename tmp = { .name = name };
 	static const struct open_flags open_exec_flags = {
@@ -812,8 +813,8 @@ struct file *open_exec(const char *name)
 		goto exit;
 
 	fsnotify_open(file);
-
-	trace_open_exec(name);
+	_name = name;
+	trace_open_exec(_name);
 
 	err = deny_write_access(file);
 	if (err)
