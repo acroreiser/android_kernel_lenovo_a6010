@@ -1568,7 +1568,7 @@ static int debug_ul_pkt_cnt(char *buf, int max)
 	int n = 0;
 
 	spin_lock_irqsave(&bam_tx_pool_spinlock, flags);
-	__list_for_each(p, &bam_tx_pool) {
+	list_for_each(p, &bam_tx_pool) {
 		++n;
 	}
 	spin_unlock_irqrestore(&bam_tx_pool_spinlock, flags);
@@ -1667,7 +1667,7 @@ static void notify_all(int event, unsigned long data)
 			notify(priv, event, data);
 	}
 
-	__list_for_each(temp, &bam_other_notify_funcs) {
+	list_for_each(temp, &bam_other_notify_funcs) {
 		func = container_of(temp, struct outside_notify_func,
 								list_node);
 		func->notify(func->priv, event, data);
