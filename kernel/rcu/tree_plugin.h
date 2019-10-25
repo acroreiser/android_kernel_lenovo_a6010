@@ -2544,20 +2544,6 @@ static bool is_sysidle_rcu_state(struct rcu_state *rsp)
 }
 
 /*
- * Bind the grace-period kthread for the sysidle flavor of RCU to the
- * timekeeping CPU.
- */
-static void rcu_bind_gp_kthread(void)
-{
-	int cpu = ACCESS_ONCE(tick_do_timer_cpu);
-
-	if (cpu < 0 || cpu >= nr_cpu_ids)
-		return;
-	if (raw_smp_processor_id() != cpu)
-		set_cpus_allowed_ptr(current, cpumask_of(cpu));
-}
-
-/*
  * Return a delay in jiffies based on the number of CPUs, rcu_node
  * leaf fanout, and jiffies tick rate.  The idea is to allow larger
  * systems more time to transition to full-idle state in order to
