@@ -18,5 +18,5 @@ chown -R root:system /dev/bfqio
 echo 1 > /dev/bfqio/rt-display/bfqio.ioprio_class
 
 mkdir -m 0777 /data/ureadahead
-/sbin/ureadahead --daemon --timeout=90
+/sbin/ureadahead --daemon --timeout=45
 exit 0
