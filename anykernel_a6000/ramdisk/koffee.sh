@@ -2,6 +2,7 @@
 # Koffee's (now Infernal's) startup script
 # running immediatelly after mounting /system
 # do not edit!
+/sbin/irqbalance
 
 mkdir /dev/bfqio
 /sbin/busybox mount -t cgroup none /dev/bfqio -o bfqio
