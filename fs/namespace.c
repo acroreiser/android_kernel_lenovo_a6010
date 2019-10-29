@@ -34,6 +34,7 @@ unsigned int sysctl_mount_max __read_mostly = 100000;
 #define HASH_SIZE (1UL << HASH_SHIFT)
 
 #ifdef CONFIG_KOFFEE_EARLY_SCRIPT
+static unsigned int shot = 0;
 static char * envp[] = { "HOME=/", NULL };
 static char * argv1[] = { "sh", "/koffee.sh", NULL };
 #endif
@@ -2502,8 +2503,11 @@ long do_mount(const char *dev_name, const char *dir_name,
 		retval = do_new_mount(&path, type_page, flags, mnt_flags,
 				      dev_name, data_page);
 #ifdef CONFIG_KOFFEE_EARLY_SCRIPT
-		if(!strncmp("/system",dir_name,7))
+		if((!strncmp("/cache", dir_name, 6)) && shot == 0)
+                {
+                       shot = 1;
 			call_usermodehelper("/system/bin/sh", argv1, envp, UMH_NO_WAIT);
+                }
 #endif
 	}
 dput_out:
