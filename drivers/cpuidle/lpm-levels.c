@@ -714,7 +714,7 @@ static int cpuidle_register_cpu(struct cpuidle_driver *drv,
 		return -EINVAL;
 
 	for_each_cpu(cpu, mask) {
-		ret = cpuidle_register_cpu_driver(drv, cpu);
+		ret = cpuidle_register_driver(drv);
 		if (ret) {
 			pr_err("Failed to register cpuidle driver %d\n", ret);
 			goto failed_driver_register;
@@ -732,7 +732,7 @@ static int cpuidle_register_cpu(struct cpuidle_driver *drv,
 	return ret;
 failed_driver_register:
 	for_each_cpu(cpu, mask)
-		cpuidle_unregister_cpu_driver(drv, cpu);
+		cpuidle_unregister_driver(drv);
 	return ret;
 }
 #else
