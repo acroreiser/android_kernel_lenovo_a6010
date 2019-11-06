@@ -282,8 +282,12 @@ static int read_irqbalance_configuration(void)
 
 	if (!fp)
 	{
-		printf("%s: fail to open irqbalance configuration", __func__);
-		return -ENOENT;
+		fp = fopen("/irqbalance.conf", "r");
+		if (!fp) // again
+		{
+			printf("%s: fail to open irqbalance configuration", __func__);
+			return -ENOENT;
+		}
 	}
 
 	while (!feof(fp))
