@@ -69,7 +69,7 @@ static void push_object(int type,
 				&objbuf[index].entry->memdesc,
 				gpuaddr, dwords << 2)) {
 				KGSL_CORE_ERR(
-					"snapshot: IB 0x%016llx size is not within the memdesc range\n",
+					"snapshot: IB 0x%016zx size is not within the memdesc range\n",
 					gpuaddr);
 				return;
 			}
