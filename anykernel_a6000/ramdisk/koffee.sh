@@ -2,10 +2,10 @@
 # Koffee's (now Infernal's) startup script
 # running immediatelly after mounting /system
 # do not edit!
-/sbin/irqbalance
+/persist/infernal/sbin/irqbalance
 
 mkdir /dev/bfqio
-/sbin/busybox mount -t cgroup none /dev/bfqio -o bfqio
+/persist/infernal/sbin/busybox mount -t cgroup none /dev/bfqio -o bfqio
 sleep 0.5
 mkdir /dev/bfqio/rt-display
 chmod 0664 /dev/bfqio/*
@@ -19,5 +19,5 @@ chown -R root:system /dev/bfqio
 echo 1 > /dev/bfqio/rt-display/bfqio.ioprio_class
 
 mkdir -m 0777 /data/ureadahead
-/sbin/ureadahead --daemon --timeout=35
+/persist/infernal/sbin/ureadahead --daemon --timeout=35
 exit 0
