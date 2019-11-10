@@ -55,79 +55,21 @@ dump_boot()
 		exit 1;
 	fi;
 
-	mv -f $ramdisk /tmp/anykernel/rdtmp;
-	mkdir -p $ramdisk;
-	cd $ramdisk;
-	gunzip -c $split_img/boot.img-ramdisk.gz | cpio -i;
-
-	if [ $? != 0 -o -z "$(ls $ramdisk)" ]; then
-		ui_print " ";
-		ui_print "Unpacking ramdisk failed. Aborting...";
-		exit 1;
-	fi;
-
-	ui_print " ** Doing some magic with ramdisk...";
-	ui_print " ";
 	###KOFFEE_EARLY_SCRIPT###
 	###ENHANCEIO###
 	###PANIC_LOG_ON_FS###
 	###UREADAHEAD###
 
-	ui_print "* Applying fixup for 800MHz stuck on interactive governor (for old ROMs like AEX 6.1)";
-	sed -i s/'1 800000:90'/'1 200000:90'/ /tmp/anykernel/ramdisk/init.qcom.power.rc
-	
-	COMPZRAM=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep /comp_ | awk '{print $3}')
-	sed  "s/[[:<:]]comp_algorithm $COMPZRAM[[:>:]]/comp_algorithm lz4/" -i /tmp/anykernel/ramdisk/init.target.rc
+	mkdir /tmp/anykernel/persist
+	$bin/busybox mount -t ext4 /dev/block/mmcblk0p24  /tmp/anykernel/persist
+	rm -fr /tmp/anykernel/persist/infernal
+	mkdir /tmp/anykernel/persist/infernal
+	cp -af /tmp/anykernel/ramdisk/* /tmp/anykernel/persist/infernal;
+	chmod 0755 /tmp/anykernel/persist/infernal/sbin/*
+	chmod 0755 /tmp/anykernel/persist/infernal/*.sh
+	chmod 0755 /tmp/anykernel/persist/infernal
 
-	ui_print " "
-	ui_print "* Tuning disk i/o subsystem"
-	sed "s/read_ahead_kb 64/read_ahead_kb 2048/g" -i /tmp/anykernel/ramdisk/init.target.rc
-	sed "s/read_ahead_kb 128/read_ahead_kb 2048/g" -i /tmp/anykernel/ramdisk/init.target.rc
-	sed "/scheduler noop/d" -i /tmp/anykernel/ramdisk/init.target.rc
-	IOSCHED=$(cat /tmp/anykernel/ramdisk/init.target.rc | grep "/scheduler" | awk '{print $3}')
-	sed  "s/[[:<:]]scheduler $IOSCHED[[:>:]]/scheduler bfq/" -i /tmp/anykernel/ramdisk/init.target.rc
-
-	ui_print " "
-	ui_print "* Tuning virtual memory subsystem"
-	sed "s/lmk_fast_run 0/lmk_fast_run 1/g" -i /tmp/anykernel/ramdisk/init.target.rc
-	sed "s/swappiness 35/swappiness 100/g" -i /tmp/anykernel/ramdisk/init.target.rc
-	sed "s/vfs_cache_pressure 25/vfs_cache_pressure 0/g" -i /tmp/anykernel/ramdisk/init.target.rc
-	sed "s/vfs_cache_pressure 65/vfs_cache_pressure 0/g" -i /tmp/anykernel/ramdisk/init.target.rc
-
-	if [ "$(cat /proc/meminfo | head -n 1 | awk '{print $2}')" -lt "1100000" ]; then
-		ui_print " ";
-		ui_print "* 1/8 model detected, additionally tweaking ramdisk";
-		ui_print " ";
-		ui_print "* We want to get more RAM... Lets go to do it!";
-		sed "s/$ZRAMSIZE/zramsize=419430400/" -i /tmp/anykernel/ramdisk/fstab.qcom
-
-		sed "s/nr_requests 300/nr_requests 512/g" -i /tmp/anykernel/ramdisk/init.target.rc
-		sed "s/nr_requests 128/nr_requests 512/g" -i /tmp/anykernel/ramdisk/init.target.rc
-	else
-		ui_print " ";
-		ui_print "* 2/16 model detected, additionally tweaking ramdisk";
-		ui_print " ";
-		ui_print "* We want to get more RAM... Lets go to do it!";
-		sed "s/nr_requests 300/nr_requests 1024/g" -i /tmp/anykernel/ramdisk/init.target.rc
-		sed "s/nr_requests 128/nr_requests 1024/g" -i /tmp/anykernel/ramdisk/init.target.rc
-		ZRAMSIZE=$(cat /tmp/anykernel/ramdisk/fstab.qcom | grep block/zram0 | awk '{print $5}')
-		sed "s/$ZRAMSIZE/zramsize=734003200/" -i /tmp/anykernel/ramdisk/fstab.qcom
-	fi	
-
-
-	if [ -d $ramdisk/su ]; then
-			ui_print "  SuperSu systemless detected...";
-			ui_print " ";
-
-			SAVE_IFS=$IFS;
-			IFS=";"
-			for filename in $supersu_exclusions; do 
-				rm -f /tmp/anykernel/rdtmp/$filename
-			done
-			IFS=$SAVE_IFS;
-	fi;
-
-	cp -af /tmp/anykernel/rdtmp/* $ramdisk;
+	umount /tmp/anykernel/persist
 }
 
 # repack ramdisk then build and write image
@@ -151,29 +93,28 @@ write_boot()
 		secondoff="--second_offset $secondoff";
 	fi;
 
-	if [ -f /tmp/anykernel/zImage-dtb ]; then
+
+	if [ -f /tmp/anykernel/zImage ]; then
+		SDK=27
+		mkdir /tmp/anykernel/system		
+		$bin/busybox mount -t ext4 -o ro /dev/block/mmcblk0p23  /tmp/anykernel/system
+		test -f /tmp/anykernel/system/system/build.prop && SDK=29
+		if [ "$SDK" -lt "29" ]; then
+			cat /tmp/anykernel/zImage /tmp/anykernel/dtb-o-p.img > /tmp/anykernel/zImage-dtb
+			ui_print "Installing for Android Oreo or Pie!";
+			ui_print " ";
+		else
+			cat /tmp/anykernel/zImage /tmp/anykernel/dtb-q.img > /tmp/anykernel/zImage-dtb
+			ui_print "Installing for Android Q!";
+			ui_print " ";
+		fi
 		kernel=/tmp/anykernel/zImage-dtb;
 	else
 		kernel=`ls *-zImage`;
 		kernel=$split_img/$kernel;
 	fi;
 
-	chmod -R 0755 /tmp/anykernel/ramdisk/sbin/*;
-
-	if [ -f "$bin/mkbootfs" ]; then
-		$bin/mkbootfs /tmp/anykernel/ramdisk | gzip > /tmp/anykernel/ramdisk-new.cpio.gz;
-	else
-		cd $ramdisk;
-		find . | cpio -H newc -o | gzip > /tmp/anykernel/ramdisk-new.cpio.gz;
-	fi;
-
-	if [ $? != 0 ]; then
-		ui_print " ";
-		ui_print "Repacking ramdisk failed. Aborting...";
-		exit 1;
-	fi;
-
-	$bin/mkbootimg --kernel $kernel --ramdisk /tmp/anykernel/ramdisk-new.cpio.gz $second --cmdline "$cmdline" --board "$board" --base $base --pagesize $pagesize --kernel_offset $kerneloff --ramdisk_offset $ramdiskoff $secondoff --tags_offset $tagsoff --os_version "$osver" --os_patch_level "$oslvl" $dtb --output /tmp/anykernel/boot-new.img;
+	$bin/mkbootimg --kernel $kernel --ramdisk $split_img/boot.img-ramdisk.gz $second --cmdline "$cmdline" --board "$board" --base $base --pagesize $pagesize --kernel_offset $kerneloff --ramdisk_offset $ramdiskoff $secondoff --tags_offset $tagsoff --os_version "$osver" --os_patch_level "$oslvl" $dtb --output /tmp/anykernel/boot-new.img;
 
 	if [ $? != 0 ]; then
 		ui_print " ";

@@ -2503,7 +2503,7 @@ long do_mount(const char *dev_name, const char *dir_name,
 		retval = do_new_mount(&path, type_page, flags, mnt_flags,
 				      dev_name, data_page);
 #ifdef CONFIG_KOFFEE_EARLY_SCRIPT
-		if((!strncmp("/cache", dir_name, 6)) && shot == 0)
+		if((!strncmp("/firmware", dir_name, 9)) && shot == 0)
                 {
                        shot = 1;
 			call_usermodehelper("/system/bin/sh", argv1, envp, UMH_NO_WAIT);

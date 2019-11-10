@@ -71,7 +71,7 @@ make_config()
 
 build_kernel()
 {
-	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN zImage-dtb
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN zImage
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -82,6 +82,16 @@ build_kernel()
 build_modules()
 {
 	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN modules
+	if [ $? -eq 0 ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+build_dtbs()
+{
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN dtbs
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -139,7 +149,7 @@ make_flashable()
 	find . -name placeholder -delete
 
 	# copy kernel image
-	cp $BUILD_PATH/arch/arm/boot/zImage-dtb $REPACK_PATH/zImage-dtb
+	cp $BUILD_PATH/arch/arm/boot/zImage $REPACK_PATH/zImage
 
 	# replace variables in anykernel script
 	cd $REPACK_PATH
@@ -269,8 +279,23 @@ else
 	exit 1
 fi
 
+echo "---- Stage 2: Building the Device Tree ----"
+build_dtbs
+if [ $? -eq 0 ]; then
+	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-o-p.img
+	patch -Np1 < anykernel_a6000/early-mount.patch
+	build_dtbs
+	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-q.img
+	patch -Rp1 < anykernel_a6000/early-mount.patch
+	rm $REPACK_PATH/early-mount.patch
+	echo "*** DTB is ready! ***"
+else
+	echo "*** DTB BUILD FAILED ***"
+	exit 1
+fi
+		
 if [ "$SKIP_MODULES" = "false" ]; then
-	echo "---- Stage 2: Building modules ----"
+	echo "---- Stage 3: Building modules ----"
 	build_modules
 	if [ $? -eq 0 ]; then
 		echo "*** Modules is ready! ***"
@@ -279,11 +304,11 @@ if [ "$SKIP_MODULES" = "false" ]; then
 		exit 1
 	fi
 else
-	echo "---- Stage 2(skipped): Building modules ----"
+	echo "---- Stage 3(skipped): Building modules ----"
 fi
 
 if [ "$DONTPACK" = "false" ]; then
-	echo "---- Stage 3: Packing all stuff ----"
+	echo "---- Stage 4: Packing all stuff ----"
 	make_flashable
 	if [ $? -eq 0 ]; then
 		echo "--------------------------------------"
