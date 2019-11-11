@@ -99,6 +99,7 @@ write_boot()
 		mkdir /tmp/anykernel/system		
 		$bin/busybox mount -t ext4 -o ro /dev/block/mmcblk0p23  /tmp/anykernel/system
 		test -f /tmp/anykernel/system/system/build.prop && SDK=29
+                umount /tmp/anykernel/system
 		if [ "$SDK" -lt "29" ]; then
 			cat /tmp/anykernel/zImage /tmp/anykernel/dtb-o-p.img > /tmp/anykernel/zImage-dtb
 			ui_print "Installing for Android Oreo or Pie!";

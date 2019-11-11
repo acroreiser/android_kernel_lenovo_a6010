@@ -101,8 +101,6 @@ build_dtbs()
 
 make_flashable()
 {
-
-	mkdir -p $REPACK_PATH
 	# copy anykernel template over
 	if [ "$DEVICE" == "a6010" ] || [ "$DEVICE" == "a6000" ]; then
 		cp -R $BUILD_PATH/anykernel_a6000/* $REPACK_PATH
@@ -162,7 +160,7 @@ make_flashable()
 	SOURCECODE="Official source code:  https://github.com/acroreiser/Infernal"
 	sed -i "s;###sourcecode###;${SOURCECODE};" META-INF/com/google/android/update-binary;
 
-
+  rm early-mount.patch
 	# create zip file
 	zip -r9 ${KERNEL_NAME}-r${BUILD_NUMBER}.zip * -x ${KERNEL_NAME}-r${BUILD_NUMBER}.zip
 
@@ -213,6 +211,7 @@ if [ -d "`pwd`/.tmpzip" ]; then
 	rm -fr "`pwd`/.tmpzip"
 fi
 REPACK_PATH=`pwd`/.tmpzip
+mkdir -p $REPACK_PATH
 
 # ENTRY POINT
 echo "Koffee build script v$VERSION"
@@ -287,7 +286,6 @@ if [ $? -eq 0 ]; then
 	build_dtbs
 	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-q.img
 	patch -Rp1 < anykernel_a6000/early-mount.patch
-	rm $REPACK_PATH/early-mount.patch
 	echo "*** DTB is ready! ***"
 else
 	echo "*** DTB BUILD FAILED ***"
