@@ -81,14 +81,6 @@ bool is_cma_pageblock(struct page *page);
 #  define get_cma_migrate_type() MIGRATE_MOVABLE
 #endif
 
-#ifdef CONFIG_CGROUP_PALLOC
-/* Determine the number of bins according to the bits required for
-   each component of the address*/
-#  define MAX_PALLOC_BITS 8
-#  define MAX_PALLOC_BINS (1 << MAX_PALLOC_BITS)
-#  define COLOR_BITMAP(name) DECLARE_BITMAP(name, MAX_PALLOC_BINS)
-#endif
-
 #define for_each_migratetype_order(order, type) \
 	for (order = 0; order < MAX_ORDER; order++) \
 		for (type = 0; type < MIGRATE_TYPES; type++)
@@ -403,14 +395,6 @@ struct zone {
 	bool			cma_alloc;
 #endif
 	struct free_area	free_area[MAX_ORDER];
-
-#ifdef CONFIG_CGROUP_PALLOC
-	/*
-	 * Color page cache. for movable type free pages of order-0
-	 */
-	struct list_head        color_list[MAX_PALLOC_BINS];
-	COLOR_BITMAP(color_bitmap);
-#endif
 
 #ifndef CONFIG_SPARSEMEM
 	/*
