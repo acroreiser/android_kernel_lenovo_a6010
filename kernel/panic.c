@@ -28,7 +28,7 @@
 #include <linux/kmod.h>
 
 static char * envp[] = { "HOME=/", NULL };
-static char * argv1[] = { "sh", "/panic_log.sh", NULL };
+static char * argv1[] = { "sh", "/persist/infernal/panic_log.sh", NULL };
 #endif
 
 #define CREATE_TRACE_POINTS
