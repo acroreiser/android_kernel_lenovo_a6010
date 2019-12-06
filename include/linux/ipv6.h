@@ -56,6 +56,7 @@ struct ipv6_devconf {
 	__s32		accept_ra_prefix_route;
 	__s32		accept_ra_mtu;
 	__s32		use_oif_addrs_only;
+	__s32		drop_unsolicited_na;
 	void		*sysctl;
 };
 
