@@ -288,26 +288,19 @@
 		pinctrl-0 = <&gpio_led_off>;
 
 		red {
-			gpios = <&msm_gpio 8 0>;
+			gpios = <&msm_gpio 16 1>;
 			label = "red";
-			linux,default-trigger = "none";
+			linux,default-trigger = "battery-red";
 			default-state = "off";
 			retain-state-suspended;
 		};
 
 		green {
-			gpios = <&msm_gpio 9 0>;
+			gpios = <&msm_gpio 17 0>;
 			label = "green";
 			linux,default-trigger = "none";
 			default-state = "off";
 			retain-state-suspended;
-		};
-
-		blue {
-			gpios = <&msm_gpio 10 0>;
-			label = "blue";
-			linux,default-trigger = "none";
-			default-state = "off";
 		};
 	};
 
