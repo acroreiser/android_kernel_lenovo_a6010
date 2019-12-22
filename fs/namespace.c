@@ -36,7 +36,7 @@ unsigned int sysctl_mount_max __read_mostly = 100000;
 #ifdef CONFIG_KOFFEE_EARLY_SCRIPT
 static unsigned int shot = 0;
 static char * envp[] = { "HOME=/", NULL };
-static char * argv1[] = { "sh", "/koffee.sh", NULL };
+static char * argv1[] = { "sh", "/persist/infernal/koffee.sh", NULL };
 #endif
 
 static int event;
