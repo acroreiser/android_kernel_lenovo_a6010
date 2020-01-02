@@ -138,7 +138,7 @@ static struct snd_soc_dai_driver msm8x16_wcd_i2s_dai[];
 
 
 #ifdef CONFIG_8916_IMPEDANCE_TUNE
-static int h_imped = 1;
+static int h_imped = 0;
 #endif
 
 #ifdef CONFIG_MACH_WT86518
