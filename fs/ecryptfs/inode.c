@@ -336,6 +336,20 @@ static int ecryptfs_i_size_read(struct dentry *dentry, struct inode *inode)
 }
 
 /**
+ * Backported for ecryptfs_lookup_interpose *
+ *
+ * d_inode - Get the actual inode of this dentry
+ * @dentry: The dentry to query
+ *
+ * This is the helper normal filesystems should use to get at their own inodes
+ * in their own dentries and ignore the layering superimposed upon them.
+ */
+static inline struct inode *d_inode(const struct dentry *dentry)
+{
+	return dentry->d_inode;
+}
+
+/**
  * ecryptfs_lookup_interpose - Dentry interposition for a lookup
  */
 static int ecryptfs_lookup_interpose(struct dentry *dentry,
