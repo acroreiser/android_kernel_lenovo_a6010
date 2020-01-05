@@ -74,6 +74,7 @@ fi;
 
 umount /system;
 mount -o ro -t auto /system;
+mount -t auto /data;
 test -f /system/system/build.prop && root=/system;
 
 
@@ -166,7 +167,7 @@ if [ "$(file_getprop /tmp/anykernel/anykernel.sh do.cleanup)" == 1 ]; then
 	rm -rf /tmp/anykernel;
 fi;
 
-
+rm -fr /data/ureadahead/*
 umount /system;
 umount /data;
 ui_print " ";
