@@ -5,7 +5,7 @@
 
 
 # Start irq balancer daemon
-/persist/infernal/sbin/irqbalance
+/persist/infernal/sbin/busybox chrt -i 0 /persist/infernal/sbin/irqbalance
 
 
 # Setup BFQIO CGroup
@@ -22,6 +22,14 @@ chmod 0220 /dev/bfqio/rt-display/cgroup.event_control
 chown -R root:system /dev/bfqio
 echo 1 > /dev/bfqio/rt-display/bfqio.ioprio_class
 
+# Setup ZRAM
+/persist/infernal/sbin/busybox swapoff /dev/block/zram0
+ZMEM=$(cat /proc/meminfo | grep MemTotal | awk  '{print $2}')
+let 'ZMEM=((ZMEM/100)*40)*1024'
+echo 1 > /sys/block/zram0/reset
+echo 'lz4hc' > /sys/block/zram0/comp_algorithm
+echo $MEM > /sys/block/zram0/disksize
+/persist/infernal/sbin/busybox swapon /dev/block/zram0
 
 # Start ureadahead daemon (ported from Ubuntu)
 # to speed up booting
