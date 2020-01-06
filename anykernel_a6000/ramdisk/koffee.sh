@@ -28,7 +28,8 @@ ZMEM=$(cat /proc/meminfo | grep MemTotal | awk  '{print $2}')
 let 'ZMEM=((ZMEM/100)*40)*1024'
 echo 1 > /sys/block/zram0/reset
 echo 'lz4hc' > /sys/block/zram0/comp_algorithm
-echo $MEM > /sys/block/zram0/disksize
+echo $ZMEM > /sys/block/zram0/disksize
+/persist/infernal/sbin/busybox mkswap /dev/block/zram0
 /persist/infernal/sbin/busybox swapon /dev/block/zram0
 
 # Start ureadahead daemon (ported from Ubuntu)
