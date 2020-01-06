@@ -227,6 +227,7 @@ static void cpufreq_wave_timer_start(
 	spin_unlock_irqrestore(&pcpu->load_lock, flags);
 }
 
+#if 0
 static unsigned int freq_to_above_hispeed_delay(
 	struct cpufreq_wave_tunables *tunables,
 	unsigned int freq)
@@ -262,6 +263,7 @@ static unsigned int freq_to_targetload(
 	spin_unlock_irqrestore(&tunables->target_loads_lock, flags);
 	return ret;
 }
+#endif
 
 /*
  * If increasing frequencies never map to a lower target load then
@@ -270,20 +272,20 @@ static unsigned int freq_to_targetload(
  */
 static unsigned int choose_freq(struct cpufreq_wave_cpuinfo *pcpu, unsigned int cpu_load)
 {
-	unsigned int freq = &pcpu->policy->cur;
+	unsigned int freq = pcpu->policy->cur;
 	unsigned int cpus;
 	unsigned int new_freq;
 
-	avg += cpu_load;
-	counter++;
-
-	cpus = num_online_cpus();
-
-	// some of frequencies we know
+    // some of frequencies we know
 	unsigned int freq_fast = 1401600;
 	unsigned int freq_max = 1209600;
 	unsigned int freq_moderate = 800000;
 	unsigned int freq_min;
+
+    avg += cpu_load;
+	counter++;
+
+	cpus = num_online_cpus();
 
 	freq_min = pcpu->policy->min;
 	if(pcpu->policy->max <= 1209600)
