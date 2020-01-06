@@ -449,7 +449,7 @@ int snd_card_disconnect(struct snd_card *card)
 	/* disable fops (user space) operations for ALSA API */
 	mutex_lock(&snd_card_mutex);
 	snd_cards[card->number] = NULL;
-	clear_bit(card->number, snd_cards_lock);
+	snd_cards_lock &= ~(1 << card->number);
 	mutex_unlock(&snd_card_mutex);
 
 #ifdef CONFIG_PM
