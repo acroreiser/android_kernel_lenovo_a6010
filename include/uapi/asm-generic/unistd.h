@@ -711,7 +711,7 @@ __SYSCALL(__NR_memfd_create, sys_memfd_create)
 __SYSCALL(__NR_membarrier, sys_membarrier)
 
 #undef __NR_syscalls
-#define __NR_syscalls 283
+#define __NR_syscalls 281
 
 /*
  * All syscalls below here should go away really,
