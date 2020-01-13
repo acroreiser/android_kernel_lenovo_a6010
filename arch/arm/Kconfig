@@ -2329,6 +2329,8 @@ config CPU_FREQ_S3C24XX_DEBUGFS
 
 endif
 
+source "arch/arm/hotplug/Kconfig"
+
 source "drivers/cpuidle/Kconfig"
 
 endmenu
