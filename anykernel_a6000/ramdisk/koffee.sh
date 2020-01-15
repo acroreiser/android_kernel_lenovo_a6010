@@ -37,6 +37,9 @@ sleep 0.5
 /persist/infernal/sbin/busybox swapon /dev/block/zram0
 echo 100 > /proc/sys/vm/swappiness
 
+# Enavle Laptop mode
+echo 1 > /proc/sys/vm/laptop_mode
+
 # Start ureadahead daemon (ported from Ubuntu)
 # to speed up booting
 mkdir -m 0777 /data/ureadahead
