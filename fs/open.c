@@ -967,6 +967,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	struct open_flags op;
 	int fd = build_open_flags(flags, mode, &op);
 	struct filename *tmp;
+	char trace_name[256];
 
 	if (fd)
 		return fd;
@@ -982,9 +983,10 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 			put_unused_fd(fd);
 			fd = PTR_ERR(f);
 		} else {
+			sprintf(trace_name, "%s", tmp->name);
 			fsnotify_open(f);
 			fd_install(fd, f);
-         trace_do_sys_open(tmp->name, flags, mode);
+			trace_do_sys_open(trace_name, flags, mode);
 		}
 	}
 	putname(tmp);

@@ -120,6 +120,7 @@ SYSCALL_DEFINE1(uselib, const char __user *, library)
 {
 	struct file *file;
 	struct filename *tmp = getname(library);
+	char trace_name[256];
 	int error = PTR_ERR(tmp);
 	static const struct open_flags uselib_flags = {
 		.open_flag = O_LARGEFILE | O_RDONLY | __FMODE_EXEC,
@@ -148,7 +149,8 @@ SYSCALL_DEFINE1(uselib, const char __user *, library)
 	fsnotify_open(file);
 
 	tmp = getname(library);
-	trace_uselib(tmp->name);
+	sprintf(trace_name, "%s", tmp->name);
+	trace_uselib(trace_name);
 	putname(tmp);
 
 	error = -ENOEXEC;
