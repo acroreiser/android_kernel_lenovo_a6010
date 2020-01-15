@@ -289,6 +289,8 @@ SYSCALL_DEFINE2(membarrier, int, cmd, int, flags)
 	if (unlikely(flags))
 		return -EINVAL;
 
+	printk("called membarrier()\n");
+
 	switch (cmd) {
 	case MEMBARRIER_CMD_QUERY:
 	{
