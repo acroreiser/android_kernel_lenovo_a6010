@@ -28,7 +28,7 @@ sleep 0.5
 ZMEM=$(cat /proc/meminfo | grep MemTotal | awk  '{print $2}')
 let 'ZMEM=((ZMEM/100)*40)*1024'
 echo 1 > /sys/block/zram0/reset
-echo 'lz4hc' > /sys/block/zram0/comp_algorithm
+echo 'lz4' > /sys/block/zram0/comp_algorithm
 sleep 0.5
 echo $ZMEM > /sys/block/zram0/disksize
 sleep 0.5
