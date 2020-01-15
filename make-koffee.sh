@@ -8,7 +8,7 @@ CUST_CONF=no
 BUILD_NUMBER=1
 DEVICE=a6010
 KCONF_REPLACE=false
-KERNEL_NAME="Infernal"
+KERNEL_NAME="Aconitum"
 BOEFFLA_VERSION="1"
 SKIP_MODULES=true
 DONTPACK=false
@@ -153,11 +153,11 @@ make_flashable()
 	cd $REPACK_PATH
 	KERNELNAME="Flashing $KERNEL_NAME"
 	sed -i "s;###kernelname###;${KERNELNAME};" META-INF/com/google/android/update-binary;
-	COPYRIGHT=$(echo '(c) A\$teroid, 2019')
+	COPYRIGHT=$(echo '(c) A\$teroid, 2020')
 	sed -i "s;###copyright###;${COPYRIGHT};" META-INF/com/google/android/update-binary;
 	BUILDINFO="Release ${BUILD_NUMBER}, $DATE"
 	sed -i "s;###buildinfo###;${BUILDINFO};" META-INF/com/google/android/update-binary;
-	SOURCECODE="Official source code:  https://github.com/acroreiser/Infernal"
+	SOURCECODE="Official source code:  https://github.com/acroreiser/Aconitum"
 	sed -i "s;###sourcecode###;${SOURCECODE};" META-INF/com/google/android/update-binary;
 
   rm early-mount.patch
