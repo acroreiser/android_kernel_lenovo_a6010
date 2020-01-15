@@ -35,6 +35,7 @@ sleep 0.5
 /persist/infernal/sbin/busybox mkswap /dev/block/zram0
 sleep 0.5
 /persist/infernal/sbin/busybox swapon /dev/block/zram0
+echo 100 > /proc/sys/vm/swappiness
 
 # Start ureadahead daemon (ported from Ubuntu)
 # to speed up booting
