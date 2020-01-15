@@ -73,7 +73,7 @@ static long ratelimit_pages = 32;
 #ifdef CONFIG_DECREASE_DIRTY_RATIO
 int dirty_background_ratio = 1;
 #else
-int dirty_background_ratio = 10;
+int dirty_background_ratio = 4;
 #endif
 
 /*
@@ -94,7 +94,7 @@ int vm_highmem_is_dirtyable = 1;
 #ifdef CONFIG_DECREASE_DIRTY_RATIO
 int vm_dirty_ratio = 2;
 #else
-int vm_dirty_ratio = 20;
+int vm_dirty_ratio = 10;
 #endif
 
 /*
