@@ -160,7 +160,6 @@ make_flashable()
 	SOURCECODE="Official source code:  https://github.com/acroreiser/Aconitum"
 	sed -i "s;###sourcecode###;${SOURCECODE};" META-INF/com/google/android/update-binary;
 
-  rm early-mount.patch
 	# create zip file
 	zip -r9 ${KERNEL_NAME}-r${BUILD_NUMBER}.zip * -x ${KERNEL_NAME}-r${BUILD_NUMBER}.zip
 
@@ -281,11 +280,11 @@ fi
 echo "---- Stage 2: Building the Device Tree ----"
 build_dtbs
 if [ $? -eq 0 ]; then
-	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-o-p.img
-	patch -Np1 < anykernel_a6000/early-mount.patch
-	build_dtbs
 	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-q.img
-	patch -Rp1 < anykernel_a6000/early-mount.patch
+	git show 5c649e80 | patch -Rp1
+	build_dtbs
+	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-o-p.img
+	git show 5c649e80 | patch -Np1
 	echo "*** DTB is ready! ***"
 else
 	echo "*** DTB BUILD FAILED ***"
