@@ -104,10 +104,13 @@ write_boot()
 			cat /tmp/anykernel/zImage /tmp/anykernel/dtb-o-p.img > /tmp/anykernel/zImage-dtb
 			ui_print "Installing for Android Oreo or Pie!";
 			ui_print " ";
+			rm /tmp/anykernel/persist/infernal/blink2.sh
 		else
 			cat /tmp/anykernel/zImage /tmp/anykernel/dtb-q.img > /tmp/anykernel/zImage-dtb
 			ui_print "Installing for Android Q!";
 			ui_print " ";
+			rm /tmp/anykernel/persist/infernal/blink.sh
+			mv /tmp/anykernel/persist/infernal/blink2.sh /tmp/anykernel/persist/infernal/blink.sh
 		fi
 		kernel=/tmp/anykernel/zImage-dtb;
 	else

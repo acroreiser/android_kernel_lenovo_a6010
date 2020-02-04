@@ -278,13 +278,16 @@ else
 fi
 
 echo "---- Stage 2: Building the Device Tree ----"
+# make the kernel backward-compatible Oreo and Pie
 build_dtbs
 if [ $? -eq 0 ]; then
 	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-q.img
-	git show 5c649e80 | patch -Rp1
+	git show 5c649e80 | patch -Rp1 # make kernel bootable on Oreo and Pie
+	git show 3370a0de | patch -Rp1 # restore old LEDs behavior (red on charging, green on battery full)
 	build_dtbs
 	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-o-p.img
 	git show 5c649e80 | patch -Np1
+	git show 3370a0de | patch -Np1
 	echo "*** DTB is ready! ***"
 else
 	echo "*** DTB BUILD FAILED ***"
