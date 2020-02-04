@@ -290,7 +290,7 @@
 		red {
 			gpios = <&msm_gpio 16 1>;
 			label = "red";
-			linux,default-trigger = "battery-charging";
+			linux,default-trigger = "none";
 			default-state = "off";
 			retain-state-suspended;
 		};
@@ -298,7 +298,7 @@
 		green {
 			gpios = <&msm_gpio 17 0>;
 			label = "green";
-			linux,default-trigger = "battery-full";
+			linux,default-trigger = "none";
 			default-state = "off";
 			retain-state-suspended;
 		};
