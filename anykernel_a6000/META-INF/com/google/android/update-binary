@@ -94,8 +94,8 @@ ui_print " ";
 while read LINE
     do ui_print "$LINE"
 done < /tmp/anykernel/info.txt
-ui_print "| Platform security patch level: $(cat ${sar}/build.prop | grep security_patch | sed s/ro.build.version.security_patch=// )"
-ui_print "| Vendor security patch level: $(cat ${sar}/vendor/build.prop | grep security_patch | sed s/ro.vendor.build.security_patch=// )"
+ui_print "| Platform security patch level: $(cat ${sar}/build.prop | grep ro.build.version.security_patch | sed s/ro.build.version.security_patch=// )"
+ui_print "| Vendor security patch level: $(cat ${sar}/vendor/build.prop | grep ro.vendor.build.security_patch | sed s/ro.vendor.build.security_patch=// )"
 ui_print "--------------------------------------";
 ui_print " ";
 
