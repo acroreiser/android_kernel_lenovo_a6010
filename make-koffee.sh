@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=0.6
+VERSION=0.7
 DEFCONFIG=lineageos_a6010_defconfig
 TOOLCHAIN='toolchain/arm-eabi-4.9/bin/arm-eabi-'
 KCONFIG=false
@@ -16,7 +16,7 @@ DATE=`date`
 BUILD_HOST=`hostname`
 BUILD_PATH=`pwd`
 CLEAN=false
-
+VERBOSE=0
 
 usage() {
 	echo "$KERNEL_NAME build script v$VERSION"
@@ -25,7 +25,7 @@ usage() {
 	echo ""
     echo "Usage:"
     echo ""
-	echo "make-koffee.sh [-d/-D/-O <file>] [-K] [-U <user>] [-N <BUILD_NUMBER>] [-k] [-R] -t <toolchain_prefix> -d <defconfig>"
+	echo "make-koffee.sh [-d/-D/-O <file>] [-K] [-U <user>] [-N <BUILD_NUMBER>] [-k] [-R] [-V] -t <toolchain_prefix> -d <defconfig>"
 	echo ""
 	echo "Main options:"
 	echo "	-K 			call Kconfig (use only with ready config!)"
@@ -42,6 +42,7 @@ usage() {
 	echo "	-U <username> 			set build user"
 	echo "	-H <hostname> 			set build host"
 	echo "	-N <release_number> 			set release number"
+	echo "	-V 					 			verbose output"
 	echo "	-v 			show build script version"
 	echo "	-h 			show this help"
 	
@@ -70,7 +71,7 @@ make_config()
 
 build_kernel()
 {
-	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN zImage
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN V=$VERBOSE zImage
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -80,7 +81,7 @@ build_kernel()
 
 build_modules()
 {
-	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN modules
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN V=$VERBOSE modules
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -90,7 +91,7 @@ build_modules()
 
 build_dtbs()
 {
-	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN dtbs
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN V=$VERBOSE dtbs
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -177,7 +178,7 @@ make_flashable()
 
 # Pre
 
-while getopts "hvO:j:Kd:kB:S:N:CU:H:t:" opt
+while getopts "hvO:j:Kd:kB:S:N:CU:H:t:V" opt
 do
 case $opt in
 	h) usage; exit 0;;
@@ -188,6 +189,7 @@ case $opt in
 	C) CLEAN=true;;
 	N) BUILD_NUMBER=$OPTARG;;
 	H) BUILD_HOST=$OPTARG;;
+	V) VERBOSE=1;;
 	S) DEVICE=$OPTARG;;
 	K) KCONFIG=true;;
 	k) DONTPACK=true;;
