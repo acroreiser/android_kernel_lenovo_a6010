@@ -9,7 +9,6 @@ BUILD_NUMBER=1
 DEVICE=a6010
 KCONF_REPLACE=false
 KERNEL_NAME="Aconitum"
-BOEFFLA_VERSION="1"
 SKIP_MODULES=true
 DONTPACK=false
 USER=$USER
@@ -106,7 +105,6 @@ make_flashable()
 		cp -R $BUILD_PATH/anykernel_a6000/* $REPACK_PATH
 		echo "--------------------------------------" > $REPACK_PATH/info.txt
 		echo "| Build  date:    $DATE" >> $REPACK_PATH/info.txt
-	#deprecated	echo "| Version:	$BOEFFLA_VERSION" >> $REPACK_PATH/info.txt
 		echo "| Configuration file:    $DEFCONFIG" >> $REPACK_PATH/info.txt
 		echo "| Release:    $BVERN" >> $REPACK_PATH/info.txt
 		echo "| Building for:    $DEVICE" >> $REPACK_PATH/info.txt
@@ -254,7 +252,6 @@ fi
 if [ $? -eq 0 ]; then
 	echo "--------------------------------------"
 	echo "| Build  date:	$DATE"
-#	echo "| Version:	$BOEFFLA_VERSION"
 	echo "| Configuration file:	$DEFCONFIG"
 	echo "| Release:	$BVERN"
 	echo "| Building for:	$DEVICE"
@@ -327,7 +324,6 @@ else
 	echo "--------------------------------------"
 	echo "--------------------------------------"
 	echo "| Build  date:	$DATE"
-	echo "| Version:	$BOEFFLA_VERSION"
 	echo "| Configuration file:	$DEFCONFIG"
 	echo "| Release:	$BVERN"
 	echo "| Building for:	$DEVICE"
