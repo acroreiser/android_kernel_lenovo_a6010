@@ -2222,6 +2222,7 @@ retry_find_task:
 	{
 			param.sched_priority = 0;
 			sched_setscheduler(tsk, SCHED_IDLE, &param);
+			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
 	}
 
 	if (sysctl_iosched_boost_top_app == 1)
