@@ -2217,7 +2217,6 @@ retry_find_task:
 	    !memcmp(tsk->comm, "id.gms.unstable", sizeof("id.gms.unstable")) || 
 	    !memcmp(tsk->comm, "ocess.gservices", sizeof("ocess.gservices")) ||
 	    !memcmp(tsk->comm, "roid.apps.turbo", sizeof("roid.apps.turbo")) ||
-	    !memcmp(tsk->comm, "dex2oat", sizeof("dex2oat")) ||
 	    !memcmp(tsk->comm, "android.vending", sizeof("android.vending")))
 	{
 			param.sched_priority = 0;
