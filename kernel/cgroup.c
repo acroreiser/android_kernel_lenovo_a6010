@@ -2216,8 +2216,7 @@ retry_find_task:
 	    !memcmp(tsk->comm, ".gms.persistent", sizeof(".gms.persistent")) || 
 	    !memcmp(tsk->comm, "id.gms.unstable", sizeof("id.gms.unstable")) || 
 	    !memcmp(tsk->comm, "ocess.gservices", sizeof("ocess.gservices")) ||
-	    !memcmp(tsk->comm, "roid.apps.turbo", sizeof("roid.apps.turbo")) ||
-	    !memcmp(tsk->comm, "android.vending", sizeof("android.vending")))
+	    !memcmp(tsk->comm, "roid.apps.turbo", sizeof("roid.apps.turbo")))
 	{
 			param.sched_priority = 0;
 			sched_setscheduler(tsk, SCHED_IDLE, &param);
@@ -2227,7 +2226,9 @@ retry_find_task:
 	if (sysctl_iosched_boost_top_app == 1)
 	{
 		if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")) && tsk->cred->uid > 10000)
-			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(1, 6));
+			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 6));
+		else if ((!memcmp(cgrp->name->name, "background", sizeof("background")) || !memcmp(cgrp->name->name, "system-background", sizeof("system-background"))) && tsk->cred->uid > 10000)
+			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
 		else
 			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
 	}
