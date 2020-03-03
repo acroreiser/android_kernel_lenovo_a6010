@@ -173,30 +173,22 @@ static int32_t msm_vfe40_init_qos_parms(struct vfe_device *vfe_dev,
 			ds_regs, ds_entries);
 		if (rc < 0) {
 			pr_err("%s: NO D/S register info\n", __func__);
-			kfree(ds_settings);
-			kfree(ds_regs);
 		} else {
 			if (ds_parms->settings) {
 				rc = of_property_read_u32_array(of_node,
 					ds_parms->settings, ds_settings,
 					ds_entries);
 				if (rc < 0) {
-					pr_err("%s: NO D/S settings\n",
-						__func__);
-					kfree(ds_settings);
-					kfree(ds_regs);
-	} else {
+					pr_err("%s: NO D/S settings\n", __func__);
+				} else {
 					for (i = 0; i < ds_entries; i++)
 						msm_camera_io_w(ds_settings[i],
 							vfebase + ds_regs[i]);
-						kfree(ds_regs);
-						kfree(ds_settings);
 				}
-			} else {
-				kfree(ds_regs);
-				kfree(ds_settings);
 			}
 		}
+		kfree(ds_settings);
+		kfree(ds_regs);
 	}
 	return 0;
 }
