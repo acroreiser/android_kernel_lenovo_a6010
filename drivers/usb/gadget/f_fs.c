@@ -1008,6 +1008,7 @@ first_try:
 			req->complete = ffs_epfile_async_io_complete;
 			ret = usb_ep_queue(ep->ep, req, GFP_ATOMIC);
 			if (unlikely(ret)) {
+				io_data->req = NULL;
 				usb_ep_free_request(ep->ep, req);
 				goto error;
 			}
