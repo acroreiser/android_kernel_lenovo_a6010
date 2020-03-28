@@ -1,11 +1,9 @@
 #!/system/bin/sh
 if [ "$1" == 1 ]; then
-	echo 'none' > /sys/class/leds/red/trigger;
+	echo '0' > /sys/class/leds/red/brightness;
 	echo 'blinking' > /sys/class/leds/green/trigger;
 else
-	echo 'battery-charging' > /sys/class/leds/red/trigger;
-	echo 'battery-full' > /sys/class/leds/green/trigger;
-
+	echo 'none' > /sys/class/leds/green/trigger;
 	echo '255' > /sys/class/leds/red/brightness;
 fi
 

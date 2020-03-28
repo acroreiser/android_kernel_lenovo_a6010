@@ -17,6 +17,7 @@ BUILD_HOST=`hostname`
 BUILD_PATH=`pwd`
 CLEAN=false
 VERBOSE=0
+INDTB=-dtb
 
 usage() {
 	echo "$KERNEL_NAME build script v$VERSION"
@@ -71,7 +72,7 @@ make_config()
 
 build_kernel()
 {
-	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN V=$VERBOSE zImage
+	make ARCH=arm KBUILD_BUILD_VERSION=$BUILD_NUMBER $JOBS KBUILD_BUILD_USER=$USER KBUILD_BUILD_HOST=$BUILD_HOST CROSS_COMPILE=$TOOLCHAIN V=$VERBOSE zImage$INDTB
 	if [ $? -eq 0 ]; then
 		return 0
 	else
@@ -146,7 +147,7 @@ make_flashable()
 	find . -name placeholder -delete
 
 	# copy kernel image
-	cp $BUILD_PATH/arch/arm/boot/zImage $REPACK_PATH/zImage
+	cp $BUILD_PATH/arch/arm/boot/zImage$INDTB $REPACK_PATH/zImage$INDTB
 
 	# replace variables in anykernel script
 	cd $REPACK_PATH
@@ -276,22 +277,9 @@ else
 	exit 1
 fi
 
-echo "---- Stage 2: Building the Device Tree ----"
+#echo "---- Stage 2: Building the Device Tree ----"
 # make the kernel backward-compatible Oreo and Pie
-build_dtbs
-if [ $? -eq 0 ]; then
-	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-q.img
-	git show 5c649e80 | patch -Rp1 # make kernel bootable on Oreo and Pie
-	git show 3370a0de | patch -Rp1 # restore old LEDs behavior (red on charging, green on battery full)
-	build_dtbs
-	mv arch/arm/boot/dts/msm8916-wt86518.dtb $REPACK_PATH/dtb-o-p.img
-	git show 5c649e80 | patch -Np1
-	git show 3370a0de | patch -Np1
-	echo "*** DTB is ready! ***"
-else
-	echo "*** DTB BUILD FAILED ***"
-	exit 1
-fi
+#	build_dtbs
 		
 if [ "$SKIP_MODULES" = "false" ]; then
 	echo "---- Stage 3: Building modules ----"

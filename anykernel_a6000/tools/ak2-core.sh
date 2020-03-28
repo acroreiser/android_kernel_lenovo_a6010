@@ -94,23 +94,16 @@ write_boot()
 	fi;
 
 
-	if [ -f /tmp/anykernel/zImage ]; then
+	if [ -f /tmp/anykernel/zImage-dtb ]; then
 		SDK=27
 		mkdir /tmp/anykernel/system		
 		$bin/busybox mount -t ext4 -o ro /dev/block/mmcblk0p23  /tmp/anykernel/system
 		test -f /tmp/anykernel/system/system/build.prop && SDK=29
                 umount /tmp/anykernel/system
 		if [ "$SDK" -lt "29" ]; then
-			cat /tmp/anykernel/zImage /tmp/anykernel/dtb-o-p.img > /tmp/anykernel/zImage-dtb
-			ui_print "Installing for Android Oreo or Pie!";
 			ui_print " ";
-			rm /tmp/anykernel/persist/infernal/blink2.sh
-		else
-			cat /tmp/anykernel/zImage /tmp/anykernel/dtb-q.img > /tmp/anykernel/zImage-dtb
-			ui_print "Installing for Android Q!";
-			ui_print " ";
-			rm /tmp/anykernel/persist/infernal/blink.sh
-			mv /tmp/anykernel/persist/infernal/blink2.sh /tmp/anykernel/persist/infernal/blink.sh
+			ui_print "This kernel is not compatible with Android < 10. Aborted.";
+			exit 1;
 		fi
 		kernel=/tmp/anykernel/zImage-dtb;
 	else
