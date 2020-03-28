@@ -108,7 +108,7 @@ void panic(const char *fmt, ...)
 #endif
 #ifdef CONFIG_PANIC_LOG_ON_FS
 	emergency_sync();
-	printk(KERN_NOTICE "Saving kernel log to /data/last_kmsg.log\n");
+	printk(KERN_NOTICE "Saving kernel log to /cache/last_kmsg.log\n");
 	call_usermodehelper("/system/bin/sh", argv1, envp, UMH_WAIT_PROC);
 	emergency_sync();
 	emergency_remount();
