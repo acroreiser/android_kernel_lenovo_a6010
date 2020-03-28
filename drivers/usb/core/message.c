@@ -578,11 +578,12 @@ void usb_sg_cancel(struct usb_sg_request *io)
 	spin_lock_irqsave(&io->lock, flags);
 
 	/* shut everything down, if it didn't already */
-	if (!io->status) {
+	if (!io->status || io->count != 0) {
 		int i;
 
 		io->status = -ECONNRESET;
-		spin_unlock(&io->lock);
+		io->count++;		/* Keep the request alive until we're done */
+		spin_unlock_irqrestore(&io->lock, flags);
 		for (i = 0; i < io->entries; i++) {
 			int retval;
 
@@ -596,8 +597,17 @@ void usb_sg_cancel(struct usb_sg_request *io)
 				dev_warn(&io->dev->dev, "%s, unlink --> %d\n",
 					__func__, retval);
 		}
-		spin_lock(&io->lock);
 	}
+	else
+	{
+		spin_unlock_irqrestore(&io->lock, flags);
+		return;
+	}
+
+	spin_lock_irqsave(&io->lock, flags);
+	io->count--;
+	if (!io->count)
+		complete(&io->complete);
 	spin_unlock_irqrestore(&io->lock, flags);
 }
 EXPORT_SYMBOL_GPL(usb_sg_cancel);
