@@ -26,7 +26,7 @@
 #include <linux/workqueue.h>
 #include <linux/freezer.h>
 
-#define ALARM_DELTA 300
+#define ALARM_DELTA 120
 
 /**
  * struct alarm_base - Alarm timer bases
