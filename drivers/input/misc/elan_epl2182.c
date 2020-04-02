@@ -100,6 +100,7 @@ int als_report_count = 0;
 int dynamic_intt_idx;
 int dynamic_intt_init_idx = 2;	//initial dynamic_intt_idx
 
+unsigned int elan_epl_ps_state = 1;
 
 int c_gain = 72000;//42000; //default setting  //example : 42000/1000=42
 
@@ -518,11 +519,28 @@ static void elan_epl_ps_poll_rawdata(void)
 
 	epl_info("### ps_ch1_raw_data  (%d), value(%d) ###\n\n",
 		 gRawData.ps_ch1_raw, gRawData.ps_state);
+
+	elan_epl_ps_state = gRawData.ps_state;
+
 	//printk("xmm ps = %d\n",gRawData.ps_state);
 	input_report_abs(epld->ps_input_dev, ABS_DISTANCE, gRawData.ps_state);
 	input_sync(epld->ps_input_dev);
 }
 
+unsigned int elan_epl_ps_get_state(void)
+{
+	unsigned int i = 0;
+	struct elan_epl_data *epld = epl_data;
+	elan_sensor_psensor_enable(epld);
+	while(i < 5)
+	{
+		elan_epl_ps_poll_rawdata();
+		printk("elan_ps_status: %u\n", elan_epl_ps_state);
+		i++;
+	}
+
+	return elan_epl_ps_state;
+}
 
 #if DYNAMIC_INTT ///*DYNAMIC_INTT*/
 long raw_convert_to_lux(u16 raw_data)

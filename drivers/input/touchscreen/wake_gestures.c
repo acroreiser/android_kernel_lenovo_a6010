@@ -54,7 +54,7 @@
 #define SWEEP_X_FINAL           180
 #define SWEEP_Y_NEXT            150
 #define DT2W_FEATHER		150
-#define DT2W_TIME 		579
+#define DT2W_TIME 		750
 
 /* Wake Gestures */
 #define SWEEP_TIMEOUT		300
@@ -102,6 +102,7 @@ static struct work_struct s2w_input_work;
 static struct work_struct dt2w_input_work;
 static int vib_strength = BASE_STRENGTH;
 
+extern unsigned int elan_epl_ps_get_state(void);
 extern bool is_touch_screen_suspended(void);
 
 static bool is_suspended(void)
@@ -218,7 +219,7 @@ static void detect_doubletap2wake(int x, int y, bool st)
 			doubletap2wake_reset();
 			new_touch(x, y);
 		}
-		if ((touch_nr > 1)) {
+		if ((touch_nr > 1) && (elan_epl_ps_get_state() == 1)) {
 			exec_count = false;
 #if (WAKE_GESTURES_ENABLED)
 			if (gestures_switch) {
