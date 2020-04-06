@@ -1001,9 +1001,6 @@ static ssize_t oom_adj_write(struct file *file, const char __user *buf,
 		  task_pid_nr(task));
 
 	task->signal->oom_score_adj = oom_adj;
-
-	delete_from_adj_tree(task);
-	add_2_adj_tree(task);
 	trace_oom_score_adj_update(task);
 err_sighand:
 	unlock_task_sighand(task, &flags);
@@ -1093,8 +1090,6 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 	}
 
 	task->signal->oom_score_adj = (short)oom_score_adj;
-	delete_from_adj_tree(task);
-	add_2_adj_tree(task);
 	if (has_capability_noaudit(current, CAP_SYS_RESOURCE))
 		task->signal->oom_score_adj_min = (short)oom_score_adj;
 	trace_oom_score_adj_update(task);
