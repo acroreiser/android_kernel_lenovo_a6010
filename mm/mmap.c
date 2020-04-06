@@ -2820,7 +2820,7 @@ void exit_mmap(struct mm_struct *mm)
 
 	mm->mmap = NULL;
 	mm->mm_rb = RB_ROOT;
-	vmacache_invalidate(mm);
+	mm->mmap_cache = NULL;
 	up_write(&mm->mmap_sem);
 
 	WARN_ON(mm->nr_ptes > (FIRST_USER_ADDRESS+PMD_SIZE-1)>>PMD_SHIFT);
