@@ -890,8 +890,6 @@ struct cgroup_subsys_state *cgroup_css_from_dir(struct file *f, int id);
  */
 int cgroup_nice_allow_attach(struct cgroup_subsys_state *css,
 				struct cgroup_taskset *tset);
-int cgroup_nice_allow_attach2(struct cgroup *css,
-				struct cgroup_taskset *tset);
 #endif
 
 #else /* !CONFIG_CGROUPS */
