@@ -118,14 +118,6 @@ source "drivers/staging/android/ion/Kconfig"
 
 source "drivers/staging/android/fiq_debugger/Kconfig"
 
-config ANDROID_LMK_ADJ_RBTREE
-	bool "Use RBTREE for Android Low Memory Killer"
-	depends on ANDROID_LOW_MEMORY_KILLER
-	default N
-	---help---
-	  Use oom_score_adj rbtree to select the best proecss to kill
-	  when system in low memory status.
-
 endif # if ANDROID
 
 endmenu
