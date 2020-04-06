@@ -569,15 +569,6 @@ int cgroup_taskset_size(struct cgroup_taskset *tset);
 		if (!(skip_cgrp) ||					\
 		    cgroup_taskset_cur_cgroup((tset)) != (skip_cgrp))
 
-/**
- * cgroup_taskset_for_each_2 (compat) - iterate cgroup_taskset
- * @task: the loop cursor
- * @tset: taskset to iterate
- */
-#define cgroup_taskset_for_each_2(task, tset)				\
-	for ((task) = cgroup_taskset_first((tset)); (task);		\
-	     (task) = cgroup_taskset_next((tset)))
-
 /*
  * Control Group subsystem type.
  * See Documentation/cgroups/cgroups.txt for details
@@ -879,18 +870,6 @@ bool css_is_ancestor(struct cgroup_subsys_state *cg,
 unsigned short css_id(struct cgroup_subsys_state *css);
 unsigned short css_depth(struct cgroup_subsys_state *css);
 struct cgroup_subsys_state *cgroup_css_from_dir(struct file *f, int id);
-
-#ifdef CONFIG_CGROUP_NICE_ATTACH
-/*
- * Default Android check for whether the current process is allowed to move a
- * task across cgroups, either because CAP_SYS_NICE is set or because the uid
- * of the calling process is the same as the moved task or because we are
- * running as root.
- * Returns 0 if this is allowed, or -EACCES otherwise.
- */
-int cgroup_nice_allow_attach(struct cgroup_subsys_state *css,
-				struct cgroup_taskset *tset);
-#endif
 
 #else /* !CONFIG_CGROUPS */
 

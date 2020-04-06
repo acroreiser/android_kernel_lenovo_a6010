@@ -1070,13 +1070,6 @@ config DEBUG_BLK_CGROUP
 	Enable some debugging help. Currently it exports additional stat
 	files in a cgroup which can be useful for debugging.
 
-config CGROUP_NICE_ATTACH
-	bool "Enabled Android-style loosening of perm checks for attachment"
-	default n
-	---help---
-	Allows non-root processes to add arbitrary processes to mem and cpu
-	cgroups if they have CAP_SYS_NICE set. This is useful for Android.
-
 endif # CGROUPS
 
 config SCHED_HMP

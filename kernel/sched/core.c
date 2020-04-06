@@ -10447,11 +10447,7 @@ struct cgroup_subsys cpu_cgroup_subsys = {
 	.css_offline	= cpu_cgroup_css_offline,
 	.can_attach	= cpu_cgroup_can_attach,
 	.attach		= cpu_cgroup_attach,
-#ifdef CONFIG_CGROUP_NICE_ATTACH
-	.allow_attach   = cgroup_nice_allow_attach,
-#else
 	.allow_attach	= cpu_cgroup_allow_attach,
-#endif
 	.exit		= cpu_cgroup_exit,
 	.subsys_id	= cpu_cgroup_subsys_id,
 	.base_cftypes	= cpu_files,
