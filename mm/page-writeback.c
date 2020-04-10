@@ -308,6 +308,12 @@ void global_dirty_limits(unsigned long *pbackground, unsigned long *pdirty)
 	else
 		background = (dirty_background_ratio * available_memory) / 100;
 
+	if (!vm_dirty_bytes && dirty < 2560) {
+		dirty = 2560;
+		if (!dirty_background_bytes)
+			background = dirty / 2;
+	}
+
 	if (background >= dirty)
 		background = dirty / 2;
 	tsk = current;
