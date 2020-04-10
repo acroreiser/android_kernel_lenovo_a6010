@@ -101,8 +101,6 @@ static unsigned int aksm_scan_skip_num;
 #endif
 
 unsigned int check_mem_status(void);
-extern int get_minfree_high_value(void);
-void set_AKSM_level(void);
 extern int page_memcmp(const void *, const void *, __kernel_size_t);
 extern u64 calc_pagesum(const void *);
 #endif // CONFIG_ADAPTIVE_KSM
@@ -1829,7 +1827,6 @@ next_mm:
 #ifdef CONFIG_ADAPTIVE_KSM
 	if ((AKSM_onBoot) && (ksm_scan.seqnr == AKSM_FULL_SCAN_TRY_BOOT)) {
 		AKSM_onBoot = 0;
-		set_AKSM_level();
 	}
 	AKSM_full_scan_staus = AKSM_FULL_SCAN_END;
 #endif
@@ -1921,14 +1918,6 @@ static struct notifier_block aksm_fb_notifier = {
 };
 
 #endif
-
-void set_AKSM_level(void)
-{
-	aksm_minfree_critical =
-	    get_minfree_high_value() + global_page_state(NR_SHMEM) +
-	    total_swapcache_pages();
-	aksm_minfree_warn = aksm_minfree_critical * 2;
-}
 
 unsigned int check_mem_status(void)
 {
