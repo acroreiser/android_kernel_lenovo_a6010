@@ -344,6 +344,18 @@ config DECREASE_DIRTY_RATIO
 
 
 
+config ADAPTIVE_KSM
+	bool "Enable Adaptive KSM"
+	depends on KSM
+	help
+	  Enable Adaptive KSM
+
+config AKSM_FB_NOTIFY
+	bool "Use FB Notify for aksm suspend"
+	depends on ADAPTIVE_KSM
+	help
+	  Use FB Notify for aksm suspend
+
 config DEFAULT_MMAP_MIN_ADDR
         int "Low address space to protect from user allocation"
 	depends on MMU
