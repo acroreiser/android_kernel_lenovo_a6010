@@ -46,8 +46,8 @@
  * (to see the precise effective timeslice length of your workload,
  *  run vmstat and monitor the context-switches (cs) field)
  */
-unsigned int sysctl_sched_latency = 5000000ULL;
-unsigned int normalized_sysctl_sched_latency = 5000000ULL;
+unsigned int sysctl_sched_latency = 3000000ULL;
+unsigned int normalized_sysctl_sched_latency = 3000000ULL;
 
 /*
  * The initial- and re-scaling of tunables is configurable
@@ -59,7 +59,7 @@ unsigned int normalized_sysctl_sched_latency = 5000000ULL;
  * SCHED_TUNABLESCALING_LINEAR - scaled linear, *ncpus
  */
 enum sched_tunable_scaling sysctl_sched_tunable_scaling
-	= SCHED_TUNABLESCALING_LINEAR;
+	= SCHED_TUNABLESCALING_NONE;
 
 /*
  * Minimal preemption granularity for CPU-bound tasks:
@@ -71,7 +71,7 @@ unsigned int normalized_sysctl_sched_min_granularity = 750000ULL;
 /*
  * is kept at sysctl_sched_latency / sysctl_sched_min_granularity
  */
-static unsigned int sched_nr_latency = 8;
+static unsigned int sched_nr_latency = 4;
 
 /*
  * After fork, child runs first. If set to 0 (default) then
@@ -98,7 +98,7 @@ unsigned int __read_mostly sysctl_sched_wake_to_idle;
 unsigned int sysctl_sched_wakeup_granularity = 1000000UL;
 unsigned int normalized_sysctl_sched_wakeup_granularity = 1000000UL;
 
-const_debug unsigned int sysctl_sched_migration_cost = 500000UL;
+const_debug unsigned int sysctl_sched_migration_cost = 300000UL;
 
 /*
  * The exponential sliding  window over which load is averaged for shares
