@@ -585,7 +585,7 @@ KBUILD_CFLAGS   += $(call cc-option,-fno-store-merging,)
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os -mcpu=cortex-a53 --param l2-cache-size=512 --param l1-cache-size=32 --param l1-cache-line-size=64 -Wno-misleading-indentation
 else
-KBUILD_CFLAGS	+= -O2 -mcpu=cortex-a53 -fgraphite-identity -floop-interchange -floop-nest-optimize -ftree-loop-distribution -fivopts -fsplit-paths -frename-registers -fbranch-target-load-optimize --param l2-cache-size=512 --param l1-cache-size=32 --param l1-cache-line-size=64 -Wno-misleading-indentation
+KBUILD_CFLAGS	+= -O2 -mcpu=cortex-a53 --param l2-cache-size=512 --param l1-cache-size=32 --param l1-cache-line-size=64 -Wno-misleading-indentation
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
