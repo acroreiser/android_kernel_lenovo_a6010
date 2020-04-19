@@ -25,6 +25,7 @@
 #include <linux/quotaops.h>
 #include <linux/f2fs_fs.h>
 #include <linux/sysfs.h>
+#include <linux/cleancache.h>
 
 #include "f2fs.h"
 #include "node.h"
@@ -2182,6 +2183,8 @@ skip_recovery:
 				cur_cp_version(F2FS_CKPT(sbi)));
 	f2fs_update_time(sbi, CP_TIME);
 	f2fs_update_time(sbi, REQ_TIME);
+
+	cleancache_init_fs(sb);
 	return 0;
 
 free_sysfs:
