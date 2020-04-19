@@ -42,13 +42,12 @@
 /*
  * Enable/disable zcache (disabled by default)
  */
-static bool zcache_enabled __read_mostly;
-module_param_named(enabled, zcache_enabled, bool, 0);
+static bool zcache_enabled __read_mostly = true;
 
 /*
  * Compressor to be used by zcache
  */
-#define ZCACHE_COMPRESSOR_DEFAULT "lzo"
+#define ZCACHE_COMPRESSOR_DEFAULT "lz4"
 static char *zcache_compressor = ZCACHE_COMPRESSOR_DEFAULT;
 module_param_named(compressor, zcache_compressor, charp, 0);
 
