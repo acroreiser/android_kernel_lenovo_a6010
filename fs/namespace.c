@@ -2489,9 +2489,6 @@ long do_mount(const char *dev_name, const char *dir_name,
 		   MS_NOATIME | MS_NODIRATIME | MS_RELATIME| MS_KERNMOUNT |
 		   MS_STRICTATIME);
 
-	if(!strncmp("/data", dir_name, 5))
-		flags &= MS_LAZYTIME;
-
 	if (flags & MS_REMOUNT)
 		retval = do_remount(&path, flags & ~MS_REMOUNT, mnt_flags,
 				    data_page);
