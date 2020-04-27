@@ -699,6 +699,13 @@ extern const struct adreno_vbif_snapshot_registers
 				a4xx_vbif_snapshot_registers[];
 extern const unsigned int a4xx_vbif_snapshot_reg_cnt;
 
+long adreno_ioctl(struct kgsl_device_private *dev_priv,
+		unsigned int cmd, unsigned long arg);
+
+long adreno_ioctl_helper(struct kgsl_device_private *dev_priv,
+		unsigned int cmd, unsigned long arg,
+		const struct kgsl_ioctl *cmds, int len);
+
 int adreno_spin_idle(struct kgsl_device *device);
 int adreno_idle(struct kgsl_device *device);
 bool adreno_isidle(struct kgsl_device *device);
@@ -777,6 +784,12 @@ void adreno_fault_detect_stop(struct adreno_device *adreno_dev);
 
 void adreno_hang_int_callback(struct adreno_device *adreno_dev, int bit);
 void adreno_cp_callback(struct adreno_device *adreno_dev, int bit);
+
+long adreno_ioctl_perfcounter_get(struct kgsl_device_private *dev_priv,
+	unsigned int cmd, void *data);
+
+long adreno_ioctl_perfcounter_put(struct kgsl_device_private *dev_priv,
+	unsigned int cmd, void *data);
 
 static inline int adreno_is_a3xx(struct adreno_device *adreno_dev)
 {

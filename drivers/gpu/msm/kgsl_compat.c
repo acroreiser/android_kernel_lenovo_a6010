@@ -358,11 +358,27 @@ static const struct kgsl_ioctl kgsl_compat_ioctl_funcs[] = {
 			kgsl_ioctl_syncsource_signal_fence),
 };
 
-long kgsl_compat_ioctl(struct file *filep, unsigned int cmd,
-				unsigned long arg)
+long kgsl_compat_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 {
-	return kgsl_ioctl_helper(filep, cmd, kgsl_compat_ioctl_funcs,
-				ARRAY_SIZE(kgsl_compat_ioctl_funcs), arg);
+	struct kgsl_device_private *dev_priv = filep->private_data;
+	struct kgsl_device *device = dev_priv->device;
+
+	long ret = kgsl_ioctl_helper(filep, cmd, arg, kgsl_compat_ioctl_funcs,
+		ARRAY_SIZE(kgsl_compat_ioctl_funcs));
+
+	/*
+	 * If the command was unrecognized in the generic core, try the device
+	 * specific function
+	 */
+
+	if (ret == -ENOIOCTLCMD) {
+		if (device->ftbl->compat_ioctl != NULL)
+			return device->ftbl->compat_ioctl(dev_priv, cmd, arg);
+
+		KGSL_DRV_INFO(device, "invalid ioctl code 0x%08X\n", cmd);
+	}
+
+	return ret;
 }
 
 /**
