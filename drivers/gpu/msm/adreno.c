@@ -12,7 +12,6 @@
  */
 #include <linux/module.h>
 #include <linux/uaccess.h>
-#include <linux/ioctl.h>
 #include <linux/sched.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
@@ -2766,63 +2765,6 @@ static int adreno_readtimestamp(struct kgsl_device *device,
 				context->id, type, timestamp);
 
 	return status;
-}
-
-static long adreno_ioctl(struct kgsl_device_private *dev_priv,
-			      unsigned int cmd, void *data)
-{
-	struct kgsl_device *device = dev_priv->device;
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	int result = 0;
-
-	switch (cmd) {
-	case IOCTL_KGSL_PERFCOUNTER_GET: {
-		struct kgsl_perfcounter_get *get = data;
-		mutex_lock(&device->mutex);
-		/*
-		 * adreno_perfcounter_get() is called by kernel clients
-		 * during start(), so it is not safe to take an
-		 * active count inside this function.
-		 */
-		result = kgsl_active_count_get(device);
-		if (result == 0) {
-			result = adreno_perfcounter_get(adreno_dev,
-				get->groupid, get->countable, &get->offset,
-				&get->offset_hi, PERFCOUNTER_FLAG_NONE);
-			kgsl_active_count_put(device);
-		}
-		mutex_unlock(&device->mutex);
-		break;
-	}
-	case IOCTL_KGSL_PERFCOUNTER_PUT: {
-		struct kgsl_perfcounter_put *put = data;
-		mutex_lock(&device->mutex);
-		result = adreno_perfcounter_put(adreno_dev, put->groupid,
-			put->countable, PERFCOUNTER_FLAG_NONE);
-		mutex_unlock(&device->mutex);
-		break;
-	}
-	case IOCTL_KGSL_PERFCOUNTER_QUERY: {
-		struct kgsl_perfcounter_query *query = data;
-		result = adreno_perfcounter_query_group(adreno_dev,
-			query->groupid, query->countables,
-			query->count, &query->max_counters);
-		break;
-	}
-	case IOCTL_KGSL_PERFCOUNTER_READ: {
-		struct kgsl_perfcounter_read *read = data;
-		result = adreno_perfcounter_read_group(adreno_dev,
-			read->reads, read->count);
-		break;
-	}
-	default:
-		KGSL_DRV_INFO(dev_priv->device,
-			"invalid ioctl code %08x\n", cmd);
-		result = -ENOIOCTLCMD;
-		break;
-	}
-	return result;
-
 }
 
 static inline s64 adreno_ticks_to_us(u32 ticks, u32 freq)

@@ -29,7 +29,7 @@ int adreno_setproperty_compat(struct kgsl_device_private *dev_priv,
 				unsigned int sizebytes);
 
 long adreno_compat_ioctl(struct kgsl_device_private *dev_priv,
-			unsigned int cmd, void *data);
+			unsigned int cmd, unsigned long arg);
 
 #else
 
@@ -48,7 +48,7 @@ static inline int adreno_setproperty_compat(struct kgsl_device_private
 }
 
 static inline long adreno_compat_ioctl(struct kgsl_device_private *dev_priv,
-				unsigned int cmd, void *data)
+				unsigned int cmd, unsigned long arg)
 {
 	BUG();
 }
