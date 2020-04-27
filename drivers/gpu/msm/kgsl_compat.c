@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,8 +20,6 @@
 #include "kgsl_compat.h"
 #include "kgsl_device.h"
 #include "kgsl_sync.h"
-
-#include "adreno.h"
 
 static long
 kgsl_ioctl_device_getproperty_compat(struct kgsl_device_private *dev_priv,
