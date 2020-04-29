@@ -884,8 +884,10 @@ static uint32_t register_client_legacy(struct msm_bus_scale_pdata *pdata)
 			goto err;
 		}
 	}
+#ifdef CONFIG_IPC_LOGGING
 	msm_bus_dbg_client_data(client->pdata, MSM_BUS_DBG_REGISTER,
 		(uint32_t)client);
+#endif
 	mutex_unlock(&msm_bus_lock);
 	MSM_BUS_DBG("ret: %u num_paths: %d\n", (uint32_t)client,
 		pdata->usecase->num_paths);
@@ -980,7 +982,9 @@ static int update_request_legacy(uint32_t cl, unsigned index)
 
 	client->curr = index;
 	ctx = ACTIVE_CTX;
+#ifdef CONFIG_IPC_LOGGING
 	msm_bus_dbg_client_data(client->pdata, index, cl);
+#endif
 	bus_for_each_dev(&msm_bus_type, NULL, NULL, msm_bus_commit_fn);
 
 	/* For NR/RT limited masters, if freq is going up , apply the changes
@@ -1128,7 +1132,9 @@ static void unregister_client_legacy(uint32_t cl)
 	MSM_BUS_DBG("Unregistering client %d\n", cl);
 	mutex_lock(&msm_bus_lock);
 	msm_bus_scale_client_reset_pnodes(cl);
+#ifdef CONFIG_IPC_LOGGING
 	msm_bus_dbg_client_data(client->pdata, MSM_BUS_DBG_UNREGISTER, cl);
+#endif
 	mutex_unlock(&msm_bus_lock);
 	kfree(client->src_pnode);
 	kfree(client);
