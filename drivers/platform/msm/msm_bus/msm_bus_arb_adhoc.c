@@ -770,7 +770,9 @@ static void unregister_client_adhoc(uint32_t cl)
 		remove_path(src, dest, cur_clk, cur_bw, lnode,
 						pdata->active_only);
 	}
+#ifdef CONFIG_IPC_LOGGING
 	msm_bus_dbg_client_data(client->pdata, MSM_BUS_DBG_UNREGISTER, cl);
+#endif
 	kfree(client->src_pnode);
 	kfree(client);
 	handle_list.cl_list[cl] = NULL;
@@ -886,8 +888,10 @@ static uint32_t register_client_adhoc(struct msm_bus_scale_pdata *pdata)
 	}
 
 	handle = gen_handle(client);
+#ifdef CONFIG_IPC_LOGGING
 	msm_bus_dbg_client_data(client->pdata, MSM_BUS_DBG_REGISTER,
 					handle);
+#endif
 	MSM_BUS_DBG("%s:Client handle %d %s", __func__, handle,
 						client->pdata->name);
 	mutex_unlock(&msm_bus_adhoc_lock);
@@ -950,7 +954,9 @@ static int update_request_adhoc(uint32_t cl, unsigned int index)
 	MSM_BUS_DBG("%s: cl: %u index: %d curr: %d num_paths: %d\n", __func__,
 		cl, index, client->curr, client->pdata->usecase->num_paths);
 
+#ifdef CONFIG_IPC_LOGGING
 	msm_bus_dbg_client_data(client->pdata, index , cl);
+#endif
 	for (i = 0; i < pdata->usecase->num_paths; i++) {
 		src = client->pdata->usecase[index].vectors[i].src;
 		dest = client->pdata->usecase[index].vectors[i].dst;
@@ -1012,7 +1018,9 @@ static int update_bw_adhoc(struct msm_bus_client_handle *cl, u64 ab, u64 ib)
 	if (!strcmp(test_cl, cl->name))
 		log_transaction = true;
 
+#ifdef CONFIG_IPC_LOGGING
 	msm_bus_dbg_rec_transaction(cl, ab, ib);
+#endif
 
 	if ((cl->cur_ib == ib) && (cl->cur_ab == ab)) {
 		MSM_BUS_DBG("%s:no change in request", cl->name);
@@ -1054,7 +1062,9 @@ static void unregister_adhoc(struct msm_bus_client_handle *cl)
 	remove_path(cl->mas, cl->slv, cl->cur_ib, cl->cur_ab,
 				cl->first_hop, cl->active_only);
 
+#ifdef CONFIG_IPC_LOGGING
 	msm_bus_dbg_remove_client(cl);
+#endif
 	kfree(cl);
 exit_unregister_client:
 	mutex_unlock(&msm_bus_adhoc_lock);
@@ -1104,7 +1114,9 @@ register_adhoc(uint32_t mas, uint32_t slv, char *name, bool active_only)
 
 	MSM_BUS_DBG("%s:Client handle %p %s", __func__, client,
 						client->name);
+#ifdef CONFIG_IPC_LOGGING
 	msm_bus_dbg_add_client(client);
+#endif
 exit_register:
 	mutex_unlock(&msm_bus_adhoc_lock);
 	return client;
