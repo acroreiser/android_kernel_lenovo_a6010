@@ -124,7 +124,10 @@ make_flashable()
 	if [ "$(cat .config | grep ENHANCEIO | grep not)" != "" ]; then 
 		rm $REPACK_PATH/ramdisk/sbin/eioctl
 		sed -i "s;###ENHANCEIO###;rm /tmp/anykernel/ramdisk/sbin/eioctl;" $REPACK_PATH/tools/ak2-core.sh;
-		
+	fi
+
+	if [ "$(cat .config | grep INFER_MUSIC_BLINKING | grep not)" != "" ]; then
+		rm $REPACK_PATH/ramdisk/blink.sh
 	fi
 
 	if [ "$(cat .config | grep PANIC_LOG_ON_FS | grep not)" != "" ]; then 
