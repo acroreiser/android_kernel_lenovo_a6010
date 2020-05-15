@@ -222,6 +222,8 @@ int kgsl_add_fence_event(struct kgsl_device *device,
 	}
 
 	kgsl_context_put(context);
+	/* We released the context, so we must not use it again. */
+	context = NULL;
 
 	/* Unlock the mutex before copying to user */
 	mutex_unlock(&device->mutex);
