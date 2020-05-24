@@ -28,10 +28,10 @@
 #include "kgsl_cffdump.h"
 #include "kgsl_sharedmem.h"
 #include "kgsl_iommu.h"
+#include "kgsl_compat.h"
 #include "kgsl_trace.h"
 
 #include "adreno.h"
-#include "adreno_compat.h"
 #include "adreno_pm4types.h"
 #include "adreno_trace.h"
 
