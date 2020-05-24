@@ -145,58 +145,45 @@ int adreno_setproperty_compat(struct kgsl_device_private *dev_priv,
 	return status;
 }
 
-static long adreno_ioctl_perfcounter_query_compat(
-		struct kgsl_device_private *dev_priv, unsigned int cmd,
-		void *data)
-{
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(dev_priv->device);
-	struct kgsl_perfcounter_query_compat *query32 = data;
-	struct kgsl_perfcounter_query query;
-	long result;
-
-	query.groupid = query32->groupid;
-	query.countables =
-		(unsigned int __user *)(uintptr_t) query32->countables;
-	query.count = query32->count;
-	query.max_counters = query32->max_counters;
-
-	result = adreno_perfcounter_query_group(adreno_dev,
-		query.groupid, query.countables,
-		query.count, &query.max_counters);
-	query32->max_counters = query.max_counters;
-
-	return result;
-}
-
-static long adreno_ioctl_perfcounter_read_compat(
-		struct kgsl_device_private *dev_priv, unsigned int cmd,
-		void *data)
-{
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(dev_priv->device);
-	struct kgsl_perfcounter_read_compat *read32 = data;
-	struct kgsl_perfcounter_read read;
-
-	read.reads = (struct kgsl_perfcounter_read_group __user *)
-		(uintptr_t)read32->reads;
-	read.count = read32->count;
-
-	return adreno_perfcounter_read_group(adreno_dev, read.reads,
-		read.count);
-}
-
-static struct kgsl_ioctl adreno_compat_ioctl_funcs[] = {
-	{ IOCTL_KGSL_PERFCOUNTER_GET, adreno_ioctl_perfcounter_get },
-	{ IOCTL_KGSL_PERFCOUNTER_PUT, adreno_ioctl_perfcounter_put },
-	{ IOCTL_KGSL_PERFCOUNTER_QUERY_COMPAT,
-		adreno_ioctl_perfcounter_query_compat },
-	{ IOCTL_KGSL_PERFCOUNTER_READ_COMPAT,
-		adreno_ioctl_perfcounter_read_compat },
-};
-
 long adreno_compat_ioctl(struct kgsl_device_private *dev_priv,
-			      unsigned int cmd, unsigned long arg)
+			      unsigned int cmd, void *data)
 {
-	return adreno_ioctl_helper(dev_priv, cmd, arg,
-		adreno_compat_ioctl_funcs,
-		ARRAY_SIZE(adreno_compat_ioctl_funcs));
+	struct kgsl_device *device = dev_priv->device;
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+	int result = 0;
+
+	switch (cmd) {
+	case IOCTL_KGSL_PERFCOUNTER_QUERY_COMPAT: {
+		struct kgsl_perfcounter_query_compat *query32 = data;
+		struct kgsl_perfcounter_query query;
+		query.groupid = query32->groupid;
+		query.countables = (unsigned int __user *)(uintptr_t)
+							query32->countables;
+		query.count = query32->count;
+		query.max_counters = query32->max_counters;
+		result = adreno_perfcounter_query_group(adreno_dev,
+			query.groupid, query.countables,
+			query.count, &query.max_counters);
+		query32->max_counters = query.max_counters;
+		break;
+	}
+	case IOCTL_KGSL_PERFCOUNTER_READ_COMPAT: {
+		struct kgsl_perfcounter_read_compat *read32 = data;
+		struct kgsl_perfcounter_read read;
+		read.reads = (struct kgsl_perfcounter_read_group __user *)
+				(uintptr_t)read32->reads;
+		read.count = read32->count;
+		result = adreno_perfcounter_read_group(adreno_dev,
+			read.reads, read.count);
+		break;
+	}
+	default:
+		KGSL_DRV_INFO(dev_priv->device,
+			"invalid ioctl code %08x\n", cmd);
+		result = -ENOIOCTLCMD;
+		break;
+	}
+	return result;
+
 }
+
