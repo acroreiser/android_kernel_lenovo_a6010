@@ -15786,7 +15786,7 @@ void hdd_indicate_mgmt_frame(tSirSmeMgmtFrameInd *frame_ind)
        return;
    }
 
-   if (frame_ind->frame_len < ieee80211_hdrlen(mgmt->frame_control)) {
+   if (frame_ind->frameLen < ieee80211_hdrlen(mgmt->frame_control)) {
       hddLog(LOGE, FL("Invalid frame length"));
       return;
    }
