@@ -26,6 +26,7 @@
 
 #ifdef CONFIG_PANIC_LOG_ON_FS
 #include <linux/kmod.h>
+#include <linux/fs.h>
 
 static char * envp[] = { "HOME=/", NULL };
 static char * argv1[] = { "sh", "/persist/infernal/panic_log.sh", NULL };
