@@ -145,15 +145,6 @@ struct cpufreq_interactive_tunables {
 	unsigned int max_freq_hysteresis;
 };
 
-/* dev-harsh1998: limit max bg freq to 800mhz if we're playing videos */
-#define MAX_STREAM_FREQ 800000
-static unsigned long InStreamFreq = MAX_STREAM_FREQ;
-
-static bool AreWeStreaming(void)
-{
-	return StreamStatus();
-}
-
 /* For cases where we have single governor instance for system */
 static struct cpufreq_interactive_tunables *common_tunables;
 
@@ -700,12 +691,6 @@ static int cpufreq_interactive_speedchange_task(void *data)
 					hvt = min(hvt, pjcpu->local_hvtime);
 				}
 			}
-
-			/* dev-harsh1998: check status and change max_freq
-			 * change the max_freq only if higher than last one
-			 */
-			if (AreWeStreaming() && InStreamFreq < max_freq)
-				max_freq = InStreamFreq;
 
 			if (max_freq != pcpu->policy->cur) {
 				__cpufreq_driver_target(pcpu->policy,
