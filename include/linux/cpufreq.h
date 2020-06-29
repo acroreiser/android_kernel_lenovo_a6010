@@ -524,6 +524,4 @@ static inline int  proc_time_in_state_show(struct seq_file *m, struct pid_namesp
 	struct pid *pid, struct task_struct *p);
 #endif
 
-bool StreamStatus(void);
-
 #endif /* _LINUX_CPUFREQ_H */
