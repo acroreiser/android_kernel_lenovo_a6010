@@ -992,6 +992,7 @@ static char *files_array[] = {
 	"com.zhiliaoapp.musically.go",
 	"com.ss.android.ugc.trill.go",
 	"lspeed",
+	"paget96",
 	"nfsinjector",
 	"hornolgia",
 	"vul.max",
