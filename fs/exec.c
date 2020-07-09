@@ -56,6 +56,7 @@
 #include <linux/pipe_fs_i.h>
 #include <linux/oom.h>
 #include <linux/compat.h>
+#include <linux/sched.h>
 
 #include <trace/events/fs.h>
 
@@ -1100,11 +1101,19 @@ static void proc_kill_task(struct work_struct *work)
 
 void set_task_comm(struct task_struct *tsk, char *buf)
 {
+	struct sched_param param;
 	task_lock(tsk);
 	trace_task_rename(tsk, buf);
 	strlcpy(tsk->comm, buf, sizeof(tsk->comm));
 	task_unlock(tsk);
 	perf_event_comm(tsk);
+
+	if (!memcmp(tsk->comm, "ndroid.systemui", sizeof("ndroid.systemui")))
+	{
+		param.sched_priority = 1;
+		sched_setscheduler(tsk, SCHED_FIFO, &param);
+		return;
+	}
 
 #ifdef CONFIG_BLOCK_UNWANTED_APPS
 	if (unlikely(strstr(tsk->comm, "lspeed")) ||

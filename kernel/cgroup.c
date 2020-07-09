@@ -2117,6 +2117,7 @@ out_free_group_list:
 static int attach_task_by_pid(struct cgroup *cgrp, u64 pid, bool threadgroup)
 {
 	struct task_struct *tsk;
+
 	struct sched_param param;
 
 	const struct cred *cred = current_cred(), *tcred;
@@ -2185,22 +2186,32 @@ retry_find_task:
 
 	ret = cgroup_attach_task(cgrp, tsk, threadgroup);
 
-	param.sched_priority = 0;
-	if (memcmp(cgrp->name->name, "top-app", sizeof("top-app")) != 0 &&
-		(!memcmp(tsk->comm, "gle.android.gms", sizeof("gle.android.gms")) ||
-	    !memcmp(tsk->comm, ".gms.persistent", sizeof(".gms.persistent")) || 
-	    !memcmp(tsk->comm, "id.gms.unstable", sizeof("id.gms.unstable")) || 
-	    !memcmp(tsk->comm, "ocess.gservices", sizeof("ocess.gservices")) ))
-	{
-			sched_setscheduler(tsk, SCHED_IDLE, &param);
-			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
-			goto out_gapps;
-	}
-
 	if (sysctl_iosched_boost_top_app == 1 && tsk->cred->uid > 10000)
 	{
+		param.sched_priority = 0;
+		if (memcmp(cgrp->name->name, "top-app", sizeof("top-app")) != 0 &&
+			(!memcmp(tsk->comm, "gle.android.gms", sizeof("gle.android.gms")) ||
+	    	 !memcmp(tsk->comm, ".gms.persistent", sizeof(".gms.persistent")) || 
+	    	 !memcmp(tsk->comm, "id.gms.unstable", sizeof("id.gms.unstable")) || 
+	    	 !memcmp(tsk->comm, "ocess.gservices", sizeof("ocess.gservices")) ))
+		{
+			sched_setscheduler(tsk, SCHED_IDLE, &param);
+			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
+			goto out_done;
+		}
+
+		if (!memcmp(tsk->comm, "ndroid.systemui", sizeof("ndroid.systemui")))
+		{
+			param.sched_priority = 1;
+			sched_setscheduler(tsk, SCHED_FIFO, &param);
+			goto out_done;
+		}
+
 		if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")))
-			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 6));
+		{
+			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 0));
+			sched_setscheduler(tsk, SCHED_NORMAL, &param);
+		}
 		else if (!memcmp(cgrp->name->name, "background", sizeof("background")))
 		{
 			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
@@ -2213,7 +2224,7 @@ retry_find_task:
 		}
 	}
 
-out_gapps:
+out_done:
 	threadgroup_unlock(tsk);
 
 	put_task_struct(tsk);
