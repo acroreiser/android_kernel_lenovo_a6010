@@ -52,7 +52,6 @@ abort()
 	ui_print " ";
 	ui_print "$*";
 	umount /system;
-	umount /data;
 	exit 1;
 }
 
@@ -61,8 +60,6 @@ abort()
 
 show_progress 1.34 4;
 ui_print " ";
-
-sar=/system
 
 mkdir -p /tmp/anykernel/bin;
 cd /tmp/anykernel;
@@ -73,12 +70,15 @@ if [ $? != 0 -o -z "$(ls /tmp/anykernel/tools)" ]; then
 fi;
 
 umount /system;
-mount -o ro -t auto /system;
-mount -t auto /data;
-test -f /system/system/build.prop && root=/system;
+mount -o ro -t ext4 /dev/block/mmcblk0p23 /system;
 
+if test -f /system/system/build.prop;
+then
+	sar=/system/system
+else
+	sar=/system
+fi
 
-test -f /system/system/build.prop && sar=/system/system
 chmod -R 755 /tmp/anykernel/tools /tmp/anykernel/bin;
 bb=/tmp/anykernel/tools/busybox;
 
@@ -120,18 +120,6 @@ if [ "$(file_getprop /tmp/anykernel/anykernel.sh do.devicecheck)" == 1 ]; then
 	ui_print " ";
 fi;
 
-if [ "$(file_getprop /tmp/anykernel/anykernel.sh do.initd)" == 1 ]; then
-	ui_print "* Creating init.d...";
-	ui_print " ";
-
-	mount -o remount,rw -t auto /system;
-	if [ ! -d $root/system/etc/init.d ]; then
-	    mkdir $root/system/etc/init.d;
-	fi;
-	set_perm_recursive 0 0 0755 0755 $root/system/etc/init.d;
-	mount -o remount,ro -t auto /system;
-fi;
-
 ui_print "* Installing kernel...";
 ui_print " ";
 
@@ -149,27 +137,11 @@ if [ $? != "0" ]; then
 	abort;
 fi;
 
-if [ "$(file_getprop /tmp/anykernel/anykernel.sh do.modules)" == 1 ]; then
-	ui_print "* Copying modules...";
-	ui_print " ";
-
-	mount -o remount,rw -t auto /system;
-	if [ ! -d $root/system/lib/modules ]; then
-	    mkdir -p $root/system/lib/modules;
-	fi;
-	rm -rf $root/system/lib/modules/*;
-	cp -rf /tmp/anykernel/modules/* $root/system/lib/modules/;
-	set_perm_recursive 0 0 0755 0644 $root/system/lib/modules;
-	mount -o remount,ro -t auto /system;
-fi;
-
 if [ "$(file_getprop /tmp/anykernel/anykernel.sh do.cleanup)" == 1 ]; then
 	rm -rf /tmp/anykernel;
 fi;
 
-rm -fr /data/ureadahead/*
 umount /system;
-umount /data;
 ui_print " ";
 ui_print "* Finished, please reboot.";
 ui_print " ";
