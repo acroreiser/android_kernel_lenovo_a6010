@@ -71,7 +71,7 @@ static struct asmp_param_struct {
 } asmp_param = {
 	.delay = DEFAULT_UPDATE_RATE,
 	.max_cpus = NR_CPUS,
-	.min_cpus = 1,
+	.min_cpus = 2,
 	.cpufreq_up = 95,
 	.cpufreq_down = 80,
 	.cycle_up = 1,
