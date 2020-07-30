@@ -2203,21 +2203,23 @@ retry_find_task:
 		if (!memcmp(tsk->comm, "ndroid.systemui", sizeof("ndroid.systemui")))
 		{
 			param.sched_priority = 1;
-			sched_setscheduler(tsk, SCHED_FIFO, &param);
+			sched_setscheduler(tsk, SCHED_RR|SCHED_RESET_ON_FORK, &param);
 			goto out_done;
 		}
 
 		if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")))
 		{
 			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 0));
-			sched_setscheduler(tsk, SCHED_NORMAL, &param);
+			param.sched_priority = 1;
+			sched_setscheduler(tsk, SCHED_RR|SCHED_RESET_ON_FORK, &param);
 		}
-		else if (!memcmp(cgrp->name->name, "background", sizeof("background")))
+		else if (!memcmp(cgrp->name->name, "background", sizeof("background")) ||
+			!memcmp(cgrp->name->name, "restricted", sizeof("restricted")))
 		{
 			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
 			sched_setscheduler(tsk, SCHED_IDLE, &param);
 		}
-		else
+		else if (!memcmp(cgrp->name->name, "foreground", sizeof("foreground")))
 		{
 			sched_setscheduler(tsk, SCHED_NORMAL, &param);
 			set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
