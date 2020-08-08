@@ -1972,15 +1972,16 @@ void butter_task_tune(struct cgroup *cgrp, struct task_struct *tsk)
 
 	if (!memcmp(tsk->comm, "ndroid.systemui", sizeof("ndroid.systemui")))
 	{
-		param.sched_priority = 1;
+		param.sched_priority = 3;
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 0));
 		sched_setscheduler_nocheck(tsk, SCHED_RR|SCHED_RESET_ON_FORK, &param);
 		return;
 	}
 
 	if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")))
 	{
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 0));
-		param.sched_priority = 1;
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 1));
+		param.sched_priority = 2;
 		sched_setscheduler_nocheck(tsk, SCHED_RR|SCHED_RESET_ON_FORK, &param);
 	}
 	else if (!memcmp(cgrp->name->name, "background", sizeof("background")) ||
@@ -1991,8 +1992,9 @@ void butter_task_tune(struct cgroup *cgrp, struct task_struct *tsk)
 	}
 	else if (!memcmp(cgrp->name->name, "foreground", sizeof("foreground")))
 	{
-		sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 2));
+		param.sched_priority = 1;
+		sched_setscheduler_nocheck(tsk, SCHED_RR|SCHED_RESET_ON_FORK, &param);
 	}
 }
 
