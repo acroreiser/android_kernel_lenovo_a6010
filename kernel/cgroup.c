@@ -1959,43 +1959,18 @@ void butter_task_tune(struct cgroup *cgrp, struct task_struct *tsk)
 
 	param.sched_priority = 0;
 
-	if (memcmp(cgrp->name->name, "top-app", sizeof("top-app")) != 0 &&
-		(!memcmp(tsk->comm, "gle.android.gms", sizeof("gle.android.gms")) ||
-    	 !memcmp(tsk->comm, ".gms.persistent", sizeof(".gms.persistent")) || 
-    	 !memcmp(tsk->comm, "id.gms.unstable", sizeof("id.gms.unstable")) || 
-    	 !memcmp(tsk->comm, "ocess.gservices", sizeof("ocess.gservices")) ))
+	if (!memcmp(cgrp->name->name, "background", sizeof("background")))
 	{
 		sched_setscheduler_nocheck(tsk, SCHED_IDLE, &param);
 		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
 		return;
 	}
-
-	if (!memcmp(tsk->comm, "ndroid.systemui", sizeof("ndroid.systemui")))
+	else
 	{
-		param.sched_priority = 3;
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 0));
-		sched_setscheduler_nocheck(tsk, SCHED_RR|SCHED_RESET_ON_FORK, &param);
-		return;
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
+		sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
 	}
 
-	if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")))
-	{
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 1));
-		param.sched_priority = 2;
-		sched_setscheduler_nocheck(tsk, SCHED_RR|SCHED_RESET_ON_FORK, &param);
-	}
-	else if (!memcmp(cgrp->name->name, "background", sizeof("background")) ||
-		!memcmp(cgrp->name->name, "restricted", sizeof("restricted")))
-	{
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
-		sched_setscheduler_nocheck(tsk, SCHED_IDLE, &param);
-	}
-	else if (!memcmp(cgrp->name->name, "foreground", sizeof("foreground")))
-	{
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 2));
-		param.sched_priority = 1;
-		sched_setscheduler_nocheck(tsk, SCHED_RR|SCHED_RESET_ON_FORK, &param);
-	}
 }
 
 
@@ -2133,7 +2108,7 @@ next:
 	 */
 	retval = 0;
 
-	if (sysctl_iosched_boost_top_app)
+	if (sysctl_iosched_boost_top_app && tsk->cred->uid > 10000)
 		butter_task_tune(cgrp, tsk);
 
 out_put_css_set_refs:
