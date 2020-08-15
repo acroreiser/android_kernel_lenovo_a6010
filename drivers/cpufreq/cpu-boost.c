@@ -35,7 +35,7 @@ struct cpu_sync {
 
 static DEFINE_PER_CPU(struct cpu_sync, sync_info);
 
-static bool input_boost_enabled;
+static bool input_boost_enabled = true;
 
 static unsigned int input_boost_ms = 40;
 module_param(input_boost_ms, uint, 0644);
@@ -376,6 +376,7 @@ static int cpu_boost_init(void)
 	for_each_possible_cpu(cpu) {
 		s = &per_cpu(sync_info, cpu);
 		s->cpu = cpu;
+		s->input_boost_freq = 1209600;
 	}
 	cpufreq_register_notifier(&boost_adjust_nb, CPUFREQ_POLICY_NOTIFIER);
 	ret = input_register_handler(&cpuboost_input_handler);
