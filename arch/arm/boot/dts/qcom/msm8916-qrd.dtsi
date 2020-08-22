@@ -121,7 +121,6 @@
 	qcom,nonremovable;
 	qcom,pm-qos-irq-type = "affine_irq";
 	qcom,scaling-lower-bus-speed-mode;
-	qcom,wakeup-on-idle;
 	status = "ok";
 };
 
