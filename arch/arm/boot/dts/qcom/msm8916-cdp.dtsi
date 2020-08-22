@@ -380,8 +380,7 @@
 	pinctrl-1 = <&sdc1_clk_off &sdc1_cmd_off &sdc1_data_off>;
 
 	qcom,nonremovable;
-	qcom,pm-qos-irq-type = "affine_irq";
-	qcom,scaling-lower-bus-speed-mode;
+
 	status = "ok";
 };
 
