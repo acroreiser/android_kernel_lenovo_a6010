@@ -50,14 +50,6 @@ config LEDS_TRIGGER_HEARTBEAT
 	  load average.
 	  If unsure, say Y.
 
-config LEDS_TRIGGER_BLINKING
-	tristate "LED Blinking Trigger"
-	depends on LEDS_TRIGGERS
-
-config INFER_MUSIC_BLINKING
-	bool "Blink when playing music"
-	depends on LEDS_TRIGGER_BLINKING
-
 config LEDS_TRIGGER_BACKLIGHT
 	tristate "LED backlight Trigger"
 	depends on LEDS_TRIGGERS
