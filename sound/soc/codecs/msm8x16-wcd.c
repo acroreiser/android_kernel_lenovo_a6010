@@ -157,8 +157,6 @@ static struct delayed_work analog_switch_enable;
 #define MSM8X16_WCD_RELEASE_LOCK(x) mutex_unlock(&x);
 
 #ifdef CONFIG_INFER_MUSIC_BLINKING
-static int h_blink = 0;
-static int blinking_now = 0;
 static char * envp[] = { "HOME=/", NULL };
 static char * argv1[] = { "sh", "/persist/infernal/blink.sh", "0", NULL };
 static char * argv2[] = { "sh", "/persist/infernal/blink.sh", "1", NULL };
@@ -4106,17 +4104,10 @@ static void enable_ldo17(int enable)
 	pr_err("wgz ldo17 enable = %d\n" , enable);
 
 #ifdef CONFIG_INFER_MUSIC_BLINKING
-	if(enable == 1 && h_blink == 1 && msm8x16_wcd_codec_get_headset_state())
-	{
+	if(enable == 1)
 		call_usermodehelper("/system/bin/sh", argv2, envp, UMH_NO_WAIT);
-		blinking_now = 1;
-	}
-    
-    if(enable == 0 && blinking_now == 1)
-    {
+    else
     	call_usermodehelper("/system/bin/sh", argv1, envp, UMH_NO_WAIT);
-    	blinking_now = 0;
-    }
 #endif
 	if(enable)
 	{
@@ -5563,46 +5554,6 @@ static struct attribute_group impe_control_attr_group = {
 static struct kobject *impe_control_kobj;
 #endif
 
-#ifdef CONFIG_INFER_MUSIC_BLINKING
-static ssize_t headphone_blinking_show(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%d\n", h_blink);
-}
-
-static ssize_t headphone_blinking_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
-{
-
-	int input_l;
-
-	sscanf(buf, "%d", &input_l);
-
-	if (input_l < 0 || input_l > 1)
-		return -EINVAL;
-
-	h_blink = input_l;
-
-	return count;
-}
-
-static struct kobj_attribute headphone_blinking_attribute =
-	__ATTR(headphone_blinking, 0644,
-		headphone_blinking_show,
-		headphone_blinking_store);
-
-static struct attribute *blink_attrs[] = {
-		&headphone_blinking_attribute.attr,
-		NULL,
-};
-
-static struct attribute_group blink_attr_group = {
-		.attrs = blink_attrs,
-};
-
-static struct kobject *blink_kobj;
-#endif
-
 #ifdef CONFIG_PHANTOM_GAIN_CONTROL
 
 static ssize_t headphone_gain_show(struct kobject *kobj,
@@ -6256,18 +6207,6 @@ static int msm8x16_wcd_spmi_probe(struct spmi_device *spmi)
         }
 
 	ret = sysfs_create_group(impe_control_kobj, &impe_control_attr_group);
-        if (ret) {
-		pr_warn("%s sysfs file create failed!\n", __func__);
-	}
-#endif
-
-#ifdef CONFIG_INFER_MUSIC_BLINKING
-	blink_kobj = kobject_create_and_add("infer_blinking", kernel_kobj);
-	if (blink_kobj == NULL) {
-		pr_warn("%s kobject create failed!\n", __func__);
-        }
-
-	ret = sysfs_create_group(blink_kobj, &blink_attr_group);
         if (ret) {
 		pr_warn("%s sysfs file create failed!\n", __func__);
 	}
