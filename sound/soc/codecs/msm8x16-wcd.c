@@ -156,11 +156,6 @@ static struct delayed_work analog_switch_enable;
 
 #define MSM8X16_WCD_RELEASE_LOCK(x) mutex_unlock(&x);
 
-#ifdef CONFIG_INFER_MUSIC_BLINKING
-static char * envp[] = { "HOME=/", NULL };
-static char * argv1[] = { "sh", "/persist/infernal/blink.sh", "0", NULL };
-static char * argv2[] = { "sh", "/persist/infernal/blink.sh", "1", NULL };
-#endif
 
 /* Codec supports 2 IIR filters */
 enum {
@@ -4102,13 +4097,6 @@ static void enable_ldo17(int enable)
 		return;
 	}
 	pr_err("wgz ldo17 enable = %d\n" , enable);
-
-#ifdef CONFIG_INFER_MUSIC_BLINKING
-	if(enable == 1)
-		call_usermodehelper("/system/bin/sh", argv2, envp, UMH_NO_WAIT);
-    else
-    	call_usermodehelper("/system/bin/sh", argv1, envp, UMH_NO_WAIT);
-#endif
 	if(enable)
 	{
 		reg_l17 = regulator_get(0,"8916_l17");//wgz
