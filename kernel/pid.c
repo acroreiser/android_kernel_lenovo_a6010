@@ -39,6 +39,7 @@
 #include <linux/proc_ns.h>
 #include <linux/proc_fs.h>
 #include <linux/anon_inodes.h>
+#include <uapi/linux/pidfd.h>
 //#include <linux/sched/signal.h>
 
 #define pid_hashfn(nr, ns)	\
@@ -586,7 +587,8 @@ struct pid *pidfd_get_pid(unsigned int fd, unsigned int *flags)
 /**
  * pidfd_create() - Create a new pid file descriptor.
  *
- * @pid:  struct pid that the pidfd will reference
+ * @pid:   struct pid that the pidfd will reference
+ * @flags: flags to pass
  *
  * This creates a new pid file descriptor with the O_CLOEXEC flag set.
  *
@@ -596,12 +598,12 @@ struct pid *pidfd_get_pid(unsigned int fd, unsigned int *flags)
  * Return: On success, a cloexec pidfd is returned.
  *         On error, a negative errno number will be returned.
  */
-static int pidfd_create(struct pid *pid)
+static int pidfd_create(struct pid *pid, unsigned int flags)
 {
 	int fd;
 
 	fd = anon_inode_getfd("[pidfd]", &pidfd_fops, get_pid(pid),
-			      O_RDWR | O_CLOEXEC);
+			      flags | O_RDWR | O_CLOEXEC);
 	if (fd < 0)
 		put_pid(pid);
 
@@ -630,7 +632,7 @@ SYSCALL_DEFINE2(pidfd_open, pid_t, pid, unsigned int, flags)
 	struct pid *p;
 	struct task_struct *tsk;
 
-	if (flags)
+	if (flags & ~PIDFD_NONBLOCK)
 		return -EINVAL;
 
 	if (pid <= 0)
@@ -648,7 +650,7 @@ SYSCALL_DEFINE2(pidfd_open, pid_t, pid, unsigned int, flags)
 		ret = -EINVAL;
 	rcu_read_unlock();
 
-	fd = ret ?: pidfd_create(p);
+	fd = ret ?: pidfd_create(p, flags);
 	put_pid(p);
 	return fd;
 }
