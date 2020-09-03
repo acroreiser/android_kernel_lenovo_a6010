@@ -211,7 +211,7 @@ struct posix_acl *f2fs_get_acl(struct inode *inode, int type)
 	return __f2fs_get_acl(inode, type, NULL);
 }
 
-static int f2fs_set_acl(struct inode *inode, int type,
+static int __f2fs_set_acl(struct inode *inode, int type,
 			struct posix_acl *acl, struct page *ipage)
 {
 	struct f2fs_sb_info *sbi = F2FS_SB(inode->i_sb);
@@ -267,6 +267,14 @@ static int f2fs_set_acl(struct inode *inode, int type,
 	return error;
 }
 
+int f2fs_set_acl(struct inode *inode, struct posix_acl *acl, int type)
+{
+	if (unlikely(f2fs_cp_error(F2FS_I_SB(inode))))
+		return -EIO;
+
+	return __f2fs_set_acl(inode, type, acl, NULL);
+}
+
 int f2fs_init_acl(struct inode *inode, struct inode *dir, struct page *ipage,
 							struct page *dpage)
 {
@@ -288,7 +296,7 @@ int f2fs_init_acl(struct inode *inode, struct inode *dir, struct page *ipage,
 		goto cleanup;
 
 	if (S_ISDIR(inode->i_mode)) {
-		error = f2fs_set_acl(inode, ACL_TYPE_DEFAULT, acl, ipage);
+		error = __f2fs_set_acl(inode, ACL_TYPE_DEFAULT, acl, ipage);
 		if (error)
 			goto cleanup;
 	}
@@ -296,7 +304,7 @@ int f2fs_init_acl(struct inode *inode, struct inode *dir, struct page *ipage,
 	if (error < 0)
 		return error;
 	if (error > 0)
-		error = f2fs_set_acl(inode, ACL_TYPE_ACCESS, acl, ipage);
+		error = __f2fs_set_acl(inode, ACL_TYPE_ACCESS, acl, ipage);
 
 	f2fs_mark_inode_dirty_sync(inode, true);
 cleanup:
@@ -324,7 +332,7 @@ int f2fs_acl_chmod(struct inode *inode)
 	if (error)
 		return error;
 
-	error = f2fs_set_acl(inode, ACL_TYPE_ACCESS, acl, NULL);
+	error = __f2fs_set_acl(inode, ACL_TYPE_ACCESS, acl, NULL);
 	posix_acl_release(acl);
 	return error;
 }
@@ -399,7 +407,7 @@ static int f2fs_xattr_set_acl(struct dentry *dentry, const char *name,
 		acl = NULL;
 	}
 
-	error = f2fs_set_acl(inode, type, acl, NULL);
+	error = __f2fs_set_acl(inode, type, acl, NULL);
 
 release_and_out:
 	posix_acl_release(acl);
