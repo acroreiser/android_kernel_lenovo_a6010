@@ -29,18 +29,18 @@
 #include <linux/tick.h>
 
 #define MSM_HOTPLUG			"msm_hotplug"
-#define HOTPLUG_ENABLED			0
+#define HOTPLUG_ENABLED			1
 #define DEFAULT_UPDATE_RATE		HZ / 10
 #define START_DELAY			HZ * 20
 #define MIN_INPUT_INTERVAL		150 * 1000L
 #define DEFAULT_HISTORY_SIZE		10
 #define DEFAULT_DOWN_LOCK_DUR		1000
 #define DEFAULT_BOOST_LOCK_DUR		2500 * 1000L
-#define DEFAULT_NR_CPUS_BOOSTED		NR_CPUS / 2
-#define DEFAULT_MIN_CPUS_ONLINE		1
-#define DEFAULT_MAX_CPUS_ONLINE		NR_CPUS
+#define DEFAULT_NR_CPUS_BOOSTED		4
+#define DEFAULT_MIN_CPUS_ONLINE		2
+#define DEFAULT_MAX_CPUS_ONLINE		4
 #define DEFAULT_FAST_LANE_LOAD		99
-#define DEFAULT_MAX_CPUS_ONLINE_SUSP	1
+#define DEFAULT_MAX_CPUS_ONLINE_SUSP	2
 
 static unsigned int debug = 0;
 module_param_named(debug_mask, debug, uint, 0644);
@@ -130,7 +130,7 @@ struct cpu_load_data {
 
 static DEFINE_PER_CPU(struct cpu_load_data, cpuload);
 
-static bool io_is_busy;
+static bool io_is_busy = true;
 
 static int update_average_load(unsigned int cpu)
 {
