@@ -12,7 +12,6 @@
 #include <linux/vmstat.h>
 #include <linux/atomic.h>
 #include <linux/vmalloc.h>
-#include <linux/of_fdt.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include "internal.h"
@@ -137,7 +136,7 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 		"AnonHugePages:  %8lu kB\n"
 #endif
 		,
-		total_ram/1024,   //hisense code
+		K(i.totalram),
 		K(i.freeram),
 		K(available),
 		K(i.bufferram),
@@ -219,40 +218,9 @@ static const struct file_operations meminfo_proc_fops = {
 	.release	= single_release,
 };
 
-//hisense code start
-static int memostotal_proc_show(struct seq_file *m, void *v)
-{
-  	__kernel_ulong_t total = totalram_pages;
-   	
-	/*
-	 * Tagged format, for easy grepping and expansion.
-	 */
-	seq_printf(m,
-		"MemOsTotal:       %8lu kB\n",
-		((total) << (PAGE_SHIFT - 10))
-		);
-	
-	return 0;
-}
-
-static int memostotal_proc_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, memostotal_proc_show, NULL);
-}
-
-static const struct file_operations memostotal_proc_fops = {
-	.open		= memostotal_proc_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= single_release,
-};
-//hisense code end
-
 static int __init proc_meminfo_init(void)
 {
 	proc_create("meminfo", 0, NULL, &meminfo_proc_fops);
-	proc_create("memostotal", 0, NULL, &memostotal_proc_fops);  //hisense code
-
 	return 0;
 }
 module_init(proc_meminfo_init);
