@@ -777,11 +777,6 @@ u64 __init dt_mem_next_cell(int s, const __be32 **cellp)
 	return of_read_number(p, s);
 }
 
-//hisense code start
-unsigned long total_ram;
-EXPORT_SYMBOL_GPL(total_ram);
-//hisense code end
-
 /**
  * early_init_dt_scan_memory - Look for an parse memory nodes
  */
@@ -814,7 +809,6 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 	pr_debug("memory scan node %s, reg size %d, data: %x %x %x %x,\n",
 	    uname, l, reg[0], reg[1], reg[2], reg[3]);
 
-	total_ram = 0;  //hisense code 
 	while ((endp - reg) >= (dt_root_addr_cells + dt_root_size_cells)) {
 		u64 base, size;
 
@@ -826,7 +820,6 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 		pr_debug(" - %llx ,  %llx\n", (unsigned long long)base,
 		    (unsigned long long)size);
 
-		total_ram += size;    //hisense code
 		early_init_dt_add_memory_arch(base, size);
 	}
 
