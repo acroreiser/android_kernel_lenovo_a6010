@@ -285,8 +285,8 @@ static int max_extfrag_threshold = 1000;
 
 static struct ctl_table kern_table[] = {
 	{
-		.procname	= "iosched_boost_top_app",
-		.data		= &sysctl_iosched_boost_top_app,
+		.procname	= "tune_android_tasks",
+		.data		= &sysctl_tune_android_tasks,
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,

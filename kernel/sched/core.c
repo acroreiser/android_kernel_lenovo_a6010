@@ -6197,7 +6197,7 @@ SYSCALL_DEFINE3(sched_setscheduler, pid_t, pid, int, policy,
 	if (policy < 0)
 		return -EINVAL;
 
-	if (sysctl_iosched_boost_top_app)
+	if (sysctl_tune_android_tasks > 0)
 		return 0;
 	else
 		return do_sched_setscheduler(pid, policy, param);

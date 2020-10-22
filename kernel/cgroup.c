@@ -194,7 +194,7 @@ struct cgroup_event {
 	struct work_struct remove;
 };
 
-unsigned int sysctl_iosched_boost_top_app = 0;
+unsigned int sysctl_tune_android_tasks = 1;
 
 /* The list of hierarchy roots */
 
@@ -1959,11 +1959,33 @@ void butter_task_tune(struct cgroup *cgrp, struct task_struct *tsk)
 
 	param.sched_priority = 0;
 
+	if (sysctl_tune_android_tasks == 0)
+	{
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
+		sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
+		return;
+	}
+
 	if (!memcmp(cgrp->name->name, "background", sizeof("background")))
 	{
 		sched_setscheduler_nocheck(tsk, SCHED_IDLE, &param);
 		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
-		return;
+	}
+	else if (!memcmp(cgrp->name->name, "foreground", sizeof("foreground")))
+	{
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
+		sched_setscheduler_nocheck(tsk, SCHED_BATCH, &param);
+	}
+	else if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")))
+	{
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 0));
+		if (sysctl_tune_android_tasks == 2)
+		{
+			param.sched_priority = 1;
+			sched_setscheduler_nocheck(tsk, SCHED_FIFO|SCHED_RESET_ON_FORK, &param);
+		}
+		else
+			sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
 	}
 	else
 	{
@@ -2108,7 +2130,8 @@ next:
 	 */
 	retval = 0;
 
-	if (sysctl_iosched_boost_top_app && tsk->cred->uid > 10000)
+	if (tsk->cred->uid > 10000 ||
+		!memcmp(tsk->comm, "ndroid.settings", sizeof("ndroid.settings")))
 		butter_task_tune(cgrp, tsk);
 
 out_put_css_set_refs:
