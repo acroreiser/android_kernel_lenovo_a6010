@@ -60,8 +60,6 @@
 #include <linux/poll.h>
 #include <linux/flex_array.h> /* used in cgroup_attach_task */
 #include <linux/kthread.h>
-#include <linux/sched/sysctl.h>
-#include <linux/ioprio.h>
 
 #include <linux/atomic.h>
 
@@ -193,8 +191,6 @@ struct cgroup_event {
 	wait_queue_t wait;
 	struct work_struct remove;
 };
-
-unsigned int sysctl_tune_android_tasks = 1;
 
 /* The list of hierarchy roots */
 
@@ -1953,49 +1949,6 @@ static void cgroup_task_migrate(struct cgroup *oldcgrp,
 	put_css_set(oldcg);
 }
 
-void butter_task_tune(struct cgroup *cgrp, struct task_struct *tsk)
-{
-	struct sched_param param;
-
-	param.sched_priority = 0;
-
-	if (sysctl_tune_android_tasks == 0)
-	{
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
-		sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
-		return;
-	}
-
-	if (!memcmp(cgrp->name->name, "background", sizeof("background")))
-	{
-		sched_setscheduler_nocheck(tsk, SCHED_IDLE, &param);
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
-	}
-	else if (!memcmp(cgrp->name->name, "foreground", sizeof("foreground")))
-	{
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
-		sched_setscheduler_nocheck(tsk, SCHED_BATCH, &param);
-	}
-	else if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")))
-	{
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 0));
-		if (sysctl_tune_android_tasks == 2)
-		{
-			param.sched_priority = 1;
-			sched_setscheduler_nocheck(tsk, SCHED_FIFO|SCHED_RESET_ON_FORK, &param);
-		}
-		else
-			sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
-	}
-	else
-	{
-		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
-		sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
-	}
-
-}
-
-
 /**
  * cgroup_attach_task - attach a task or a whole threadgroup to a cgroup
  * @cgrp: the cgroup to attach to
@@ -2129,10 +2082,6 @@ next:
 	 * step 5: success! and cleanup
 	 */
 	retval = 0;
-
-	if (tsk->cred->uid > 10000 ||
-		!memcmp(tsk->comm, "ndroid.settings", sizeof("ndroid.settings")))
-		butter_task_tune(cgrp, tsk);
 
 out_put_css_set_refs:
 	if (retval) {
