@@ -17,10 +17,10 @@
 #include "wt86518/msm8916-wt86518.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. MSM 8916 QRD WT86518";
-	compatible = "qcom,msm8916-qrd-wt86518", "qcom,msm8916-qrd", "qcom,msm8916", "qcom,qrd";
-	qcom,board-id = <0x1010b 8>;          
- 
+	model = "Qualcomm Technologies, Inc. MSM 8916 QRD SKUL";
+	compatible = "qcom,msm8916-qrd-skul2", "qcom,msm8916-qrd", "qcom,msm8916", "qcom,qrd";
+	qcom,board-id = <0x1010b 9>;
+
 };
 
 &soc {
@@ -30,7 +30,7 @@
 			reg = <0x6A>;
 			pinctrl-names = "otg_pin_high","otg_pin_low";
 			pinctrl-0 = <&otg_pin_high>;
-			pinctrl-1 = <&otg_pin_low>;        
+			pinctrl-1 = <&otg_pin_low>;
 
 		        regulator-name = "fan54015_otg_vreg";
 			qcom,bms-controlled-charging;
