@@ -19,22 +19,28 @@
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/timer.h>
-#include <asm/param.h>    //#include <linux/param.h>
+#include <asm/param.h>    //#include <linux/param.h>  
 #include <linux/power/fan54015.h>
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/wakelock.h>
+
+
 #include <linux/power_supply.h>
 #include <linux/regulator/driver.h>
-#include <linux/regulator/of_regulator.h>
+#include <linux/regulator/of_regulator.h>                              
 #include <linux/regulator/machine.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/bitops.h>
 #include <linux/alarmtimer.h>
 
+
+
+
+
 /******************************************************************************
-* Register addresses
+* Register addresses    
 ******************************************************************************/
 #define FAN54015_REG_CONTROL0                 0
 #define FAN54015_REG_CONTROL1                 1
@@ -46,12 +52,12 @@
 #define FAN54015_REG_MONITOR                  16
 
 /******************************************************************************
-* Register bits
+* Register bits 
 ******************************************************************************/
 /* FAN54015_REG_CONTROL0 (0x00) */
 #define FAN54015_FAULT                   (0x07)
-#define FAN54015_FAULT_SHIFT                  0
-#define FAN54015_BOOST              (0x01 << 3)
+#define FAN54015_FAULT_SHIFT                  0 
+#define FAN54015_BOOST              (0x01 << 3) 
 #define FAN54015_BOOST_SHIFT                  3
 #define FAN54015_STAT               (0x3 <<  4) 
 #define FAN54015_STAT_SHIFT                   4
@@ -64,9 +70,9 @@
 #define FAN54015_OPA_MODE                (0x01)
 #define FAN54015_OPA_MODE_SHIFT               0
 #define FAN54015_HZ_MODE            (0x01 << 1)
-#define FAN54015_HZ_MODE_SHIFT                1
+#define FAN54015_HZ_MODE_SHIFT                1  
 #define FAN54015_CE_N               (0x01 << 2)
-#define FAN54015_CE_N_SHIFT                   2
+#define FAN54015_CE_N_SHIFT                   2 
 #define FAN54015_TE                 (0x01 << 3)
 #define FAN54015_TE_SHIFT                     3
 #define FAN54015_VLOWV              (0x03 << 4)
@@ -208,7 +214,7 @@
 #define IOCHARGE1450 7
 
 /********** FAN54015_REG_SP_CHARGER (0x05) **********/
-// VSP [2:0]
+// VSP [2:0] 
 #define VSP4P213 0
 #define VSP4P293 1
 #define VSP4P373 2
@@ -237,7 +243,7 @@
 #define VSAFE4P36 8
 #define VSAFE4P38 9
 #define VSAFE4P40 10
-#define VSAFE4P42 11
+#define VSAFE4P42 11    
 #define VSAFE4P44 12
 // ISAFE [6:4] - 68mOhm
 #define ISAFE550 0
@@ -250,21 +256,19 @@
 #define ISAFE1450 7
 
 /* reset the T32s timer every 10 seconds   */
-#define T32S_RESET_INTERVAL      (10LL * NSEC_PER_SEC)
-//#define T32S_RESET_INTERVAL      (20*HZ)
+#define T32S_RESET_INTERVAL      (10LL * NSEC_PER_SEC)   
+//#define T32S_RESET_INTERVAL      (20*HZ)  
+
 
 #define FAN54015_DEBUG_FS
 
-#ifdef FAN54015_DEBUG_FS
-#undef FAN54015_DEBUG_FS
-#endif
 
 static const BYTE fan54015_def_reg[17] = {
     0x40,    // #0x00(CONTROL0)
     0x30,    // #0x01(CONTROL1)
     0x0a,    // #0x02(OREG)
     0x84,    // #0x03(IC_INFO)
-    0x09,    // #0x04(IBAT) default is 0x89 but writing 1 to IBAT[7] resets charge parameters, except the safety reg, so
+    0x09,    // #0x04(IBAT) default is 0x89 but writing 1 to IBAT[7] resets charge parameters, except the safety reg, so 
     0x24,    // #0x05(SP_CHARGER)
     0x40,    // #0x06(SAFETY)
     0x00,    // #0x07 - unused
@@ -275,7 +279,7 @@ static const BYTE fan54015_def_reg[17] = {
     0x00,    // #0x0c - unused
     0x00,    // #0x0d - unused
     0x00,    // #0x0e - unused
-    0x00,    // #0x0f - unused
+    0x00,    // #0x0f - unused    
     0x00,    // #0x10(MONITOR)
 };
 
@@ -292,24 +296,27 @@ struct work_struct chg_fast_work;
 static BYTE fan54015_curr_reg[17];
 static struct i2c_client *this_client;
 static int reset_flag = 0;      // use when assert reset
-bool IsUsbPlugIn=false, IsTAPlugIn=false,IsChargingOn=false,TurnOnChg=false,ResetFan54015=false,ChgrCFGchanged=false,OTGturnOn=false,VbusValid=false,InSOCrecharge=false,BattFull=false,RemoveBTC=false;     //IsColdToNormal,IsHotToNormal
+bool IsUsbPlugIn=false, IsTAPlugIn=false,IsChargingOn=false,TrunOnChg=false,ResetFan54015=false,ChgrCFGchanged=false,OTGturnOn=false,VbusValid=false,InSOCrecharge=false,BattFull=false,RemoveBTC=false;     //IsColdToNormal,IsHotToNormal   
 bool LowChgCurrent=false;
 bool FakeBatteryReport=false;
 struct wake_lock Fan54015WatchDogKicker,Fan54015OTGLocker;
-uint  BattSOC=0,BattVol=0;
+uint   BattSOC=0,BattVol=0;
 int BattTemp=0;
 struct alarm  FanWDTkicker;
 struct power_supply  * pFan_batt_psy;
 extern int IsBattPresent(void);
+extern  void SetLBCchgrCTRLreg(void);
+extern  void GetLBCchgrCTRLreg(void);
 
-static int fan54015_write_reg(int reg, int val)
+static int fan54015_write_reg(int reg, int val)      
 {
     int ret;
     ret = i2c_smbus_write_byte_data(this_client, reg, val);
     if (ret < 0)
         printk(KERN_WARNING "%s: error = %d \n", __func__, ret);
 
-    if((reset_flag == 1)|| ((reg == FAN54015_REG_IBAT) && (val & FAN54015_RESET)))
+    if((reset_flag == 1) 
+        || ((reg == FAN54015_REG_IBAT) && (val & FAN54015_RESET)))  
     {
         memcpy(fan54015_curr_reg,fan54015_def_reg,6);  // resets charge paremeters, except the safety register(#6)
         reset_flag = 0;
@@ -326,7 +333,7 @@ static int fan54015_read_reg(int reg)
     int ret;
     ret = i2c_smbus_read_byte_data(this_client, reg);
     if (ret < 0)
-        printk(KERN_WARNING  "%s: error = %d \n", __func__, ret);
+        printk(KERN_WARNING  "%s: error = %d \n", __func__, ret);         
     return ret;
 }
 
@@ -347,11 +354,11 @@ static BYTE fan54015_get_value(BYTE reg, BYTE reg_bit, BYTE reg_shift)
     BYTE tmp,ret;
     tmp = (BYTE)fan54015_read_reg(reg);
     ret = (tmp & reg_bit) >> reg_shift;
-    return ret;
+    return ret;    
 }
 
 /******************************************************************************
-* Function:
+* Function:     
 * Parameters: None
 * Return: None
 *
@@ -362,6 +369,7 @@ void fan54015_USB_startcharging(void);
 void fan54015_TA_startcharging(void);
 void fan54015_stopcharging(void);
 fan54015_monitor_status fan54015_monitor(void);
+
 
 int fan_54015_batt_current=0,fan_54015_batt_ocv=0;
 int Fan54015Voreg=0,Fan54015Iochg=0,Fan54015OTGPin=0;
@@ -374,36 +382,41 @@ static void fan54015_Reset_Chip(void)
 
    return;
    #ifdef FAN54015_DEBUG_FS
-          printk(KERN_WARNING  "~FAN54015 Reset Chip   \n");//FAN54015_RESET         FAN54015_REG_IBAT
+          printk(KERN_WARNING  "~FAN54015 Reset Chip   \n");//FAN54015_RESET         FAN54015_REG_IBAT  
   #endif
-    fan54015_set_value(FAN54015_REG_IBAT, FAN54015_REG_IBAT,FAN54015_RESET_SHIFT, 1);
+    fan54015_set_value(FAN54015_REG_IBAT, FAN54015_REG_IBAT,FAN54015_RESET_SHIFT, 1);  
+
+   
 }
 
 
 #if 1
-static enum alarmtimer_restart fan54015_alarm_work_func(struct alarm *alarm, ktime_t now)
+static enum alarmtimer_restart fan54015_alarm_work_func(struct alarm *alarm, ktime_t now) 
 {
 //pm_stay_awake(&this_client->dev);
 schedule_work(&chg_update_work);
 return ALARMTIMER_NORESTART;
+
 }
 #endif
 
-static void fan54015_update_work_func(struct work_struct *work)
-{
+static void fan54015_update_work_func(struct work_struct *work)  
+{   
 #ifdef FAN54015_DEBUG_FS
     const int regaddrs[] = {0x00, 0x01, 0x02, 0x03, 0x4, 0x05, 0x06, 0x10 };
     BYTE fan54015_regs[8];
     uint i;
- #endif
+ #endif   
    ktime_t kt;
 
   wake_lock(&Fan54015WatchDogKicker); 
  //pm_stay_awake(&this_client->dev);
 
   ResetFan54015 = false; 
-   // msleep(500);  //delay   500ms
+   // msleep(500);  //delay   500ms        
 
+   SetLBCchgrCTRLreg();
+   GetLBCchgrCTRLreg();
  
    if(ResetFan54015)
    	{  ResetFan54015 = false;
@@ -413,8 +426,8 @@ static void fan54015_update_work_func(struct work_struct *work)
     
    //1. kick watchDog every 10s .
    #ifdef FAN54015_DEBUG_FS
-    printk(KERN_WARNING  "~fan54015KickWDT, IsUsbPlugIn=%d, IsTAPlugIn=%d,IsChargingOn=%d  batt_current=%d batt_ocv=%d TurnOnChg=%d BattSOC=%d,BattTemp=%d,BattVol=%d,Fan54015Voreg=%d,Fan54015Iochg=%d OTGturnOn=%d InSOCrecharge=%d BattFull=%d FakeBatteryReport=%d \n",
-                                             IsUsbPlugIn,IsTAPlugIn,IsChargingOn,fan_54015_batt_current,fan_54015_batt_ocv,TurnOnChg,BattSOC,BattTemp,BattVol,Fan54015Voreg,Fan54015Iochg,OTGturnOn,InSOCrecharge,BattFull,FakeBatteryReport);        
+    printk(KERN_WARNING  "~fan54015KickWDT, IsUsbPlugIn=%d, IsTAPlugIn=%d,IsChargingOn=%d  batt_current=%d batt_ocv=%d TrunOnChg=%d BattSOC=%d,BattTemp=%d,BattVol=%d,Fan54015Voreg=%d,Fan54015Iochg=%d OTGturnOn=%d InSOCrecharge=%d BattFull=%d FakeBatteryReport=%d \n",
+                                             IsUsbPlugIn,IsTAPlugIn,IsChargingOn,fan_54015_batt_current,fan_54015_batt_ocv,TrunOnChg,BattSOC,BattTemp,BattVol,Fan54015Voreg,Fan54015Iochg,OTGturnOn,InSOCrecharge,BattFull,FakeBatteryReport);        
     #endif   
 
      if(OTGturnOn)
@@ -443,7 +456,7 @@ static void fan54015_update_work_func(struct work_struct *work)
 #endif   
       
     // 2. TurnOn/Off charger according to charger type
-    if(IsUsbPlugIn==true&&IsChargingOn==false&&TurnOnChg==true)     
+    if(IsUsbPlugIn==true&&IsChargingOn==false&&TrunOnChg==true)     
     	{ IsChargingOn=true;
 	            
 	   fan54015_USB_startcharging();
@@ -451,7 +464,7 @@ static void fan54015_update_work_func(struct work_struct *work)
           printk(KERN_WARNING  "~FAN54015 USB charger ON   \n");//add by maxwill	
           #endif
     	}
-    else if(IsTAPlugIn==true&&IsChargingOn==false&&TurnOnChg==true)	
+    else if(IsTAPlugIn==true&&IsChargingOn==false&&TrunOnChg==true)	
 		{   IsChargingOn=true;
 	             
 		     fan54015_TA_startcharging();
@@ -465,7 +478,7 @@ static void fan54015_update_work_func(struct work_struct *work)
 			    fan54015_stopcharging();
 			 
 			}
-		     else if(TurnOnChg==false&&(IsChargingOn==true))            
+		     else if(TrunOnChg==false&&(IsChargingOn==true))            
 		     	          {  IsChargingOn=false;
 			             
 			             fan54015_stopcharging();       
