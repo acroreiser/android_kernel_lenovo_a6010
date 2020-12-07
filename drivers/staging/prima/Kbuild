@@ -22,9 +22,6 @@ CONFIG_PRIMA_WLAN_LFR := y
 # Flag to enable SAE
 CONFIG_WLAN_FEATURE_SAE := n
 
-# Flag to enable SW PTA
-CONFIG_WLAN_FEATURE_SW_PTA := y
-
 # Flag to enable OWE
 CONFIG_WLAN_AKM_SUITE_OWE := n
 
