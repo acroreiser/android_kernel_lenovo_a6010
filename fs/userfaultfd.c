@@ -28,7 +28,7 @@
 #include <linux/ioctl.h>
 #include <linux/security.h>
 
-int sysctl_unprivileged_userfaultfd __read_mostly = 1;
+int sysctl_unprivileged_userfaultfd __read_mostly;
 
 static struct kmem_cache *userfaultfd_ctx_cachep __read_mostly;
 
@@ -341,7 +341,7 @@ int handle_userfault(struct vm_area_struct *vma, unsigned long address,
 	ret = VM_FAULT_RETRY;
 	if (flags & FAULT_FLAG_RETRY_NOWAIT)
 		goto out;
-	if ((vmf->flags & FAULT_FLAG_USER) == 0 &&
+	if ((flags & FAULT_FLAG_USER) == 0 &&
 	    ctx->flags & UFFD_USER_MODE_ONLY) {
 		printk_once(KERN_WARNING "uffd: Set unprivileged_userfaultfd "
 			"sysctl knob to 1 if kernel faults must be handled "
@@ -1617,8 +1617,14 @@ static struct file *userfaultfd_file_create(int flags)
 	struct file *file;
 	struct userfaultfd_ctx *ctx;
 
-	if (!sysctl_unprivileged_userfaultfd && !capable(CAP_SYS_PTRACE))
-		return -EPERM;
+	if (!sysctl_unprivileged_userfaultfd &&
+	    (flags & UFFD_USER_MODE_ONLY) == 0 &&
+	    !capable(CAP_SYS_PTRACE)) {
+		printk_once(KERN_WARNING "uffd: Set unprivileged_userfaultfd "
+			"sysctl knob to 1 if kernel faults must be handled "
+			"without obtaining CAP_SYS_PTRACE capability\n");
+		return ERR_PTR(-EPERM);
+	}
 
 	BUG_ON(!current->mm);
 
