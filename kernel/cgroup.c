@@ -1986,7 +1986,7 @@ void butter_task_tune(struct cgroup *cgrp, struct task_struct *tsk)
 		}
 		else if (sysctl_tune_android_tasks == 3)
 		{
-			param.sched_priority = 50;
+			param.sched_priority = 40;
 			sched_setscheduler_nocheck(tsk, SCHED_FIFO|SCHED_RESET_ON_FORK, &param);
 		}
 		else
