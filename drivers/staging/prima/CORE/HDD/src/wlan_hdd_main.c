@@ -13889,12 +13889,12 @@ int hdd_wlan_startup(struct device *dev )
 
    if (VOS_STA_SAP_MODE == hdd_get_conparam())
    {
-     pAdapter = hdd_open_adapter( pHddCtx, WLAN_HDD_SOFTAP, "wlan0",
+     pAdapter = hdd_open_adapter( pHddCtx, WLAN_HDD_SOFTAP, "softap.%d", 
          wlan_hdd_get_intf_addr(pHddCtx), FALSE );
    }
    else
    {
-     pAdapter = hdd_open_adapter( pHddCtx, WLAN_HDD_INFRA_STATION, "wlan0",
+     pAdapter = hdd_open_adapter( pHddCtx, WLAN_HDD_INFRA_STATION, "wlan%d",
          wlan_hdd_get_intf_addr(pHddCtx), FALSE );
      if (pAdapter != NULL)
      {
