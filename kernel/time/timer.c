@@ -49,7 +49,7 @@
 #include <asm/timex.h>
 #include <asm/io.h>
 
-#include "time/tick-internal.h"
+#include "tick-internal.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/timer.h>
