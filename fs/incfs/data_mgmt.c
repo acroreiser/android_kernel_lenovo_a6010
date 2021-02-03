@@ -142,7 +142,7 @@ struct data_file *incfs_open_data_file(struct mount_info *mi, struct file *bf)
 	if (!S_ISREG(bf->f_inode->i_mode))
 		return ERR_PTR(-EBADF);
 
-	bfc = incfs_alloc_bfc(bf);
+	bfc = incfs_alloc_bfc(mi, bf);
 	if (IS_ERR(bfc))
 		return ERR_CAST(bfc);
 
@@ -197,6 +197,7 @@ void incfs_free_data_file(struct data_file *df)
 	for (i = 0; i < ARRAY_SIZE(df->df_segments); i++)
 		data_file_segment_destroy(&df->df_segments[i]);
 	incfs_free_bfc(df->df_backing_file_context);
+	kfree(df->df_signature);
 	kfree(df);
 }
 
@@ -386,7 +387,7 @@ static void log_block_read(struct mount_info *mi, incfs_uuid_t *id,
 		pr_debug("incfs: scheduled a log pollers wakeup");
 }
 
-static int validate_hash_tree(struct file *bf, struct data_file *df,
+static int validate_hash_tree(struct backing_file_context *bfc, struct data_file *df,
 			      int block_index, struct mem_range data, u8 *buf)
 {
 	u8 digest[INCFS_MAX_HASH_SIZE] = {};
@@ -423,7 +424,7 @@ static int validate_hash_tree(struct file *bf, struct data_file *df,
 			% INCFS_DATA_FILE_BLOCK_SIZE;
 		struct mem_range buf_range = range(buf,
 					INCFS_DATA_FILE_BLOCK_SIZE);
-		ssize_t read_res = incfs_kread(bf, buf,
+		ssize_t read_res = incfs_kread(bfc, buf,
 				INCFS_DATA_FILE_BLOCK_SIZE, hash_block_off);
 
 		if (read_res < 0)
@@ -895,7 +896,7 @@ ssize_t incfs_read_data_file_block(struct mem_range dst, struct data_file *df,
 	ssize_t result;
 	size_t bytes_to_read;
 	struct mount_info *mi = NULL;
-	struct file *bf = NULL;
+	struct backing_file_context *bfc = NULL;
 	struct data_file_block block = {};
 
 	if (!dst.data || !df)
@@ -905,7 +906,7 @@ ssize_t incfs_read_data_file_block(struct mem_range dst, struct data_file *df,
 		return -ERANGE;
 
 	mi = df->df_mount_info;
-	bf = df->df_backing_file_context->bc_file;
+	bfc = df->df_backing_file_context;
 
 	result = wait_for_data_block(df, index, timeout_ms, &block);
 	if (result < 0)
@@ -914,20 +915,20 @@ ssize_t incfs_read_data_file_block(struct mem_range dst, struct data_file *df,
 	pos = block.db_backing_file_data_offset;
 	if (block.db_comp_alg == COMPRESSION_NONE) {
 		bytes_to_read = min(dst.len, block.db_stored_size);
-		result = incfs_kread(bf, dst.data, bytes_to_read, pos);
+		result = incfs_kread(bfc, dst.data, bytes_to_read, pos);
 
 		/* Some data was read, but not enough */
 		if (result >= 0 && result != bytes_to_read)
 			result = -EIO;
 	} else {
 		bytes_to_read = min(tmp.len, block.db_stored_size);
-		result = incfs_kread(bf, tmp.data, bytes_to_read, pos);
+		result = incfs_kread(bfc, tmp.data, bytes_to_read, pos);
 		if (result == bytes_to_read) {
 			result =
 				decompress(range(tmp.data, bytes_to_read), dst);
 			if (result < 0) {
 				const char *name =
-					bf->f_path.dentry->d_name.name;
+				    bfc->bc_file->f_path.dentry->d_name.name;
 
 				pr_warn_once("incfs: Decompression error. %s",
 					     name);
@@ -939,7 +940,7 @@ ssize_t incfs_read_data_file_block(struct mem_range dst, struct data_file *df,
 	}
 
 	if (result > 0) {
-		int err = validate_hash_tree(bf, df, index, dst, tmp.data);
+		int err = validate_hash_tree(bfc, df, index, dst, tmp.data);
 
 		if (err < 0)
 			result = err;
@@ -1002,14 +1003,13 @@ int incfs_process_new_data_block(struct data_file *df,
 unlock:
 	mutex_unlock(&segment->blockmap_mutex);
 	if (error)
-		pr_debug("incfs: %s %d error: %d\n", __func__,
-				block->block_index, error);
+		pr_debug("%d error: %d\n", block->block_index, error);
 	return error;
 }
 
 int incfs_read_file_signature(struct data_file *df, struct mem_range dst)
 {
-	struct file *bf = df->df_backing_file_context->bc_file;
+	struct backing_file_context *bfc = df->df_backing_file_context;
 	struct incfs_df_signature *sig;
 	int read_res = 0;
 
@@ -1023,7 +1023,7 @@ int incfs_read_file_signature(struct data_file *df, struct mem_range dst)
 	if (dst.len < sig->sig_size)
 		return -E2BIG;
 
-	read_res = incfs_kread(bf, dst.data, sig->sig_size, sig->sig_offset);
+	read_res = incfs_kread(bfc, dst.data, sig->sig_size, sig->sig_offset);
 
 	if (read_res < 0)
 		return read_res;
@@ -1149,7 +1149,7 @@ static int process_file_signature_md(struct incfs_file_signature *sg,
 		goto out;
 	}
 
-	read = incfs_kread(df->df_backing_file_context->bc_file, buf,
+	read = incfs_kread(df->df_backing_file_context, buf,
 			   signature->sig_size, signature->sig_offset);
 	if (read < 0) {
 		error = read;
