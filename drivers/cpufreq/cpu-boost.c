@@ -27,6 +27,9 @@
 
 #include "../../kernel/sched/sched.h"
 
+// Battery saver
+#include <linux/battery_saver.h>
+
 struct cpu_sync {
 	int cpu;
 	unsigned int input_boost_min;
@@ -257,6 +260,10 @@ void do_input_boost_max()
 	if (!cpu_boost_worker_thread)
 		return;
 
+	if (is_battery_saver_on()) {
+		pr_info("Skipping boost as battery saver is on\n");
+		return;
+	}
 	cancel_delayed_work_sync(&input_boost_rem);
 
 	for_each_possible_cpu(i) {
@@ -278,6 +285,11 @@ static void do_input_boost(struct kthread_work *work)
 
 	if (!input_boost_ms)
 		return;
+
+	if (is_battery_saver_on()) {
+		pr_info("Skipping boost as battery saver is on\n");
+		return;
+	}
 
 	cancel_delayed_work_sync(&input_boost_rem);
 	if (sched_boost_active) {
@@ -313,6 +325,12 @@ static void do_powerkey_input_boost(struct kthread_work *work)
 
 	unsigned int i, ret;
 	struct cpu_sync *i_sync_info;
+
+	if (is_battery_saver_on()) {
+		pr_info("Skipping boost as battery saver is on\n");
+		return;
+	}
+
 	cancel_delayed_work_sync(&input_boost_rem);
 
 	/* Set the powerkey_input_boost_min for all CPUs in the system */
