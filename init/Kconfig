@@ -1188,6 +1188,10 @@ config SCHED_AUTOGROUP
 	  desktop applications.  Task group autogeneration is currently based
 	  upon task session.
 
+config ANDROID_DETECT_TOP_APP
+	bool "Detect top app for in-kernel handling"
+	depends on CGROUPS && CPUSETS
+
 config ANDROID_TASK_TUNING
 	bool "Optimize scheduling for top app"
 	depends on CGROUPS && CPUSETS
