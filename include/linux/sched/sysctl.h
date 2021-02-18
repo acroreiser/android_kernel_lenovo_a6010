@@ -31,7 +31,6 @@ enum { sysctl_hung_task_timeout_secs = 0 };
 
 extern int sysctl_max_map_count;
 
-extern unsigned int sysctl_tune_android_tasks;
 extern unsigned int sysctl_sched_latency;
 extern unsigned int sysctl_sched_min_granularity;
 extern unsigned int sysctl_sched_wakeup_granularity;
