@@ -200,6 +200,11 @@ struct cgroup_event {
 unsigned int sysctl_tune_android_tasks = 1;
 #endif
 
+#ifdef CONFIG_ANDROID_DETECT_TOP_APP
+struct task_struct *top_app;
+unsigned int zygote_pid;
+#endif
+
 /* The list of hierarchy roots */
 
 static LIST_HEAD(roots);
@@ -2128,6 +2133,23 @@ next:
 	 * step 5: success! and cleanup
 	 */
 	retval = 0;
+
+#ifdef CONFIG_ANDROID_DETECT_TOP_APP
+
+	if(!memcmp(tsk->comm, "ndroid.systemui", sizeof("ndroid.systemui")))
+		zygote_pid = tsk->real_parent->pid;
+
+	if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")))
+	{
+		if (tsk->real_parent->pid == zygote_pid && (strstr(tsk->comm, "."))
+			&& memcmp(tsk->comm, "android.bg", sizeof("android.bg"))
+			&& memcmp(tsk->comm, "ndroid.systemui", sizeof("ndroid.systemui")))
+		{
+			top_app = tsk;
+			printk(KERN_INFO "Current top app: %u [%s]\n", tsk->pid, tsk->comm);
+		}
+	}
+#endif
 
 #ifdef CONFIG_ANDROID_TASK_TUNING
 	if (tsk->cred->uid > 10000 ||
