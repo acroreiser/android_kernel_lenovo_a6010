@@ -177,13 +177,8 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 	 * Call set_cpu_freq unconditionally so that when cpu is set to
 	 * online, frequency limit will always be updated.
 	 */
-
 	ret = set_cpu_freq(policy, table[index].frequency,
 			   table[index].driver_data);
-
-	policy->max = 1209600;
-	policy->min = 200000;
-
 	if (ret)
 		return ret;
 	pr_debug("cpufreq: cpu%d init at %d switching to %d\n",
