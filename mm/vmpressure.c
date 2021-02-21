@@ -49,7 +49,7 @@ unsigned long vmpressure_win = SWAP_CLUSTER_MAX * 16;
  * unsuccessful reclaims there were.
  */
 unsigned int vmpressure_level_med = 60;
-unsigned int vmpressure_level_critical = 95;
+unsigned int vmpressure_level_critical = 75;
 
 static unsigned long vmpressure_scale_max = 100;
 module_param_named(vmpressure_scale_max, vmpressure_scale_max,
