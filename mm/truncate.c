@@ -20,6 +20,7 @@
 #include <linux/buffer_head.h>	/* grr. try_to_release_page,
 				   do_invalidatepage */
 #include <linux/cleancache.h>
+#include <linux/list_lru.h>
 #include <linux/rmap.h>
 #include "internal.h"
 
