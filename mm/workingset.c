@@ -12,6 +12,7 @@
 #include <linux/swap.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
+#include <linux/list_lru.h>
 
 /*
  *		Double CLOCK lists
