@@ -1,14 +1,14 @@
 #!/bin/bash
 
-VERSION=0.7
+VERSION=0.8
 DEFCONFIG=lineageos_a6010_defconfig
-TOOLCHAIN='toolchain/arm-eabi-4.9/bin/arm-eabi-'
+TOOLCHAIN=
 KCONFIG=false
 CUST_CONF=no
 BUILD_NUMBER=1
 DEVICE=a6010
 KCONF_REPLACE=false
-KERNEL_NAME="Aconitum"
+KERNEL_NAME="Eclipse"
 SKIP_MODULES=true
 DONTPACK=false
 USER=$USER
@@ -22,7 +22,7 @@ INDTB=-dtb
 usage() {
 	echo "$KERNEL_NAME build script v$VERSION"
 	echo `date`
-	echo "Written by A\$teroid <acroreiser@gmail.com>"
+	echo "Written by acroreiser <acroreiser@gmail.com>"
 	echo ""
     echo "Usage:"
     echo ""
@@ -114,35 +114,9 @@ make_flashable()
 		echo "| Build  host:    $BUILD_HOST" >> $REPACK_PATH/info.txt
 		echo "| Build  toolchain:    $TVERSION" >> $REPACK_PATH/info.txt
 		echo "| Kernel security patch level: $(cat patchlevel.txt)" >> $REPACK_PATH/info.txt
-	#deprecated	echo "| Number of threads:    $THREADS" >> $REPACK_PATH/info.txt
-	#	echo "--------------------------------------" >> $REPACK_PATH/info.txt
 	else
 		echo "Attempt to create flashable for an unknown device. Aborting..."
 		exit 1
-	fi
-
-	if [ "$(cat .config | grep ENHANCEIO | grep not)" != "" ]; then 
-		rm $REPACK_PATH/ramdisk/sbin/eioctl
-		sed -i "s;###ENHANCEIO###;rm /tmp/anykernel/ramdisk/sbin/eioctl;" $REPACK_PATH/tools/ak2-core.sh;
-	fi
-
-	if [ "$(cat .config | grep INFER_MUSIC_BLINKING | grep not)" != "" ]; then
-		rm $REPACK_PATH/ramdisk/blink.sh
-	fi
-
-	if [ "$(cat .config | grep PANIC_LOG_ON_FS | grep not)" != "" ]; then 
-		rm $REPACK_PATH/ramdisk/panic_log.sh
-		sed -i "s;###PANIC_LOG_ON_FS###;rm /tmp/anykernel/ramdisk/panic_log.sh;" $REPACK_PATH/tools/ak2-core.sh;
-	fi
-
-	if [ "$(cat .config | grep KOFFEE_EARLY_SCRIPT | grep not)" != "" ]; then 
-		rm $REPACK_PATH/ramdisk/koffee.sh
-		sed -i "s;###KOFFEE_EARLY_SCRIPT###;rm /tmp/anykernel/ramdisk/koffee.sh;" $REPACK_PATH/tools/ak2-core.sh;
-	fi
-
-	if [ "$(cat .config | grep BLK_DEV_IO_TRACE | grep not)" != "" ]; then 
-		rm $REPACK_PATH/ramdisk/sbin/ureadahead
-		sed -i "s;###UREADAHEAD###;rm /tmp/anykernel/ramdisk/sbin/ureadahead;" $REPACK_PATH/tools/ak2-core.sh;
 	fi
 
 	cd $REPACK_PATH
@@ -156,12 +130,10 @@ make_flashable()
 	cd $REPACK_PATH
 	KERNELNAME="Flashing $KERNEL_NAME"
 	sed -i "s;###kernelname###;${KERNELNAME};" META-INF/com/google/android/update-binary;
-	COPYRIGHT=$(echo '(c) A\$teroid, 2020')
+	COPYRIGHT=$(echo '(c) acroreiser, 2021')
 	sed -i "s;###copyright###;${COPYRIGHT};" META-INF/com/google/android/update-binary;
 	BUILDINFO="Release ${BUILD_NUMBER}, $DATE"
 	sed -i "s;###buildinfo###;${BUILDINFO};" META-INF/com/google/android/update-binary;
-	SOURCECODE="Official source code:  https://github.com/acroreiser/Aconitum"
-	sed -i "s;###sourcecode###;${SOURCECODE};" META-INF/com/google/android/update-binary;
 
 	# create zip file
 	zip -r9 ${KERNEL_NAME}-r${BUILD_NUMBER}.zip * -x ${KERNEL_NAME}-r${BUILD_NUMBER}.zip
@@ -204,11 +176,11 @@ esac
 done
 
 if [ -z $THREADS ]; then
-	JOBS="-j1"
-	THREADS=1
-else
-	JOBS="-j$THREADS"
+	THREADS=$(nproc --all)
 fi
+
+JOBS="-j$THREADS"
+
 
 if [ -d "`pwd`/.tmpzip" ]; then
 	rm -fr "`pwd`/.tmpzip"

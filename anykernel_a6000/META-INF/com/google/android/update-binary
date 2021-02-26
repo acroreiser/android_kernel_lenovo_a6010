@@ -88,8 +88,6 @@ ui_print '###copyright###';
 ui_print " ";
 ui_print "###buildinfo###";
 ui_print " ";
-ui_print "###sourcecode###";
-ui_print " ";
 
 while read LINE
     do ui_print "$LINE"

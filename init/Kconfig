@@ -1293,10 +1293,6 @@ config CC_OPTIMIZE_FOR_SIZE
 
 	  If unsure, say N.
 
-config KOFFEE_EARLY_SCRIPT
-	bool "Run /koffee.sh script after mounting the /system partition"
-	default n
-
 config SYSCTL
 	bool
 

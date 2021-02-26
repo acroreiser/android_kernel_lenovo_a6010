@@ -297,7 +297,7 @@ static struct ctl_table kern_table[] = {
 		.procname	= "sched_child_runs_first",
 		.data		= &sysctl_sched_child_runs_first,
 		.maxlen		= sizeof(unsigned int),
-		.mode		= 0444,
+		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 	},
 	{
@@ -1601,7 +1601,7 @@ static struct ctl_table vm_table[] = {
 		.procname	= "vfs_cache_pressure",
 		.data		= &sysctl_vfs_cache_pressure,
 		.maxlen		= sizeof(sysctl_vfs_cache_pressure),
-		.mode		= 0444,
+		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 		.extra1		= &zero,
 	},

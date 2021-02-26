@@ -13,7 +13,7 @@ do.modules=0
 do.cleanup=1
 device.name1=a6000
 device.name2=wt86518
-device.name3=
+device.name3=a6010
 device.name4=
 device.name5=
 device.name6=
@@ -44,18 +44,7 @@ dump_boot;
 
 ############### Ramdisk customization start ###############
 
-# AnyKernel permissions
-chmod 775 $ramdisk/sbin
-chmod 755 $ramdisk/sbin/busybox
-
-chmod 775 $ramdisk/res
-chmod -R 755 $ramdisk/res/bc
-chmod -R 755 $ramdisk/res/misc
-
-# ramdisk changes
-backup_file default.prop;
-replace_string default.prop "ro.adb.secure=0" "ro.adb.secure=1" "ro.adb.secure=0";
-replace_string default.prop "ro.secure=0" "ro.secure=1" "ro.secure=0";
+# NONE FOR NOW =) 
 
 ############### Ramdisk customization end ###############
 

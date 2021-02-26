@@ -55,11 +55,6 @@ dump_boot()
 		exit 1;
 	fi;
 
-	###KOFFEE_EARLY_SCRIPT###
-	###ENHANCEIO###
-	###PANIC_LOG_ON_FS###
-	###UREADAHEAD###
-
 	mkdir /tmp/anykernel/persist
 	$bin/busybox mount -t ext4 /dev/block/mmcblk0p24  /tmp/anykernel/persist
 	rm -fr /tmp/anykernel/persist/infernal
