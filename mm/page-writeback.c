@@ -73,7 +73,7 @@ static long ratelimit_pages = 1024;
 #ifdef CONFIG_DECREASE_DIRTY_BACKGROUND_RATIO
 int dirty_background_ratio = 1;
 #else
-int dirty_background_ratio = 4;
+int dirty_background_ratio = 5;
 #endif
 
 /*
@@ -120,7 +120,7 @@ int block_dump;
  * Flag that puts the machine in "laptop mode". Doubles as a timeout in jiffies:
  * a full sync is triggered after this time elapses without any disk activity.
  */
-int laptop_mode = 1;
+int laptop_mode = 0;
 
 EXPORT_SYMBOL(laptop_mode);
 

@@ -24,14 +24,6 @@
 #include <linux/nmi.h>
 #include <linux/console.h>
 
-#ifdef CONFIG_PANIC_LOG_ON_FS
-#include <linux/kmod.h>
-#include <linux/fs.h>
-
-static char * envp[] = { "HOME=/", NULL };
-static char * argv1[] = { "sh", "/persist/infernal/panic_log.sh", NULL };
-#endif
-
 #define CREATE_TRACE_POINTS
 #include <trace/events/exception.h>
 
@@ -107,13 +99,11 @@ void panic(const char *fmt, ...)
 	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
 		dump_stack();
 #endif
-#ifdef CONFIG_PANIC_LOG_ON_FS
-	emergency_sync();
-	printk(KERN_NOTICE "Saving kernel log to /cache/last_kmsg.log\n");
-	call_usermodehelper("/system/bin/sh", argv1, envp, UMH_WAIT_PROC);
+
+	// Attempt to sync and remount fs to save data
 	emergency_sync();
 	emergency_remount();
-#endif
+
 	bust_spinlocks(1);
 	/*
 	 * Disable local interrupts. This will prevent panic_smp_self_stop

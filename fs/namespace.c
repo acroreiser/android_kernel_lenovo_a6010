@@ -33,12 +33,6 @@ unsigned int sysctl_mount_max __read_mostly = 100000;
 #define HASH_SHIFT ilog2(PAGE_SIZE / sizeof(struct list_head))
 #define HASH_SIZE (1UL << HASH_SHIFT)
 
-#ifdef CONFIG_KOFFEE_EARLY_SCRIPT
-static unsigned int shot = 0;
-static char * envp[] = { "HOME=/", NULL };
-static char * argv1[] = { "sh", "/persist/infernal/koffee.sh", NULL };
-#endif
-
 static int event;
 static DEFINE_IDA(mnt_id_ida);
 static DEFINE_IDA(mnt_group_ida);
@@ -2502,13 +2496,6 @@ long do_mount(const char *dev_name, const char *dir_name,
 	{
 		retval = do_new_mount(&path, type_page, flags, mnt_flags,
 				      dev_name, data_page);
-#ifdef CONFIG_KOFFEE_EARLY_SCRIPT
-		if((!strncmp("/firmware", dir_name, 9)) && shot == 0)
-                {
-                       shot = 1;
-			call_usermodehelper("/system/bin/sh", argv1, envp, UMH_NO_WAIT);
-                }
-#endif
 	}
 dput_out:
 	path_put(&path);

@@ -81,7 +81,7 @@
 #ifdef CONFIG_CLEANCACHE
 int sysctl_vfs_cache_pressure __read_mostly = 125;
 #else
-int sysctl_vfs_cache_pressure __read_mostly = 0;
+int sysctl_vfs_cache_pressure __read_mostly = 25;
 #endif
 EXPORT_SYMBOL_GPL(sysctl_vfs_cache_pressure);
 
