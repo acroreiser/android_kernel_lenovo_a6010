@@ -1,8 +1,0 @@
-# List of source files which contain translatable strings.
-src/ureadahead.c
-src/trace.c
-src/pack.c
-src/values.c
-src/file.c
-
-src/errors.h
