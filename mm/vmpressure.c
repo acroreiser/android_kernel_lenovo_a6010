@@ -48,7 +48,7 @@ unsigned long vmpressure_win = SWAP_CLUSTER_MAX * 16;
  * essence, they are percents: the higher the value, the more number
  * unsuccessful reclaims there were.
  */
-unsigned int vmpressure_level_med = 50;
+unsigned int vmpressure_level_med = 60;
 unsigned int vmpressure_level_critical = 75;
 
 static unsigned long vmpressure_scale_max = 100;
