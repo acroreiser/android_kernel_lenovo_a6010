@@ -1948,7 +1948,15 @@ CONFIG_MSM_QPNP_INT=y
 #
 # PPS support
 #
-# CONFIG_PPS is not set
+CONFIG_PPS=y
+# CONFIG_PPS_DEBUG is not set
+
+#
+# PPS clients support
+#
+CONFIG_PPS_CLIENT_KTIMER=y
+# CONFIG_PPS_CLIENT_LDISC is not set
+# CONFIG_PPS_CLIENT_GPIO is not set
 
 #
 # PPS generators support
