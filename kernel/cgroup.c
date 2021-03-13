@@ -1984,7 +1984,7 @@ void butter_task_tune(struct cgroup *cgrp, struct task_struct *tsk)
 	else if (!memcmp(cgrp->name->name, "foreground", sizeof("foreground")))
 	{
 		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
-		sched_setscheduler_nocheck(tsk, SCHED_BATCH, &param);
+		sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
 	}
 	else if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")))
 	{
