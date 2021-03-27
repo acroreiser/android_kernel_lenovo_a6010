@@ -8,6 +8,8 @@
 #include <linux/namei.h>
 #include "fscrypt_private.h"
 
+#define RENAME_EXCHANGE                (1 << 1)        /* Exchange source and dest */
+
 /**
  * fscrypt_file_open - prepare to open a possibly-encrypted regular file
  * @inode: the inode being opened
