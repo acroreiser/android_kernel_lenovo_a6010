@@ -1192,6 +1192,11 @@ config ANDROID_DETECT_TOP_APP
 	bool "Detect top app for in-kernel handling"
 	depends on CGROUPS && CPUSETS
 
+config ANDROID_KILL_BUGGY_CAMERA
+	bool "Kill known buggy camera apps after user leaving"
+	help
+		Currently killing Google Camera Go and Lineage OS Snap camera.
+
 config ANDROID_TASK_TUNING
 	bool "Optimize scheduling for top app"
 	depends on CGROUPS && CPUSETS

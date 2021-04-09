@@ -2135,7 +2135,6 @@ next:
 	retval = 0;
 
 #ifdef CONFIG_ANDROID_DETECT_TOP_APP
-
 	if(!memcmp(tsk->comm, "ndroid.systemui", sizeof("ndroid.systemui")))
 		zygote_pid = tsk->real_parent->pid;
 
@@ -2148,6 +2147,16 @@ next:
 			top_app = tsk;
 			printk(KERN_INFO "Current top app: %u [%s]\n", tsk->pid, tsk->comm);
 		}
+	}
+#endif
+
+#ifdef CONFIG_ANDROID_KILL_BUGGY_CAMERA
+	if (!memcmp(cgrp->name->name, "background", sizeof("background")) &&
+		(!memcmp(tsk->comm, "apps.cameralite", sizeof("apps.cameralite")) ||
+		!memcmp(tsk->comm, ".lineageos.snap", sizeof(".lineageos.snap"))))
+	{
+		printk(KERN_INFO "Killing buggy camera app in background: %u [%s]\n", tsk->pid, tsk->comm);
+		do_send_sig_info(SIGKILL, SEND_SIG_FORCED, tsk, true);
 	}
 #endif
 
