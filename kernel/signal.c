@@ -43,6 +43,9 @@
 #include <asm/cacheflush.h>
 #include "audit.h"	/* audit_signal_info() */
 
+#ifdef CONFIG_ANDROID_DONT_KILL_MAGISK
+unsigned int sysctl_magisk_workaround = 0;
+#endif
 /*
  * SLAB caches for signal bits.
  */
@@ -1064,6 +1067,15 @@ static int __send_signal(int sig, struct siginfo *info, struct task_struct *t,
 	struct sigqueue *q;
 	int override_rlimit;
 	int ret = 0, result;
+
+#ifdef CONFIG_ANDROID_DONT_KILL_MAGISK
+	if (sysctl_magisk_workaround && sig == SIGKILL &&
+		t && t->comm && !memcmp(t->comm, "magiskd", sizeof("magiskd")))
+	{
+		printk(KERN_INFO "WORKAROUND: Ignoring attempt to kill Magisk: %u [%s] from [%u]\n", t->pid, t->comm, info->_sifields._kill._pid);
+		return ret;
+	}
+#endif
 
 	assert_spin_locked(&t->sighand->siglock);
 

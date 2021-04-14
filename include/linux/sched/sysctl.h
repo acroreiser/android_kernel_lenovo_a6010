@@ -34,6 +34,9 @@ extern int sysctl_max_map_count;
 #ifdef CONFIG_ANDROID_TASK_TUNING
 extern unsigned int sysctl_tune_android_tasks;
 #endif
+#ifdef CONFIG_ANDROID_DONT_KILL_MAGISK
+extern unsigned int sysctl_magisk_workaround;
+#endif
 extern unsigned int sysctl_sched_latency;
 extern unsigned int sysctl_sched_min_granularity;
 extern unsigned int sysctl_sched_wakeup_granularity;
