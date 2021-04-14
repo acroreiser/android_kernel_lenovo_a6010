@@ -1216,6 +1216,9 @@ config ANDROID_TASK_TUNING
 
 	  If tune_android_tasks = 2, tasks from "top-app" cpuset will run with SCHED_FIFO policy.
 
+config ANDROID_DONT_KILL_MAGISK
+	bool "Workaround: prevent Magisk from killing"
+
 config MM_OWNER
 	bool
 
