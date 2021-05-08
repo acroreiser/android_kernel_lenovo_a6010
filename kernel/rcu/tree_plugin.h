@@ -2346,7 +2346,7 @@ static void rcu_kick_nohz_cpu(int cpu)
 #endif /* #ifdef CONFIG_NO_HZ_FULL */
 }
 
-#if 0 // @acroreiser: we don't need this on simplified kernel
+#ifdef CONFIG_NO_HZ_FULL
 /*
  * Bind the grace-period kthread for the sysidle flavor of RCU to the
  * timekeeping CPU.
