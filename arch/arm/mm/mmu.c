@@ -1217,7 +1217,7 @@ void __init dma_contiguous_early_removal_fixup(void)
 	sanity_check_meminfo();
 }
 
-static inline void prepare_page_table(void)
+static __init void prepare_page_table(void)
 {
 	unsigned long addr;
 	phys_addr_t end;
