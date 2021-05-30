@@ -207,6 +207,40 @@ void bst_unregister_device(struct bst_dev *dev)
 }
 EXPORT_SYMBOL(bst_unregister_device);
 
+static int bst_open_file(struct inode *inode, struct file *file)
+{
+	const struct file_operations *old_fops, *new_fops = NULL;
+	int err;
+
+	/*
+	 * That's _really_ odd. Usually NULL ->open means "nothing special",
+	 * not "no device". Oh, well...
+	 */
+	if (!new_fops || !new_fops->open) {
+		fops_put(new_fops);
+		err = -ENODEV;
+		goto out;
+	}
+
+	old_fops = file->f_op;
+	file->f_op = new_fops;
+
+	err = new_fops->open(inode, file);
+	if (err) {
+		fops_put(file->f_op);
+		file->f_op = fops_get(old_fops);
+	}
+	fops_put(old_fops);
+out:
+	return err;
+}
+
+static const struct file_operations bst_fops = {
+	.owner = THIS_MODULE,
+	.open = bst_open_file,
+	/*.llseek = noop_llseek,*/
+};
+
 static int __init bst_init(void)
 {
 	int err;

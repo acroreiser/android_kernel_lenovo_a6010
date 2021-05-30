@@ -356,6 +356,99 @@ static int AKECS_SetMode(
 	return err;
 }
 
+static void AKECS_SetYPR(
+	struct akm_compass_data *akm,
+	int *rbuf)
+{
+	uint32_t ready;
+	dev_vdbg(&akm->i2c->dev, "%s: flag =0x%X", __func__, rbuf[0]);
+	dev_vdbg(&akm->input->dev, "  Acc [LSB]   : %6d,%6d,%6d stat=%d",
+		rbuf[1], rbuf[2], rbuf[3], rbuf[4]);
+	dev_vdbg(&akm->input->dev, "  Geo [LSB]   : %6d,%6d,%6d stat=%d",
+		rbuf[5], rbuf[6], rbuf[7], rbuf[8]);
+	dev_vdbg(&akm->input->dev, "  Orientation : %6d,%6d,%6d",
+		rbuf[9], rbuf[10], rbuf[11]);
+	dev_vdbg(&akm->input->dev, "  Rotation V  : %6d,%6d,%6d,%6d",
+		rbuf[12], rbuf[13], rbuf[14], rbuf[15]);
+
+	/* No events are reported */
+	if (!rbuf[0]) {
+		dev_dbg(&akm->i2c->dev, "Don't waste a time.");
+		return;
+	}
+
+	mutex_lock(&akm->val_mutex);
+	ready = (akm->enable_flag & (uint32_t)rbuf[0]);
+	mutex_unlock(&akm->val_mutex);
+
+	/* Report acceleration sensor information */
+	if (ready & ACC_DATA_READY) {
+		input_report_abs(akm->input, ABS_X, rbuf[1]);
+		input_report_abs(akm->input, ABS_Y, rbuf[2]);
+		input_report_abs(akm->input, ABS_Z, rbuf[3]);
+		input_report_abs(akm->input, ABS_RX, rbuf[4]);
+	}
+	/* Report magnetic vector information */
+	if (ready & MAG_DATA_READY) {
+		input_report_abs(akm->input, ABS_X, rbuf[5]);
+		input_report_abs(akm->input, ABS_Y, rbuf[6]);
+		input_report_abs(akm->input, ABS_Z, rbuf[7]);
+	}
+	/* Report fusion sensor information */
+	if (ready & FUSION_DATA_READY) {
+		/* Orientation */
+		input_report_abs(akm->input, ABS_HAT0Y, rbuf[9]);
+		input_report_abs(akm->input, ABS_HAT1X, rbuf[10]);
+		input_report_abs(akm->input, ABS_HAT1Y, rbuf[11]);
+		/* Rotation Vector */
+		input_report_abs(akm->input, ABS_TILT_X, rbuf[12]);
+		input_report_abs(akm->input, ABS_TILT_Y, rbuf[13]);
+		input_report_abs(akm->input, ABS_TOOL_WIDTH, rbuf[14]);
+		input_report_abs(akm->input, ABS_VOLUME, rbuf[15]);
+	}
+
+	input_sync(akm->input);
+}
+
+/* This function will block a process until the latest measurement
+ * data is available.
+ */
+static int AKECS_GetData(
+	struct akm_compass_data *akm,
+	uint8_t *rbuf,
+	int size)
+{
+	int err;
+
+	/* Block! */
+	err = wait_event_interruptible_timeout(
+			akm->drdy_wq,
+			atomic_read(&akm->drdy),
+			msecs_to_jiffies(AKM_DRDY_TIMEOUT_MS));
+
+	if (err < 0) {
+		dev_err(&akm->i2c->dev,
+			"%s: wait_event failed (%d).", __func__, err);
+		return err;
+	}
+	if (!atomic_read(&akm->drdy)) {
+		dev_err(&akm->i2c->dev,
+			"%s: DRDY is not set.", __func__);
+		return -ENODATA;
+	}
+
+	/***** lock *****/
+	mutex_lock(&akm->sensor_mutex);
+
+	memcpy(rbuf, akm->sense_data, size);
+	atomic_set(&akm->drdy, 0);
+
+	mutex_unlock(&akm->sensor_mutex);
+	/***** unlock *****/
+
+	return 0;
+}
+
 static int AKECS_GetData_Poll(
 	struct akm_compass_data *akm,
 	uint8_t *rbuf,
@@ -398,6 +491,263 @@ static int AKECS_GetData_Poll(
 
 	return 0;
 }
+
+static int AKECS_GetOpenStatus(
+	struct akm_compass_data *akm)
+{
+	return wait_event_interruptible(
+			akm->open_wq, (atomic_read(&akm->active) > 0));
+}
+
+static int AKECS_GetCloseStatus(
+	struct akm_compass_data *akm)
+{
+	return wait_event_interruptible(
+			akm->open_wq, (atomic_read(&akm->active) <= 0));
+}
+
+static int AKECS_Open(struct inode *inode, struct file *file)
+{
+	file->private_data = s_akm;
+	return nonseekable_open(inode, file);
+}
+
+static int AKECS_Release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static long
+AKECS_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	void __user *argp = (void __user *)arg;
+	struct akm_compass_data *akm = file->private_data;
+
+	/* NOTE: In this function the size of "char" should be 1-byte. */
+	uint8_t i2c_buf[AKM_RWBUF_SIZE];		/* for READ/WRITE */
+	uint8_t dat_buf[AKM_SENSOR_DATA_SIZE];/* for GET_DATA */
+	int32_t ypr_buf[AKM_YPR_DATA_SIZE];		/* for SET_YPR */
+	int32_t delay[AKM_NUM_SENSORS];	/* for GET_DELAY */
+	int16_t acc_buf[3];	/* for GET_ACCEL */
+	uint8_t mode;			/* for SET_MODE*/
+	int status;			/* for OPEN/CLOSE_STATUS */
+	int ret = 0;		/* Return value. */
+
+	switch (cmd) {
+	case ECS_IOCTL_READ:
+	case ECS_IOCTL_WRITE:
+		if (argp == NULL) {
+			dev_err(&akm->i2c->dev, "invalid argument.");
+			return -EINVAL;
+		}
+		if (copy_from_user(&i2c_buf, argp, sizeof(i2c_buf))) {
+			dev_err(&akm->i2c->dev, "copy_from_user failed.");
+			return -EFAULT;
+		}
+		break;
+	case ECS_IOCTL_SET_MODE:
+		if (argp == NULL) {
+			dev_err(&akm->i2c->dev, "invalid argument.");
+			return -EINVAL;
+		}
+		if (copy_from_user(&mode, argp, sizeof(mode))) {
+			dev_err(&akm->i2c->dev, "copy_from_user failed.");
+			return -EFAULT;
+		}
+		break;
+	case ECS_IOCTL_SET_YPR:
+		if (argp == NULL) {
+			dev_err(&akm->i2c->dev, "invalid argument.");
+			return -EINVAL;
+		}
+		if (copy_from_user(&ypr_buf, argp, sizeof(ypr_buf))) {
+			dev_err(&akm->i2c->dev, "copy_from_user failed.");
+			return -EFAULT;
+		}
+	case ECS_IOCTL_GET_INFO:
+	case ECS_IOCTL_GET_CONF:
+	case ECS_IOCTL_GET_DATA:
+	case ECS_IOCTL_GET_OPEN_STATUS:
+	case ECS_IOCTL_GET_CLOSE_STATUS:
+	case ECS_IOCTL_GET_DELAY:
+	case ECS_IOCTL_GET_LAYOUT:
+	case ECS_IOCTL_GET_ACCEL:
+		/* Check buffer pointer for writing a data later. */
+		if (argp == NULL) {
+			dev_err(&akm->i2c->dev, "invalid argument.");
+			return -EINVAL;
+		}
+		break;
+	default:
+		break;
+	}
+
+	switch (cmd) {
+	case ECS_IOCTL_READ:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_READ called.");
+		if ((i2c_buf[0] < 1) || (i2c_buf[0] > (AKM_RWBUF_SIZE-1))) {
+			dev_err(&akm->i2c->dev, "invalid argument.");
+			return -EINVAL;
+		}
+		ret = akm_i2c_rxdata(akm->i2c, &i2c_buf[1], i2c_buf[0]);
+		if (ret < 0)
+			return ret;
+		break;
+	case ECS_IOCTL_WRITE:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_WRITE called.");
+		if ((i2c_buf[0] < 2) || (i2c_buf[0] > (AKM_RWBUF_SIZE-1))) {
+			dev_err(&akm->i2c->dev, "invalid argument.");
+			return -EINVAL;
+		}
+		ret = akm_i2c_txdata(akm->i2c, &i2c_buf[1], i2c_buf[0]);
+		if (ret < 0)
+			return ret;
+		break;
+	case ECS_IOCTL_RESET:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_RESET called.");
+		ret = AKECS_Reset(akm, akm->gpio_rstn);
+		if (ret < 0)
+			return ret;
+		break;
+	case ECS_IOCTL_SET_MODE:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_SET_MODE called.");
+		ret = AKECS_SetMode(akm, mode);
+		if (ret < 0)
+			return ret;
+		break;
+	case ECS_IOCTL_SET_YPR:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_SET_YPR called.");
+		AKECS_SetYPR(akm, ypr_buf);
+		break;
+	case ECS_IOCTL_GET_DATA:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_GET_DATA called.");
+		if (akm->i2c->irq)
+			ret = AKECS_GetData(akm, dat_buf, AKM_SENSOR_DATA_SIZE);
+		else
+			ret = AKECS_GetData_Poll(
+					akm, dat_buf, AKM_SENSOR_DATA_SIZE);
+
+		if (ret < 0)
+			return ret;
+		break;
+	case ECS_IOCTL_GET_OPEN_STATUS:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_GET_OPEN_STATUS called.");
+		ret = AKECS_GetOpenStatus(akm);
+		if (ret < 0) {
+			dev_err(&akm->i2c->dev,
+				"Get Open returns error (%d).", ret);
+			return ret;
+		}
+		break;
+	case ECS_IOCTL_GET_CLOSE_STATUS:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_GET_CLOSE_STATUS called.");
+		ret = AKECS_GetCloseStatus(akm);
+		if (ret < 0) {
+			dev_err(&akm->i2c->dev,
+				"Get Close returns error (%d).", ret);
+			return ret;
+		}
+		break;
+	case ECS_IOCTL_GET_DELAY:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_GET_DELAY called.");
+		mutex_lock(&akm->val_mutex);
+		delay[0] = ((akm->enable_flag & ACC_DATA_READY) ?
+				akm->delay[0] : -1);
+		delay[1] = ((akm->enable_flag & MAG_DATA_READY) ?
+				akm->delay[1] : -1);
+		delay[2] = ((akm->enable_flag & FUSION_DATA_READY) ?
+				akm->delay[2] : -1);
+		mutex_unlock(&akm->val_mutex);
+		break;
+	case ECS_IOCTL_GET_INFO:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_GET_INFO called.");
+		break;
+	case ECS_IOCTL_GET_CONF:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_GET_CONF called.");
+		break;
+	case ECS_IOCTL_GET_LAYOUT:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_GET_LAYOUT called.");
+		break;
+	case ECS_IOCTL_GET_ACCEL:
+		dev_vdbg(&akm->i2c->dev, "IOCTL_GET_ACCEL called.");
+		mutex_lock(&akm->accel_mutex);
+		acc_buf[0] = akm->accel_data[0];
+		acc_buf[1] = akm->accel_data[1];
+		acc_buf[2] = akm->accel_data[2];
+		mutex_unlock(&akm->accel_mutex);
+		break;
+	default:
+		return -ENOTTY;
+	}
+
+	switch (cmd) {
+	case ECS_IOCTL_READ:
+		/* +1  is for the first byte */
+		if (copy_to_user(argp, &i2c_buf, i2c_buf[0]+1)) {
+			dev_err(&akm->i2c->dev, "copy_to_user failed.");
+			return -EFAULT;
+		}
+		break;
+	case ECS_IOCTL_GET_INFO:
+		if (copy_to_user(argp, &akm->sense_info,
+					sizeof(akm->sense_info))) {
+			dev_err(&akm->i2c->dev, "copy_to_user failed.");
+			return -EFAULT;
+		}
+		break;
+	case ECS_IOCTL_GET_CONF:
+		if (copy_to_user(argp, &akm->sense_conf,
+					sizeof(akm->sense_conf))) {
+			dev_err(&akm->i2c->dev, "copy_to_user failed.");
+			return -EFAULT;
+		}
+		break;
+	case ECS_IOCTL_GET_DATA:
+		if (copy_to_user(argp, &dat_buf, sizeof(dat_buf))) {
+			dev_err(&akm->i2c->dev, "copy_to_user failed.");
+			return -EFAULT;
+		}
+		break;
+	case ECS_IOCTL_GET_OPEN_STATUS:
+	case ECS_IOCTL_GET_CLOSE_STATUS:
+		status = atomic_read(&akm->active);
+		if (copy_to_user(argp, &status, sizeof(status))) {
+			dev_err(&akm->i2c->dev, "copy_to_user failed.");
+			return -EFAULT;
+		}
+		break;
+	case ECS_IOCTL_GET_DELAY:
+		if (copy_to_user(argp, &delay, sizeof(delay))) {
+			dev_err(&akm->i2c->dev, "copy_to_user failed.");
+			return -EFAULT;
+		}
+		break;
+	case ECS_IOCTL_GET_LAYOUT:
+		if (copy_to_user(argp, &akm->pdata->layout,
+					sizeof(akm->pdata->layout))) {
+			dev_err(&akm->i2c->dev, "copy_to_user failed.");
+			return -EFAULT;
+		}
+		break;
+	case ECS_IOCTL_GET_ACCEL:
+		if (copy_to_user(argp, &acc_buf, sizeof(acc_buf))) {
+			dev_err(&akm->i2c->dev, "copy_to_user failed.");
+			return -EFAULT;
+		}
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static const struct file_operations AKECS_fops = {
+	.owner = THIS_MODULE,
+	.open = AKECS_Open,
+	.release = AKECS_Release,
+	.unlocked_ioctl = AKECS_ioctl,
+};
 
 /***** akm sysfs functions ******************************************/
 static int create_device_attributes(
