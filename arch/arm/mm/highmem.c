@@ -162,7 +162,7 @@ static void kmap_remove_unused_cpu(int cpu)
 	start_idx = type + 1 + KM_TYPE_NR * cpu;
 
 	for (idx = start_idx; idx < KM_TYPE_NR + KM_TYPE_NR * cpu; idx++) {
-		unsigned long vaddr = __fix_to_virt(FIX_KMAP_BEGIN + idx);
+		unsigned long vaddr = __fix_to_virt(idx);
 		pte_t ptep;
 
 		ptep = get_top_pte(vaddr);
