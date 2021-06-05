@@ -312,7 +312,7 @@ static void __ref cpu_up_work(struct work_struct *work)
 	for_each_cpu_not(cpu, cpu_online_mask) {
 		if (target <= num_online_cpus())
 			break;
-		if (cpu == 0)
+		if (cpu == 0 || cpu == 1)
 			continue;
 		cpu_up(cpu);
 		apply_down_lock(cpu);
@@ -327,10 +327,10 @@ static void cpu_down_work(struct work_struct *work)
 	target = hotplug.target_cpus;
 
 	for_each_online_cpu(cpu) {
-		if (cpu == 0)
+		if (cpu == 0 || cpu == 1)
 			continue;
 		lowest_cpu = get_lowest_load_cpu();
-		if (lowest_cpu > 0 && lowest_cpu <= stats.total_cpus) {
+		if (lowest_cpu > 1 && lowest_cpu <= stats.total_cpus) {
 			if (check_down_lock(lowest_cpu))
 				break;
 			cpu_down(lowest_cpu);
