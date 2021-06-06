@@ -743,7 +743,7 @@ static struct cftype bfqio_files[] = {
 	{ },	/* terminate */
 };
 
-static struct cgroup_css *bfqio_create(struct cgroup *cgroup)
+static struct cgroup_subsys_state *bfqio_create(struct cgroup *cgroup)
 {
 	struct bfqio_cgroup *bgrp;
 
