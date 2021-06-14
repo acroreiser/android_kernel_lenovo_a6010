@@ -317,6 +317,10 @@ void calculate_vmpressure_win(void)
 	vmpressure_win = x;
 }
 
+#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM
+extern unsigned int bpr_vmpressure;
+#endif
+
 void vmpressure_global(gfp_t gfp, unsigned long scanned,
 		unsigned long reclaimed)
 {
@@ -356,6 +360,10 @@ void vmpressure_global(gfp_t gfp, unsigned long scanned,
 	} else {
 		pressure = 100;
 	}
+
+#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM
+	bpr_vmpressure = pressure;
+#endif
 	vmpressure_notify(pressure);
 }
 
