@@ -1190,14 +1190,13 @@ config SCHED_AUTOGROUP
 	  desktop applications.  Task group autogeneration is currently based
 	  upon task session.
 
+if ANDROID
+
+menu "Android tuning and workarounds"
+
 config ANDROID_DETECT_TOP_APP
 	bool "Detect top app for in-kernel handling"
 	depends on CGROUPS && CPUSETS
-
-config ANDROID_KILL_BUGGY_CAMERA
-	bool "Kill known buggy camera apps after user leaving"
-	help
-		Currently killing Google Camera Go and Lineage OS Snap camera.
 
 config ANDROID_TASK_TUNING
 	bool "Optimize scheduling for top app"
@@ -1219,7 +1218,14 @@ config ANDROID_TASK_TUNING
 	  If tune_android_tasks = 2, tasks from "top-app" cpuset will run with SCHED_FIFO policy.
 
 config ANDROID_DONT_KILL_MAGISK
-	bool "Workaround: prevent Magisk from killing"
+	bool "WORKAROUND: prevent Magisk from killing"
+
+config ANDROID_KILL_BUGGY_CAMERA
+	bool "WORKAROUND: kill known buggy camera apps after user leaving"
+	help
+		Currently kills Google Camera Go and Lineage OS Snap camera.
+endmenu
+endif # ANDROID
 
 config MM_OWNER
 	bool
