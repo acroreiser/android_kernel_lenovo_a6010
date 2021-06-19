@@ -391,7 +391,7 @@ out:
  * chunks of ashmem regions LRU-wise one-at-a-time until we hit 'nr_to_scan'
  * pages freed.
  */
-static long
+static long unsigned
 ashmem_shrink_scan(
 	struct shrinker		*shrink,
 	struct shrink_control	*sc)
@@ -424,7 +424,7 @@ ashmem_shrink_scan(
 	return freed;
 }
 
-static long
+static long unsigned
 ashmem_shrink_count(
 	struct shrinker		*shrink,
 	struct shrink_control	*sc)
