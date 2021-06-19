@@ -464,7 +464,7 @@ static int iostat_info_seq_show(struct seq_file *seq, void *offset)
 	if (!sbi->iostat_enable)
 		return 0;
 
-	seq_printf(seq, "time:		%-16llu\n", now);
+	seq_printf(seq, "time:		%-16ld\n", now);
 
 	/* print app IOs */
 	seq_printf(seq, "app buffered:	%-16llu\n",
