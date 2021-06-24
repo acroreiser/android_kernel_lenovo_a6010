@@ -592,6 +592,10 @@ endif
 # Fix gcc10 performance regression
 #KBUILD_CFLAGS += --param=max-inline-insns-auto=1000
 
+ifdef CONFIG_GCC_GRAPHITE
+KBUILD_CFLAGS	+= -fgraphite-identity -floop-nest-optimize
+endif
+
 include $(srctree)/arch/$(SRCARCH)/Makefile
 
 # Tell gcc to never replace conditional load with a non-conditional one
