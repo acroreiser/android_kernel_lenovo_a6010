@@ -512,12 +512,23 @@ static void __sysrq_put_key_op(int key, struct sysrq_key_op *op_p)
                 sysrq_key_table[i] = op_p;
 }
 
+#ifdef CONFIG_MSM_HOTPLUG
+extern void msm_hotplug_shutdown(void);
+#endif
+
 void __handle_sysrq(int key, bool check_mask)
 {
 	struct sysrq_key_op *op_p;
 	int orig_log_level;
 	int i;
 	unsigned long flags;
+#ifdef CONFIG_MSM_HOTPLUG
+	char killalltasks[] = "Kill All Tasks";
+
+	op_p = __sysrq_get_key_op(key);
+	if (!memcmp(op_p->action_msg, killalltasks, sizeof(killalltasks)))
+		msm_hotplug_shutdown();
+#endif
 
 	spin_lock_irqsave(&sysrq_key_table_lock, flags);
 	/*

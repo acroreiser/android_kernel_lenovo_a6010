@@ -740,6 +740,15 @@ static void msm_hotplug_stop(void)
 	}
 }
 
+void msm_hotplug_shutdown(void)
+{
+	if (hotplug.msm_enabled == 1)
+	{
+		hotplug.msm_enabled = 0;
+		msm_hotplug_stop();
+	}
+}
+
 static unsigned int *get_tokenized_data(const char *buf, int *num_tokens)
 {
 	const char *cp;
