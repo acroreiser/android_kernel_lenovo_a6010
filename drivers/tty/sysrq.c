@@ -320,12 +320,20 @@ static struct sysrq_key_op sysrq_showmem_op = {
 	.enable_mask	= SYSRQ_ENABLE_DUMP,
 };
 
+#ifdef CONFIG_ANDROID_DONT_KILL_MAGISK
+extern unsigned int sysctl_magisk_workaround;
+#endif
+
 /*
  * Signal sysrq helper function.  Sends a signal to all user processes.
  */
 static void send_sig_all(int sig)
 {
 	struct task_struct *p;
+
+#ifdef CONFIG_ANDROID_DONT_KILL_MAGISK
+	sysctl_magisk_workaround = 0;
+#endif
 
 	read_lock(&tasklist_lock);
 	for_each_process(p) {
