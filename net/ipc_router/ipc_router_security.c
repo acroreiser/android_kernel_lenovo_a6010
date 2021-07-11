@@ -218,7 +218,7 @@ static int msm_ipc_add_default_rule(void)
 	rule->service_id = ALL_SERVICE;
 	rule->instance_id = ALL_INSTANCE;
 	rule->num_group_info = 1;
-	*(rule->group_id) = KGIDT_INIT(AID_NET_RAW);
+	*(rule->group_id) = AID_NET_RAW;
 	down_write(&security_rules_lock_lha4);
 	key = (ALL_SERVICE & (SEC_RULES_HASH_SZ - 1));
 	list_add_tail(&rule->list, &security_rules[key]);

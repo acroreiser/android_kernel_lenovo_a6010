@@ -2161,7 +2161,7 @@ next:
 #endif
 
 #ifdef CONFIG_ANDROID_TASK_TUNING
-	if (tsk->cred->uid > 10000 ||
+	if (tsk->cred->uid.val > 10000 ||
 		!memcmp(tsk->comm, "ndroid.settings", sizeof("ndroid.settings")))
 		butter_task_tune(cgrp, tsk);
 #endif
