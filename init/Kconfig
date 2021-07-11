@@ -1168,14 +1168,9 @@ config UIDGID_CONVERTED
 	depends on XFS_FS = n
 
 config UIDGID_STRICT_TYPE_CHECKS
-	bool "Require conversions between uid/gids and their internal representation"
+	bool
 	depends on UIDGID_CONVERTED
-	default n
-	help
-	 While the nececessary conversions are being added to all subsystems this option allows
-	 the code to continue to build for unconverted subsystems.
-
-	 Say Y here if you want the strict type checking enabled
+	default y
 
 config SCHED_AUTOGROUP
 	bool "Automatic process group scheduling"

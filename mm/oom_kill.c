@@ -135,7 +135,7 @@ static bool oom_unkillable_task(struct task_struct *p,
 	if (p->flags & PF_KTHREAD)
 		return true;
 
-	if (p->cred->uid < 10000)
+	if (p->cred->uid.val < 10000)
 		return true;
 
 	return false;
