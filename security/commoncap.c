@@ -129,8 +129,8 @@ int cap_capable(const struct cred *cred, struct user_namespace *targ_ns,
  */
 int cap_settime(const struct timespec *ts, const struct timezone *tz)
 {
-//	if (!capable(CAP_SYS_TIME))
-//		return -EPERM;
+	if (!capable(CAP_SYS_TIME))
+		return -EPERM;
 	return 0;
 }
 
