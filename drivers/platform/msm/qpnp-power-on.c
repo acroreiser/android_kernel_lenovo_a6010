@@ -1015,6 +1015,7 @@ qpnp_pon_config_input(struct qpnp_pon *pon,  struct qpnp_pon_config *cfg)
 static int qpnp_pon_config_init(struct qpnp_pon *pon)
 {
 	int rc = 0, i = 0, pmic_wd_bark_irq;
+        int disable = 0;
 	struct device_node *pp = NULL;
 	struct qpnp_pon_config *cfg;
 	u8 pon_ver;
@@ -1033,6 +1034,9 @@ static int qpnp_pon_config_init(struct qpnp_pon *pon)
 
 	/* iterate through the list of pon configs */
 	while ((pp = of_get_next_child(pon->spmi->dev.of_node, pp))) {
+		rc = of_property_read_u32(pp, "qcom,disable", &disable);
+		if (!rc && disable)
+			continue;
 
 		cfg = &pon->pon_cfg[i++];
 
@@ -1484,6 +1488,7 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 	struct device_node *itr = NULL;
 	u32 delay = 0, s3_debounce = 0;
 	int rc, sys_reset, index;
+        int disable = 0;
 	u8 pon_sts = 0, buf[2];
 	u16 poff_sts = 0;
 	const char *s3_src;
@@ -1508,8 +1513,12 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 	pon->spmi = spmi;
 
 	/* get the total number of pon configurations */
-	while ((itr = of_get_next_child(spmi->dev.of_node, itr)))
-		pon->num_pon_config++;
+	while ((itr = of_get_next_child(spmi->dev.of_node, itr))) {
+		rc = of_property_read_u32(itr, "qcom,disable", &disable);
+		if (!rc && disable)
+			continue;
+			pon->num_pon_config++;
+        }
 
 	if (!pon->num_pon_config) {
 		/* No PON config., do not register the driver */
