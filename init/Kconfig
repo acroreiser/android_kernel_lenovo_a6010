@@ -1237,6 +1237,10 @@ config ANDROID_KILL_BUGGY_CAMERA
 	bool "WORKAROUND: kill known buggy camera apps after user leaving"
 	help
 		Currently kills Google Camera Go and Lineage OS Snap camera.
+
+config ANDROID_SHUTDOWN_SLEEP_HACK
+	bool "WORKAROUND: prevent going to deep sleep state during system shutdown"
+
 endmenu
 endif # ANDROID
 
