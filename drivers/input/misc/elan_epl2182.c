@@ -100,8 +100,6 @@ int als_report_count = 0;
 int dynamic_intt_idx;
 int dynamic_intt_init_idx = 2;	//initial dynamic_intt_idx
 
-unsigned int elan_epl_ps_state = 1;
-
 int c_gain = 72000;//42000; //default setting  //example : 42000/1000=42
 
 uint8_t dynamic_intt_intt;
@@ -520,26 +518,9 @@ static void elan_epl_ps_poll_rawdata(void)
 	epl_info("### ps_ch1_raw_data  (%d), value(%d) ###\n\n",
 		 gRawData.ps_ch1_raw, gRawData.ps_state);
 
-	elan_epl_ps_state = gRawData.ps_state;
-
 	//printk("xmm ps = %d\n",gRawData.ps_state);
 	input_report_abs(epld->ps_input_dev, ABS_DISTANCE, gRawData.ps_state);
 	input_sync(epld->ps_input_dev);
-}
-
-unsigned int elan_epl_ps_get_state(void)
-{
-	unsigned int i = 0;
-	struct elan_epl_data *epld = epl_data;
-	elan_sensor_psensor_enable(epld);
-	while(i < 5)
-	{
-		elan_epl_ps_poll_rawdata();
-		printk("elan_ps_status: %u\n", elan_epl_ps_state);
-		i++;
-	}
-
-	return elan_epl_ps_state;
 }
 
 #if DYNAMIC_INTT ///*DYNAMIC_INTT*/
@@ -687,6 +668,32 @@ static void elan_epl_als_rawdata(void)
 	input_report_abs(epld->als_input_dev, ABS_MISC, lux);
 	input_sync(epld->als_input_dev);
 #endif
+}
+
+unsigned int elan_epl_ls_get_lux_for_doubletap(void)
+{
+	struct elan_epl_data *epld = epl_data;
+	struct i2c_client *client = epld->client;
+	int i = 0;
+	int j = 0;
+
+	while (i < 3) {
+		elan_sensor_lsensor_enable(epld);
+		elan_epl_als_rawdata();
+		elan_sensor_I2C_Write(client, REG_9, W_SINGLE_BYTE, 0x02,
+				      EPL_INT_DISABLE);
+		elan_sensor_I2C_Write(client, REG_0, W_SINGLE_BYTE, 0X02,
+				      EPL_S_SENSING_MODE);
+
+		printk("elan_ls_status: %u\n", gRawData.als_lux);
+		if(gRawData.als_lux == 1152 || gRawData.als_lux == 71)
+			continue;
+
+		j += gRawData.als_lux;
+		i++;
+	}
+
+	return (j / 3);
 }
 
 /*
