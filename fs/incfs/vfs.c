@@ -780,8 +780,10 @@ static struct dentry *open_or_create_index_dir(struct dentry *backing_dir)
 	err = vfs_mkdir(backing_inode, index_dentry, 0777);
 	inode_unlock(backing_inode);
 
-	if (err)
+	if (err) {
+		dput(index_dentry);
 		return ERR_PTR(err);
+	}
 
 	if (!(index_dentry->d_inode != NULL)) {
 		dput(index_dentry);
