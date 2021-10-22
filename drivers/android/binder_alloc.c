@@ -28,12 +28,14 @@
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
+#include <linux/ratelimit.h>
 #include "binder_alloc.h"
 #include "binder_trace.h"
 
 static DEFINE_MUTEX(binder_alloc_mmap_lock);
 
 enum {
+	BINDER_DEBUG_USER_ERROR             = 1U << 0,
 	BINDER_DEBUG_OPEN_CLOSE             = 1U << 1,
 	BINDER_DEBUG_BUFFER_ALLOC           = 1U << 2,
 	BINDER_DEBUG_BUFFER_ALLOC_ASYNC     = 1U << 3,
@@ -46,7 +48,7 @@ module_param_named(debug_mask, binder_alloc_debug_mask,
 #define binder_alloc_debug(mask, x...) \
 	do { \
 		if (binder_alloc_debug_mask & mask) \
-			pr_info(x); \
+			pr_info_ratelimited(x); \
 	} while (0)
 
 static struct kmem_cache *binder_buffer_pool;
@@ -241,8 +243,9 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 
 	if (vma == NULL) {
 #ifndef CONFIG_BINDER_SHUT_UP
-		pr_err("%d: binder_alloc_buf failed to map pages in userspace, no vma\n",
-			alloc->pid);
+		binder_alloc_debug(BINDER_DEBUG_USER_ERROR,
+				   "%d: binder_alloc_buf failed to map pages in userspace, no vma\n",
+				   alloc->pid);
 #endif
 		goto err_no_vma;
 	}
@@ -374,8 +377,9 @@ struct binder_buffer *binder_alloc_new_buf_locked(struct binder_alloc *alloc,
 
 	if (alloc->vma == NULL) {
 #ifndef CONFIG_BINDER_SHUT_UP
-		pr_err("%d: binder_alloc_buf, no vma\n",
-		       alloc->pid);
+		binder_alloc_debug(BINDER_DEBUG_USER_ERROR,
+				   "%d: binder_alloc_buf, no vma\n",
+				   alloc->pid);
 #endif
 		return ERR_PTR(-ESRCH);
 	}
@@ -455,11 +459,14 @@ struct binder_buffer *binder_alloc_new_buf_locked(struct binder_alloc *alloc,
 				largest_free_size = buffer_size;
 		}
 #ifndef CONFIG_BINDER_SHUT_UP
-		pr_err("%d: binder_alloc_buf size %zd failed, no address space\n",
-			alloc->pid, size);
-		pr_err("allocated: %zd (num: %zd largest: %zd), free: %zd (num: %zd largest: %zd)\n",
-		       total_alloc_size, allocated_buffers, largest_alloc_size,
-		       total_free_size, free_buffers, largest_free_size);
+		binder_alloc_debug(BINDER_DEBUG_USER_ERROR,
+				   "%d: binder_alloc_buf size %zd failed, no address space\n",
+				   alloc->pid, size);
+		binder_alloc_debug(BINDER_DEBUG_USER_ERROR,
+				   "allocated: %zd (num: %zd largest: %zd), free: %zd (num: %zd largest: %zd)\n",
+				   total_alloc_size, allocated_buffers,
+				   largest_alloc_size, total_free_size,
+				   free_buffers, largest_free_size);
 #endif
 		return ERR_PTR(-ENOSPC);
 	}
@@ -806,8 +813,10 @@ err_get_vm_area_failed:
 err_already_mapped:
 	mutex_unlock(&binder_alloc_mmap_lock);
 #ifndef CONFIG_BINDER_SHUT_UP
-	pr_err("%s: %d %lx-%lx %s failed %d\n", __func__,
-	       alloc->pid, vma->vm_start, vma->vm_end, failure_string, ret);
+	binder_alloc_debug(BINDER_DEBUG_USER_ERROR,
+			   "%s: %d %lx-%lx %s failed %d\n", __func__,
+			   alloc->pid, vma->vm_start, vma->vm_end,
+			   failure_string, ret);
 #endif
 	return ret;
 }
