@@ -208,11 +208,13 @@ void mdss_mdp_release_splash_pipe(struct msm_fb_data_type *mfd)
  */
 void mdss_free_bootmem(u32 mem_addr, u32 size)
 {
+#ifndef CONFIG_ANDROID_MDSS_HACK_FOR_RECOVERY
 	unsigned long pfn_start, pfn_end, pfn_idx;
 	pfn_start = mem_addr >> PAGE_SHIFT;
 	pfn_end = (mem_addr + size) >> PAGE_SHIFT;
 	for (pfn_idx = pfn_start; pfn_idx < pfn_end; pfn_idx++)
 		free_reserved_page(pfn_to_page(pfn_idx));
+#endif
 }
 
 int mdss_mdp_splash_cleanup(struct msm_fb_data_type *mfd,
