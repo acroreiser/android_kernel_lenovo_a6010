@@ -1241,6 +1241,13 @@ config ANDROID_KILL_BUGGY_CAMERA
 config ANDROID_SHUTDOWN_SLEEP_HACK
 	bool "WORKAROUND: prevent going to deep sleep state during system shutdown"
 
+config ANDROID_MDSS_HACK_FOR_RECOVERY
+	bool "HACK: don't free reserved memory for splash logo"
+	default n
+	help
+		Use this only for recovery kernels!
+		Prevents kernel crash during booting recovery.
+
 endmenu
 endif # ANDROID
 
