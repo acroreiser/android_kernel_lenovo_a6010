@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2017,2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2017,2019,2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -195,7 +195,7 @@ kgsl_process_init_sysfs(struct kgsl_device *device,
 	unsigned char name[16];
 	int i, ret = 0;
 
-	snprintf(name, sizeof(name), "%d", private->pid);
+	snprintf(name, sizeof(name), "%d", pid_nr(private->pid));
 
 	ret = kobject_init_and_add(&private->kobj, &ktype_mem_entry,
 		kgsl_driver.prockobj, name);
