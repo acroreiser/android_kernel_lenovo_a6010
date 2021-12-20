@@ -673,7 +673,7 @@ static void binder_free_buf_locked(struct binder_alloc *alloc,
 	BUG_ON(buffer->data > alloc->buffer + alloc->buffer_size);
 
 	if (buffer->async_transaction) {
-		alloc->free_async_space += size + sizeof(struct binder_buffer);
+		alloc->free_async_space += buffer_size + sizeof(struct binder_buffer);
 
 #ifndef CONFIG_BINDER_SHUT_UP
 		binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC_ASYNC,
