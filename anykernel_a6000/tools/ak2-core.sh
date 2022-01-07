@@ -58,12 +58,6 @@ dump_boot()
 	mkdir /tmp/anykernel/persist
 	$bin/busybox mount -t ext4 /dev/block/mmcblk0p24  /tmp/anykernel/persist
 	rm -fr /tmp/anykernel/persist/infernal
-	mkdir /tmp/anykernel/persist/infernal
-	cp -af /tmp/anykernel/ramdisk/* /tmp/anykernel/persist/infernal;
-	chmod 0755 /tmp/anykernel/persist/infernal/sbin/*
-	chmod 0755 /tmp/anykernel/persist/infernal/*.sh
-	chmod 0755 /tmp/anykernel/persist/infernal
-
 	umount /tmp/anykernel/persist
 }
 
