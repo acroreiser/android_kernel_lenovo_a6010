@@ -1,8 +1,8 @@
 #!/bin/bash
 
-VERSION=0.8
+VERSION=0.9
 DEFCONFIG=lineageos_a6010_defconfig
-TOOLCHAIN=
+TOOLCHAIN=../../../prebuilts/gcc/linux-x86/arm/arm-eabi/bin/arm-len-linux-gnueabi-
 KCONFIG=false
 CUST_CONF=no
 BUILD_NUMBER=1
@@ -130,7 +130,7 @@ make_flashable()
 	cd $REPACK_PATH
 	KERNELNAME="Flashing $KERNEL_NAME"
 	sed -i "s;###kernelname###;${KERNELNAME};" META-INF/com/google/android/update-binary;
-	COPYRIGHT=$(echo '(c) acroreiser, 2021')
+	COPYRIGHT=$(echo '(c) acroreiser, 2022')
 	sed -i "s;###copyright###;${COPYRIGHT};" META-INF/com/google/android/update-binary;
 	BUILDINFO="Release ${BUILD_NUMBER}, $DATE"
 	sed -i "s;###buildinfo###;${BUILDINFO};" META-INF/com/google/android/update-binary;

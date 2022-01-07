@@ -5,7 +5,9 @@
 # Original and credits: osm0sis @ xda-developers
 #
 # Modified by Lord Boeffla, 30.06.2016
-
+#
+# Modified by acroreiser, 2019-2022
+#
 OUTFD=/proc/self/fd/$2;
 ZIP="$3";
 DIR=`dirname "$ZIP"`;
