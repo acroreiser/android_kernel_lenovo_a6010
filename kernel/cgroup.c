@@ -202,7 +202,7 @@ struct cgroup_event {
 #define CG_FG_APP 2
 #define CG_BG_APP 3
 #define CG_REST_APP 4
-unsigned int sysctl_tune_android_tasks = 1;
+unsigned int sysctl_tune_android_tasks = 3;
 #endif
 
 #ifdef CONFIG_ANDROID_DETECT_TOP_APP
