@@ -3603,17 +3603,6 @@ static BOOL BslProcessACLDataTx
 
 } // BslProcessACLDataTx()
 
-
-static inline void *hci_get_drvdata(struct hci_dev *hdev)
-{
-    return hdev->driver_data;
-}
-
-static inline void hci_set_drvdata(struct hci_dev *hdev, void *data)
-{
-    hdev->driver_data = data;
-}
-
 /*---------------------------------------------------------------------------
  *   Function definitions
  *-------------------------------------------------------------------------*/
