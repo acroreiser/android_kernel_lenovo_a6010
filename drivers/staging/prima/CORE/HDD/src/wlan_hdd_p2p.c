@@ -2772,7 +2772,9 @@ void __hdd_indicate_mgmt_frame(hdd_adapter_t *pAdapter,
     hdd_context_t *pHddCtx = NULL;
     VOS_STATUS status;
     hdd_remain_on_chan_ctx_t* pRemainChanCtx = NULL;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0))
     enum nl80211_rxmgmt_flags nl80211_flag = 0;
+#endif
 
     hddLog(VOS_TRACE_LEVEL_INFO, FL("Frame Type = %d Frame Length = %d"),
                      frameType, nFrameLength);
@@ -3026,10 +3028,11 @@ void __hdd_indicate_mgmt_frame(hdd_adapter_t *pAdapter,
                 pAdapter->hddWmmDscpToUpMap, pAdapter->sessionId);
         }
     }
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0))
     if (wlan_hdd_cfg80211_convert_rxmgmt_flags(rx_flags, &nl80211_flag))
         hddLog(LOG1, "Failed to convert RXMGMT flags :0x%x to nl80211 format",
                rx_flags);
+#endif
     //Indicate Frame Over Normal Interface
     hddLog( LOG1, FL("Indicate Frame over NL80211 Interface"));
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
