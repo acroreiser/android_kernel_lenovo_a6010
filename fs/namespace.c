@@ -45,6 +45,10 @@ static struct list_head *mountpoint_hashtable __read_mostly;
 static struct kmem_cache *mnt_cache __read_mostly;
 static struct rw_semaphore namespace_sem;
 
+#ifdef CONFIG_ANDROID_TREBLE_MOUNT_LEGACY_LINKERCONFIG
+static unsigned int shot = 0;
+#endif
+
 /* /sys/fs */
 struct kobject *fs_kobj;
 EXPORT_SYMBOL_GPL(fs_kobj);
@@ -2418,6 +2422,10 @@ long do_mount(const char *dev_name, const char *dir_name,
 		const char *type_page, unsigned long flags, void *data_page)
 {
 	struct path path;
+#ifdef CONFIG_ANDROID_TREBLE_MOUNT_LEGACY_LINKERCONFIG
+	struct path path2;
+	unsigned long flags2;
+#endif
 	int retval = 0;
 	int mnt_flags = 0;
 
@@ -2494,6 +2502,17 @@ long do_mount(const char *dev_name, const char *dir_name,
 		retval = do_move_mount(&path, dev_name);
 	else
 	{
+#ifdef CONFIG_ANDROID_TREBLE_MOUNT_LEGACY_LINKERCONFIG
+		if((!strncmp("/apex", dir_name, 5)) && shot == 0)
+		{
+			flags2 |= MS_BIND;
+			kern_path("/system/bin/linkerconfig", LOOKUP_FOLLOW, &path2);
+			do_loopback(&path2, "/vendor/bin/linkerconfig-legacy", flags2 & MS_REC);
+			path_put(&path2);
+			shot = 1;
+		}
+#endif
+
 		retval = do_new_mount(&path, type_page, flags, mnt_flags,
 				      dev_name, data_page);
 	}
