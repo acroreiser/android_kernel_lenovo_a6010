@@ -1248,6 +1248,12 @@ config ANDROID_MDSS_HACK_FOR_RECOVERY
 		Use this only for recovery kernels!
 		Prevents kernel crash during booting recovery.
 
+config ANDROID_TREBLE_MOUNT_LEGACY_LINKERCONFIG
+	bool "TREBLE: mount legacy linkerconfig from vendor on /system/bin/linkerconfig"
+	help
+		Needed to boot up GSI.
+		Use this only for Project Treble purposes.
+
 endmenu
 endif # ANDROID
 
