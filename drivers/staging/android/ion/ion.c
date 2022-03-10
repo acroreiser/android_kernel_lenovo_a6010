@@ -1260,8 +1260,9 @@ static void ion_dma_buf_kunmap(struct dma_buf *dmabuf, unsigned long offset,
 
 }
 
-static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
-					enum dma_data_direction direction)
+static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf, size_t start,
+				       size_t len,
+				       enum dma_data_direction direction)
 {
 	return 0;
 }
@@ -1270,7 +1271,7 @@ static void ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf, size_t start,
 				       size_t len,
 				       enum dma_data_direction direction)
 {
-	return 0;
+	return;
 }
 
 static struct dma_buf_ops dma_buf_ops = {
