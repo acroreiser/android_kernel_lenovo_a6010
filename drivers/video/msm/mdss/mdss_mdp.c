@@ -64,8 +64,6 @@ EXPORT_SYMBOL(mdp_drm_intr_mask);
 #define AXI_HALT_TIMEOUT_US	0x4000
 #define AUTOSUSPEND_TIMEOUT_MS	50
 
-#define AUTOSUSPEND_TIMEOUT_MS	200
-
 struct mdss_data_type *mdss_res;
 
 static int mdss_fb_mem_get_iommu_domain(void)
