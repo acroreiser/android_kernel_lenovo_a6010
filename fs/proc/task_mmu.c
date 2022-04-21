@@ -1287,6 +1287,13 @@ const struct file_operations proc_pagemap_operations = {
 #endif /* CONFIG_PROC_PAGE_MONITOR */
 
 #if defined(CONFIG_PROCESS_RECLAIM) || defined(CONFIG_BACKGROUND_PROCESS_RECLAIM)
+enum reclaim_type {
+	RECLAIM_FILE,
+	RECLAIM_ANON,
+	RECLAIM_ALL,
+	RECLAIM_RANGE,
+};
+
 static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 				unsigned long end, struct mm_walk *walk)
 {
@@ -1298,6 +1305,7 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 	LIST_HEAD(page_list);
 	int isolated;
 	int reclaimed;
+	int type;
 
 	split_huge_page_pmd(vma, addr, pmd);
 	if (pmd_trans_unstable(pmd) || !rp->nr_to_reclaim)
@@ -1313,6 +1321,9 @@ cont:
 		page = vm_normal_page(vma, addr, ptent);
 		if (!page)
 			continue;
+
+		if (type != RECLAIM_ANON && vma->vm_file)
+			deactivate_page(page);
 
 		if (isolate_lru_page(page))
 			continue;
@@ -1340,13 +1351,6 @@ cont:
 }
 #endif
 #ifdef CONFIG_PROCESS_RECLAIM
-
-enum reclaim_type {
-	RECLAIM_FILE,
-	RECLAIM_ANON,
-	RECLAIM_ALL,
-	RECLAIM_RANGE,
-};
 
 struct reclaim_param reclaim_task_anon(struct task_struct *task,
 		int nr_to_reclaim)
@@ -1469,6 +1473,7 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 
 	rp.nr_to_reclaim = ~0;
 	rp.nr_reclaimed = 0;
+	rp.type = type;
 	reclaim_walk.private = &rp;
 
 	down_read(&mm->mmap_sem);
