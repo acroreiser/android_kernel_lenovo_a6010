@@ -84,7 +84,7 @@ ENTRY(tegra_sleep_cpu_finish)
 	add	r3, r3, r0
 	mov	r0, r1
 
-	ret	r3
+	mov	pc, r3
 ENDPROC(tegra_sleep_cpu_finish)
 
 /*
@@ -110,7 +110,7 @@ ENTRY(tegra_shut_off_mmu)
 	mov	r5, #0
 	str	r5, [r4, #L2X0_CTRL]
 #endif
-	ret	r0
+	mov	pc, r0
 ENDPROC(tegra_shut_off_mmu)
 	.popsection
 
@@ -127,6 +127,6 @@ ENTRY(tegra_switch_cpu_to_pllp)
 	str	r0, [r5, #CLK_RESET_CCLK_BURST]
 	mov	r0, #0
 	str	r0, [r5, #CLK_RESET_CCLK_DIVIDER]
-	ret	lr
+	mov	pc, lr
 ENDPROC(tegra_switch_cpu_to_pllp)
 #endif

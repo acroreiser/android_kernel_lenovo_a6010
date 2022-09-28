@@ -35,5 +35,5 @@
 \symbol_name:
 	mov	r8, lr
 	arch_irq_handler_default
-	ret	r8
+	mov     pc, r8
 	.endm

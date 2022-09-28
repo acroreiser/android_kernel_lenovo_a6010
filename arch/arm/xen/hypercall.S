@@ -58,7 +58,7 @@
 ENTRY(HYPERVISOR_##hypercall)			\
 	mov r12, #__HYPERVISOR_##hypercall;	\
 	__HVC(XEN_IMM);						\
-	ret lr;					\
+	mov pc, lr;							\
 ENDPROC(HYPERVISOR_##hypercall)
 
 #define HYPERCALL0 HYPERCALL_SIMPLE
@@ -74,7 +74,7 @@ ENTRY(HYPERVISOR_##hypercall)			\
 	mov r12, #__HYPERVISOR_##hypercall;	\
 	__HVC(XEN_IMM);						\
 	ldm sp!, {r4}						\
-	ret lr					\
+	mov pc, lr							\
 ENDPROC(HYPERVISOR_##hypercall)
 
                 .text
@@ -101,5 +101,5 @@ ENTRY(privcmd_call)
 	ldr r4, [sp, #4]
 	__HVC(XEN_IMM)
 	ldm sp!, {r4}
-	ret lr
+	mov pc, lr
 ENDPROC(privcmd_call);

@@ -10,7 +10,6 @@
  * published by the Free Software Foundation.
  *
  */
-#include <asm/assembler.h>
 
 #define ATAG_CORE 0x54410001
 #define ATAG_CORE_SIZE ((2*4 + 3*4) >> 2)
@@ -62,10 +61,10 @@ __vet_atags:
 	cmp	r5, r6
 	bne	1f
 
-2:	ret	lr				@ atag/dtb pointer is ok
+2:	mov	pc, lr				@ atag/dtb pointer is ok
 
 1:	mov	r2, #0
-	ret	lr
+	mov	pc, lr
 ENDPROC(__vet_atags)
 
 /*
@@ -165,7 +164,7 @@ __lookup_processor_type:
 	cmp	r5, r6
 	blo	1b
 	mov	r5, #0				@ unknown processor
-2:	ret	lr
+2:	mov	pc, lr
 ENDPROC(__lookup_processor_type)
 
 /*
