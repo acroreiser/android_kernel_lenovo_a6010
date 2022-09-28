@@ -12,7 +12,6 @@
  */
 #include <linux/linkage.h>
 #include <linux/init.h>
-#include <asm/assembler.h>
 #include <asm/memory.h>
 
 	__CPUINIT

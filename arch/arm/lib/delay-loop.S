@@ -35,7 +35,7 @@ ENTRY(__loop_const_udelay)			@ 0 <= r0 <= 0x7fffff06
 		mul	r0, r2, r0		@ max = 2^32-1
 		add	r0, r0, r1, lsr #32-6
 		movs	r0, r0, lsr #6
-		reteq	lr
+		moveq	pc, lr
 
 /*
  * loops = r0 * HZ * loops_per_jiffy / 1000000
@@ -45,23 +45,23 @@ ENTRY(__loop_const_udelay)			@ 0 <= r0 <= 0x7fffff06
 ENTRY(__loop_delay)
 		subs	r0, r0, #1
 #if 0
-		retls	lr
+		movls	pc, lr
 		subs	r0, r0, #1
-		retls	lr
+		movls	pc, lr
 		subs	r0, r0, #1
-		retls	lr
+		movls	pc, lr
 		subs	r0, r0, #1
-		retls	lr
+		movls	pc, lr
 		subs	r0, r0, #1
-		retls	lr
+		movls	pc, lr
 		subs	r0, r0, #1
-		retls	lr
+		movls	pc, lr
 		subs	r0, r0, #1
-		retls	lr
+		movls	pc, lr
 		subs	r0, r0, #1
 #endif
 		bhi	__loop_delay
-		ret	lr
+		mov	pc, lr
 ENDPROC(__loop_udelay)
 ENDPROC(__loop_const_udelay)
 ENDPROC(__loop_delay)

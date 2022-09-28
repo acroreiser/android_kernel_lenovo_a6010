@@ -51,5 +51,5 @@ ENTRY(ll_set_cpu_coherent)
 	dsb
 
 	mov	r0, #0
-	ret	lr
+	mov	pc, lr
 ENDPROC(ll_set_cpu_coherent)

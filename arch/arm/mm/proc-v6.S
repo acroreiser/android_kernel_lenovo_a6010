@@ -36,14 +36,14 @@
 #define PMD_FLAGS_SMP	PMD_SECT_WBWA|PMD_SECT_S
 
 ENTRY(cpu_v6_proc_init)
-	ret	lr
+	mov	pc, lr
 
 ENTRY(cpu_v6_proc_fin)
 	mrc	p15, 0, r0, c1, c0, 0		@ ctrl register
 	bic	r0, r0, #0x1000			@ ...i............
 	bic	r0, r0, #0x0006			@ .............ca.
 	mcr	p15, 0, r0, c1, c0, 0		@ disable caches
-	ret	lr
+	mov	pc, lr
 
 /*
  *	cpu_v6_reset(loc)
@@ -62,7 +62,7 @@ ENTRY(cpu_v6_reset)
 	mcr	p15, 0, r1, c1, c0, 0		@ disable MMU
 	mov	r1, #0
 	mcr	p15, 0, r1, c7, c5, 4		@ ISB
-	ret	r0
+	mov	pc, r0
 ENDPROC(cpu_v6_reset)
 	.popsection
 
@@ -77,14 +77,14 @@ ENTRY(cpu_v6_do_idle)
 	mov	r1, #0
 	mcr	p15, 0, r1, c7, c10, 4		@ DWB - WFI may enter a low-power mode
 	mcr	p15, 0, r1, c7, c0, 4		@ wait for interrupt
-	ret	lr
+	mov	pc, lr
 
 ENTRY(cpu_v6_dcache_clean_area)
 1:	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 	add	r0, r0, #D_CACHE_LINE_SIZE
 	subs	r1, r1, #D_CACHE_LINE_SIZE
 	bhi	1b
-	ret	lr
+	mov	pc, lr
 
 /*
  *	cpu_v6_switch_mm(pgd_phys, tsk)
@@ -113,7 +113,7 @@ ENTRY(cpu_v6_switch_mm)
 #endif
 	mcr	p15, 0, r1, c13, c0, 1		@ set context ID
 #endif
-	ret	lr
+	mov	pc, lr
 
 /*
  *	cpu_v6_set_pte_ext(ptep, pte, ext)
@@ -131,7 +131,7 @@ ENTRY(cpu_v6_set_pte_ext)
 #ifdef CONFIG_MMU
 	armv6_set_pte_ext cpu_v6
 #endif
-	ret	lr
+	mov	pc, lr
 
 /* Suspend/resume support: taken from arch/arm/mach-s3c64xx/sleep.S */
 .globl	cpu_v6_suspend_size
@@ -241,7 +241,7 @@ __v6_setup:
 	mcreq	p15, 0, r5, c1, c0, 1		@ write aux control reg
 	orreq	r0, r0, #(1 << 21)		@ low interrupt latency configuration
 #endif
-	ret	lr				@ return to head.S:__ret
+	mov	pc, lr				@ return to head.S:__ret
 
 	/*
 	 *         V X F   I D LR
