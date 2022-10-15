@@ -68,9 +68,23 @@ static inline void uts_proc_notify(enum uts_proc proc)
 }
 #endif
 
+#ifdef CONFIG_ANDROID_TREBLE_SPOOF_KERNEL_VERSION
+static struct new_utsname utsname_spoofed;
+#endif
 static inline struct new_utsname *utsname(void)
 {
+#ifdef CONFIG_ANDROID_TREBLE_SPOOF_KERNEL_VERSION
+	char fake_release_prepended[64];
+
+	strcpy(fake_release_prepended, "3.18-");
+	strcat(fake_release_prepended, current->nsproxy->uts_ns->name.release);
+	utsname_spoofed = current->nsproxy->uts_ns->name;
+	strcpy(utsname_spoofed.release, fake_release_prepended);
+
+	return &utsname_spoofed;
+#else
 	return &current->nsproxy->uts_ns->name;
+#endif
 }
 
 static inline struct new_utsname *init_utsname(void)
