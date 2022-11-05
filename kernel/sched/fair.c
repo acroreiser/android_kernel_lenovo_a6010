@@ -1663,6 +1663,10 @@ int power_delta_exceeded(unsigned int cpu_cost, unsigned int base_cost)
 	return abs(delta) > cost_limit;
 }
 
+#ifndef CONFIG_SCHED_FREQ_INPUT
+DEFINE_PER_CPU(struct freq_max_load *, freq_max_load);
+#endif
+
 unsigned int power_cost_at_freq(int cpu, unsigned int freq)
 {
 	int i = 0;
