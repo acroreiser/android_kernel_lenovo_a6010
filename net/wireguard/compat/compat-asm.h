@@ -27,14 +27,6 @@
 #define ENTRY RAP_ENTRY
 #endif
 
-#if defined(__LINUX_ARM_ARCH__) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0)
-#include <asm/assembler.h>
-#define lspush push
-#define lspull pull
-#undef push
-#undef pull
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 76) && !defined(ISRHEL8) && !defined(SYM_FUNC_START)
 #define SYM_FUNC_START ENTRY
 #define SYM_FUNC_END ENDPROC
