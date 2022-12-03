@@ -19764,54 +19764,6 @@ static int wlan_hdd_cfg80211_add_station(struct wiphy *wiphy,
     return ret;
 }
 
-#if defined(WLAN_FEATURE_SAE) && \
-		defined(CFG80211_EXTERNAL_AUTH_SUPPORT)
-/*
- * wlan_hdd_is_pmksa_valid: API to validate pmksa
- * @pmksa: pointer to cfg80211_pmksa structure
- *
- * Return: True if valid else false
- */
-static inline bool wlan_hdd_is_pmksa_valid(struct cfg80211_pmksa *pmksa)
-{
-    if (pmksa->bssid){
-        return true;
-    }
-    else
-    {
-        hddLog(LOGE, FL(" Either of  bssid (%p) is NULL"), pmksa->bssid);
-        return false;
-    }
-}
-
-/*
- * hdd_update_pmksa_info: API to update tPmkidCacheInfo from cfg80211_pmksa
- * @pmk_cache: pmksa from supplicant
- * @pmk_cache: pmk needs to be updated
- *
- * Return: None
- */
-static void hdd_update_pmksa_info(tPmkidCacheInfo *pmk_cache,
-        struct cfg80211_pmksa *pmksa, bool is_delete)
-{
-    if (pmksa->bssid) {
-        hddLog(VOS_TRACE_LEVEL_DEBUG,"set PMKSA for " MAC_ADDRESS_STR,
-                MAC_ADDR_ARRAY(pmksa->bssid));
-        vos_mem_copy(pmk_cache->BSSID,
-               pmksa->bssid, VOS_MAC_ADDR_SIZE);
-    }
-
-    if (is_delete)
-        return;
-
-    vos_mem_copy(pmk_cache->PMKID, pmksa->pmkid, CSR_RSN_PMKID_SIZE);
-    if (pmksa->pmk_len && (pmksa->pmk_len <= CSR_RSN_MAX_PMK_LEN)) {
-        vos_mem_copy(pmk_cache->pmk, pmksa->pmk, pmksa->pmk_len);
-        pmk_cache->pmk_len = pmksa->pmk_len;
-    } else
-        hddLog(VOS_TRACE_LEVEL_INFO, "pmk len is %zu", pmksa->pmk_len);
-}
-#else
 /*
  * wlan_hdd_is_pmksa_valid: API to validate pmksa
  * @pmksa: pointer to cfg80211_pmksa structure
@@ -19847,7 +19799,6 @@ static void hdd_update_pmksa_info(tPmkidCacheInfo *pmk_cache,
 
     vos_mem_copy(pmk_cache->PMKID, pmksa->pmkid, CSR_RSN_PMKID_SIZE);
 }
-#endif
 
 #ifdef FEATURE_WLAN_LFR
 
