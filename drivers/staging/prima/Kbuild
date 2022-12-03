@@ -23,7 +23,7 @@ CONFIG_PRIMA_WLAN_LFR := y
 CONFIG_WLAN_FEATURE_SAE := y
 
 # Flag to enable OWE
-CONFIG_WLAN_AKM_SUITE_OWE := n
+CONFIG_WLAN_AKM_SUITE_OWE := y
 
 # Flag to enable Legacy Fast Roaming(LFR) Make Before Break
 CONFIG_PRIMA_WLAN_LFR_MBB := y
