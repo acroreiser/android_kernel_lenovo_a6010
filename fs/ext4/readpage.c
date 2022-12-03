@@ -291,7 +291,7 @@ int ext4_mpage_readpages(struct address_space *mapping,
 				goto set_error_page;
 			}
 			bio->bi_bdev = bdev;
-			bio->bi_iter.bi_sector = blocks[0] << (blkbits - 9);
+			bio->bi_sector = blocks[0] << (blkbits - 9);
 			bio->bi_end_io = mpage_end_io;
 			bio->bi_private = ctx;
 		}

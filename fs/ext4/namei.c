@@ -1391,7 +1391,7 @@ static struct buffer_head * ext4_find_entry (struct inode *dir,
 		 * return.  Otherwise, fall back to doing a search the
 		 * old fashioned way.
 		 */
-		if (ret || (ret != ERR_BAD_DX_DIR))
+		if (ret || (err != ERR_BAD_DX_DIR))
 			goto cleanup_and_exit;
 		dxtrace(printk(KERN_DEBUG "ext4_find_entry: dx failed, "
 			       "falling back\n"));
@@ -1571,6 +1571,8 @@ static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, unsi
 		return ERR_PTR(-ENAMETOOLONG);
 
 	bh = ext4_find_entry(dir, &dentry->d_name, &de, NULL);
+	if (IS_ERR(bh))
+		return (struct dentry *) bh;
 	inode = NULL;
 	if (bh) {
 		__u32 ino = le32_to_cpu(de->inode);
@@ -1826,7 +1828,7 @@ int ext4_find_dest_de(struct inode *dir, struct inode *inode,
 	while ((char *) de <= top) {
 		if (ext4_check_dir_entry(dir, NULL, de, bh,
 					 buf, buf_size, offset))
-			return -EFSCORRUPTED;
+			return -EIO;
 		if (ext4_match(fname, de))
 			return -EEXIST;
 		nlen = EXT4_DIR_REC_LEN(de->name_len);
