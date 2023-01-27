@@ -994,7 +994,7 @@ void hdd_remainChanReadyHandler( hdd_adapter_t *pAdapter )
                              pRemainChanCtx->action_pkt_buff.frame_ptr,
                              pRemainChanCtx->action_pkt_buff.frame_length,
                              NL80211_RXMGMT_FLAG_ANSWERED);
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0))
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
             cfg80211_rx_mgmt(pAdapter->dev->ieee80211_ptr,
                              pRemainChanCtx->action_pkt_buff.freq, 0,
                              pRemainChanCtx->action_pkt_buff.frame_ptr,
@@ -3067,7 +3067,7 @@ void __hdd_indicate_mgmt_frame(hdd_adapter_t *pAdapter,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
     cfg80211_rx_mgmt(pAdapter->dev->ieee80211_ptr, freq, rxRssi * 100, pbFrames,
                      nFrameLength, NL80211_RXMGMT_FLAG_ANSWERED | nl80211_flag);
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0))
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
     cfg80211_rx_mgmt(pAdapter->dev->ieee80211_ptr, freq, rxRssi * 100, pbFrames,
                      nFrameLength, NL80211_RXMGMT_FLAG_ANSWERED, GFP_ATOMIC);
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
