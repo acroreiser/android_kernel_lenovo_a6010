@@ -17,9 +17,6 @@
 #include <linux/device.h>
 #include <linux/ctype.h>
 #include <linux/leds.h>
-#include <linux/wakelock.h>
-
-static struct wake_lock ledtrig_wakelock;
 
 static ssize_t led_delay_on_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -91,8 +88,6 @@ static void timer_trig_activate(struct led_classdev *led_cdev)
 		      &led_cdev->blink_delay_off);
 	led_cdev->activated = true;
 
-	wake_lock(&ledtrig_wakelock);
-
 	return;
 
 err_out_delayon:
@@ -109,8 +104,6 @@ static void timer_trig_deactivate(struct led_classdev *led_cdev)
 
 	/* Stop blinking */
 	led_set_brightness(led_cdev, LED_OFF);
-
-	wake_unlock(&ledtrig_wakelock);
 }
 
 static struct led_trigger timer_led_trigger = {
@@ -121,13 +114,11 @@ static struct led_trigger timer_led_trigger = {
 
 static int __init timer_trig_init(void)
 {
-	wake_lock_init(&ledtrig_wakelock, WAKE_LOCK_SUSPEND, "ledtrig_timer_wakelock");
 	return led_trigger_register(&timer_led_trigger);
 }
 
 static void __exit timer_trig_exit(void)
 {
-	wake_lock_destroy(&ledtrig_wakelock);
 	led_trigger_unregister(&timer_led_trigger);
 }
 
