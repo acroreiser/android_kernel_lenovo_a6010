@@ -685,7 +685,7 @@ unsigned int elan_epl_ls_get_lux_for_doubletap(void)
 		elan_sensor_I2C_Write(client, REG_0, W_SINGLE_BYTE, 0X02,
 				      EPL_S_SENSING_MODE);
 
-		printk("elan_ls_status: %u\n", gRawData.als_lux);
+//		printk("elan_ls_status: %u\n", gRawData.als_lux);
 		if(gRawData.als_lux == 1152 || gRawData.als_lux == 71)
 			continue;
 
