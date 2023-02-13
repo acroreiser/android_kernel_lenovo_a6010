@@ -27,6 +27,7 @@
 #include <linux/freezer.h>
 #include <linux/random.h>
 #include <linux/pm_qos.h>
+#include <linux/wake_gestures.h>
 
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
@@ -4662,7 +4663,8 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 	if (deny_new_usb) {
 		dev_err(hub_dev, "denied insert of USB device on port %d\n", port1);
 		goto done;
-	}
+	} else
+		set_vibrate(62);
 
 	if (hub_is_superspeed(hub->hdev))
 		unit_load = 150;
