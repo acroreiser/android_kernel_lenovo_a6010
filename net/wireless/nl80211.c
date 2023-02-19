@@ -7799,7 +7799,7 @@ static int nl80211_set_power_save(struct sk_buff *skb, struct genl_info *info)
 	if (!rdev->ops->set_power_mgmt)
 		return -EOPNOTSUPP;
 
-	state = false;
+	state = (ps_state == NL80211_PS_ENABLED) ? true : false;
 
 	if (state == wdev->ps)
 		return 0;
