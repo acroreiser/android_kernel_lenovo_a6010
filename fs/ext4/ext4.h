@@ -619,6 +619,7 @@ enum {
 #define EXT4_ENCRYPTION_MODE_AES_256_CTS	4
 #define EXT4_ENCRYPTION_MODE_SPECK128_256_XTS	7
 #define EXT4_ENCRYPTION_MODE_SPECK128_256_CTS	8
+#define EXT4_ENCRYPTION_MODE_ADIANTUM		9
 
 #include "ext4_crypto.h"
 
@@ -2166,7 +2167,6 @@ int ext4_get_policy(struct inode *inode,
 /* crypto.c */
 extern struct kmem_cache *ext4_crypt_info_cachep;
 bool ext4_valid_enc_modes(uint32_t contents_mode, uint32_t filenames_mode);
-uint32_t ext4_validate_encryption_key_size(uint32_t mode, uint32_t size);
 extern struct workqueue_struct *ext4_read_workqueue;
 struct ext4_crypto_ctx *ext4_get_crypto_ctx(struct inode *inode,
 					    gfp_t gfp_flags);

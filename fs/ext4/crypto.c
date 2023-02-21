@@ -255,6 +255,16 @@ typedef enum {
 	EXT4_ENCRYPT,
 } ext4_direction_t;
 
+void ext4_crypt_generate_iv(union ext4_crypt_iv *iv, pgoff_t index,
+			 const struct ext4_crypt_info *ci)
+{
+	memset(iv, 0, ci->ci_mode->ivsize);
+	iv->index = index;
+
+	if (ci->ci_flags & EXT4_POLICY_FLAG_DIRECT_KEY)
+		memcpy(iv->nonce, ci->ci_nonce, EXT4_KEY_DERIVATION_NONCE_SIZE);
+}
+
 static int ext4_page_crypto(struct inode *inode,
 			    ext4_direction_t rw,
 			    pgoff_t index,
@@ -263,13 +273,15 @@ static int ext4_page_crypto(struct inode *inode,
 			    gfp_t gfp_flags)
 
 {
-	u8 xts_tweak[EXT4_XTS_TWEAK_SIZE];
+	union ext4_crypt_iv iv;
 	struct ablkcipher_request *req = NULL;
 	DECLARE_EXT4_COMPLETION_RESULT(ecr);
 	struct scatterlist dst, src;
 	struct ext4_crypt_info *ci = EXT4_I(inode)->i_crypt_info;
 	struct crypto_ablkcipher *tfm = ci->ci_ctfm;
 	int res = 0;
+
+	ext4_crypt_generate_iv(&iv, index, ci);
 
 	req = ablkcipher_request_alloc(tfm, gfp_flags);
 	if (!req) {
@@ -282,17 +294,12 @@ static int ext4_page_crypto(struct inode *inode,
 		req, CRYPTO_TFM_REQ_MAY_BACKLOG | CRYPTO_TFM_REQ_MAY_SLEEP,
 		ext4_crypt_complete, &ecr);
 
-	BUILD_BUG_ON(EXT4_XTS_TWEAK_SIZE < sizeof(index));
-	memcpy(xts_tweak, &index, sizeof(index));
-	memset(&xts_tweak[sizeof(index)], 0,
-	       EXT4_XTS_TWEAK_SIZE - sizeof(index));
-
 	sg_init_table(&dst, 1);
 	sg_set_page(&dst, dest_page, PAGE_CACHE_SIZE, 0);
 	sg_init_table(&src, 1);
 	sg_set_page(&src, src_page, PAGE_CACHE_SIZE, 0);
 	ablkcipher_request_set_crypt(req, &src, &dst, PAGE_CACHE_SIZE,
-				     xts_tweak);
+				     &iv);
 	if (rw == EXT4_DECRYPT)
 		res = crypto_ablkcipher_decrypt(req);
 	else
@@ -465,21 +472,10 @@ bool ext4_valid_enc_modes(uint32_t contents_mode, uint32_t filenames_mode)
 	if (contents_mode == EXT4_ENCRYPTION_MODE_SPECK128_256_XTS)
 		return filenames_mode == EXT4_ENCRYPTION_MODE_SPECK128_256_CTS;
 
-	return false;
-}
+	if (contents_mode == EXT4_ENCRYPTION_MODE_ADIANTUM)
+		return filenames_mode == EXT4_ENCRYPTION_MODE_ADIANTUM;
 
-/**
- * ext4_validate_encryption_key_size() - Validate the encryption key size
- * @mode: The key mode.
- * @size: The key size to validate.
- *
- * Return: The validated key size for @mode. Zero if invalid.
- */
-uint32_t ext4_validate_encryption_key_size(uint32_t mode, uint32_t size)
-{
-	if (size == ext4_encryption_key_size(mode))
-		return size;
-	return 0;
+	return false;
 }
 
 /*
