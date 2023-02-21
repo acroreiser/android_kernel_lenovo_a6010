@@ -64,8 +64,8 @@ static int ext4_fname_encrypt(struct inode *inode,
 	DECLARE_EXT4_COMPLETION_RESULT(ecr);
 	struct ext4_crypt_info *ci = EXT4_I(inode)->i_crypt_info;
 	struct crypto_ablkcipher *tfm = ci->ci_ctfm;
+	union ext4_crypt_iv iv;
 	int res = 0;
-	char iv[EXT4_CRYPTO_BLOCK_SIZE];
 	struct scatterlist src_sg, dst_sg;
 	int padding = 4 << (ci->ci_flags & EXT4_POLICY_FLAGS_PAD_MASK);
 	char *workbuf, buf[32], *alloc_buf = NULL;
@@ -107,12 +107,12 @@ static int ext4_fname_encrypt(struct inode *inode,
 		memset(workbuf + iname->len, 0, ciphertext_len - iname->len);
 
 	/* Initialize IV */
-	memset(iv, 0, EXT4_CRYPTO_BLOCK_SIZE);
+	ext4_crypt_generate_iv(&iv, 0, ci);
 
 	/* Create encryption request */
 	sg_init_one(&src_sg, workbuf, ciphertext_len);
 	sg_init_one(&dst_sg, oname->name, ciphertext_len);
-	ablkcipher_request_set_crypt(req, &src_sg, &dst_sg, ciphertext_len, iv);
+	ablkcipher_request_set_crypt(req, &src_sg, &dst_sg, ciphertext_len, &iv);
 	res = crypto_ablkcipher_encrypt(req);
 	if (res == -EINPROGRESS || res == -EBUSY) {
 		wait_for_completion(&ecr.completion);
@@ -145,8 +145,8 @@ static int ext4_fname_decrypt(struct inode *inode,
 	struct scatterlist src_sg, dst_sg;
 	struct ext4_crypt_info *ci = EXT4_I(inode)->i_crypt_info;
 	struct crypto_ablkcipher *tfm = ci->ci_ctfm;
+	union ext4_crypt_iv iv;
 	int res = 0;
-	char iv[EXT4_CRYPTO_BLOCK_SIZE];
 	unsigned lim = max_name_len(inode);
 
 	if (iname->len <= 0 || iname->len > lim)
@@ -168,12 +168,12 @@ static int ext4_fname_decrypt(struct inode *inode,
 		ext4_dir_crypt_complete, &ecr);
 
 	/* Initialize IV */
-	memset(iv, 0, EXT4_CRYPTO_BLOCK_SIZE);
+	ext4_crypt_generate_iv(&iv, 0, ci);
 
 	/* Create encryption request */
 	sg_init_one(&src_sg, iname->name, iname->len);
 	sg_init_one(&dst_sg, oname->name, oname->len);
-	ablkcipher_request_set_crypt(req, &src_sg, &dst_sg, iname->len, iv);
+	ablkcipher_request_set_crypt(req, &src_sg, &dst_sg, iname->len, &iv);
 	res = crypto_ablkcipher_decrypt(req);
 	if (res == -EINPROGRESS || res == -EBUSY) {
 		wait_for_completion(&ecr.completion);

@@ -32,7 +32,8 @@ struct ext4_encryption_policy {
 #define EXT4_POLICY_FLAGS_PAD_16	0x02
 #define EXT4_POLICY_FLAGS_PAD_32	0x03
 #define EXT4_POLICY_FLAGS_PAD_MASK	0x03
-#define EXT4_POLICY_FLAGS_VALID		0x03
+#define EXT4_POLICY_FLAG_DIRECT_KEY	0x04	/* use master key directly */
+#define EXT4_POLICY_FLAGS_VALID		0x07
 
 /**
  * Encryption context for inode
@@ -55,13 +56,9 @@ struct ext4_encryption_context {
 } __attribute__((__packed__));
 
 /* Encryption parameters */
-#define EXT4_XTS_TWEAK_SIZE 16
-#define EXT4_AES_128_ECB_KEY_SIZE 16
-#define EXT4_AES_256_GCM_KEY_SIZE 32
-#define EXT4_AES_256_CBC_KEY_SIZE 32
-#define EXT4_AES_256_CTS_KEY_SIZE 32
-#define EXT4_AES_256_XTS_KEY_SIZE 64
 #define EXT4_MAX_KEY_SIZE 64
+#define EXT4_AES_128_ECB_KEY_SIZE 16
+#define EXT4_AES_256_XTS_KEY_SIZE 64
 
 #define EXT4_KEY_DESC_PREFIX "ext4:"
 #define EXT4_KEY_DESC_PREFIX_SIZE 5
@@ -74,12 +71,30 @@ struct ext4_encryption_key {
 } __attribute__((__packed__));
 
 struct ext4_crypt_info {
+
+	/* The actual crypto transform used for encryption and decryption */
+	struct crypto_ablkcipher *ci_ctfm;
+
+	/*
+	 * Encryption mode used for this inode.  It corresponds to either
+	 * ci_data_mode or ci_filename_mode, depending on the inode type.
+	 */
+	struct ext4_crypt_mode *ci_mode;
+
+	/*
+	 * If non-NULL, then this inode uses a master key directly rather than a
+	 * derived key, and ci_ctfm will equal ci_master_key->mk_ctfm.
+	 * Otherwise, this inode uses a derived key.
+	 */
+	struct ext4_crypt_master_key *ci_master_key;
+
+	/* fields from the ext4_crypt_context */
 	char		ci_data_mode;
 	char		ci_filename_mode;
 	char		ci_flags;
-	struct crypto_ablkcipher *ci_ctfm;
 	struct key	*ci_keyring_key;
-	char		ci_master_key[EXT4_KEY_DESCRIPTOR_SIZE];
+	char ci_master_key_descriptor[EXT4_KEY_DESCRIPTOR_SIZE];
+	char ci_nonce[EXT4_KEY_DERIVATION_NONCE_SIZE];
 };
 
 #define EXT4_CTX_REQUIRES_FREE_ENCRYPT_FL             0x00000001
@@ -110,27 +125,6 @@ struct ext4_completion_result {
 	struct ext4_completion_result ecr = { \
 		COMPLETION_INITIALIZER((ecr).completion), 0 }
 
-static inline int ext4_encryption_key_size(int mode)
-{
-	switch (mode) {
-	case EXT4_ENCRYPTION_MODE_AES_256_XTS:
-		return EXT4_AES_256_XTS_KEY_SIZE;
-	case EXT4_ENCRYPTION_MODE_AES_256_GCM:
-		return EXT4_AES_256_GCM_KEY_SIZE;
-	case EXT4_ENCRYPTION_MODE_AES_256_CBC:
-		return EXT4_AES_256_CBC_KEY_SIZE;
-	case EXT4_ENCRYPTION_MODE_AES_256_CTS:
-		return EXT4_AES_256_CTS_KEY_SIZE;
-	case EXT4_ENCRYPTION_MODE_SPECK128_256_XTS:
-		return 64;
-	case EXT4_ENCRYPTION_MODE_SPECK128_256_CTS:
-		return 32;
-	default:
-		BUG();
-	}
-	return 0;
-}
-
 #define EXT4_FNAME_NUM_SCATTER_ENTRIES	4
 #define EXT4_CRYPTO_BLOCK_SIZE		16
 #define EXT4_FNAME_CRYPTO_DIGEST_SIZE	32
@@ -159,5 +153,28 @@ static inline u32 encrypted_symlink_data_len(u32 l)
 		l = EXT4_CRYPTO_BLOCK_SIZE;
 	return (l + sizeof(struct ext4_encrypted_symlink_data) - 1);
 }
+
+#define EXT4_CRYPT_MAX_IV_SIZE 32
+
+union ext4_crypt_iv {
+	struct {
+		pgoff_t index;
+
+		/* per-file nonce; only set in DIRECT_KEY mode */
+		u8 nonce[EXT4_KEY_DERIVATION_NONCE_SIZE];
+	};
+	u8 raw[EXT4_CRYPT_MAX_IV_SIZE];
+};
+
+void ext4_crypt_generate_iv(union ext4_crypt_iv *iv, pgoff_t index,
+			 const struct ext4_crypt_info *ci);
+
+struct ext4_crypt_mode {
+	const char *friendly_name;
+	const char *cipher_str;
+	int keysize;
+	int ivsize;
+	bool logged_impl_name;
+};
 
 #endif	/* _EXT4_CRYPTO_H */
