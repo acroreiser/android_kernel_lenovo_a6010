@@ -282,6 +282,7 @@ revalidate:
 					fname_crypto_str.len = save_len;
 					if (err < 0) {
 						ret = err;
+						brelse(bh);
 						goto out;
 					}
 					error = filldir(dirent, fname_crypto_str.name,
