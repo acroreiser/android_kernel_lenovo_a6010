@@ -2954,11 +2954,6 @@ extern long sched_getaffinity(pid_t pid, struct cpumask *mask);
 extern struct task_group root_task_group;
 #endif /* CONFIG_CGROUP_SCHED */
 
-#ifdef CONFIG_ANDROID_DETECT_TOP_APP
-extern struct task_struct *top_app;
-extern unsigned int zygote_pid;
-#endif
-
 extern int task_can_switch_user(struct user_struct *up,
 					struct task_struct *tsk);
 

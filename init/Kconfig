@@ -1199,10 +1199,6 @@ if ANDROID
 
 menu "Android tuning and workarounds"
 
-config ANDROID_DETECT_TOP_APP
-	bool "Detect top app for in-kernel handling"
-	depends on CGROUPS && CPUSETS
-
 config ANDROID_TASK_TUNING
 	bool "Optimize scheduling for top app"
 	depends on CGROUPS && CPUSETS
