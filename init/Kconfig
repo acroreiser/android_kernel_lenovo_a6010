@@ -1218,7 +1218,7 @@ config ANDROID_TASK_TUNING
 	  * 2 = enabled and set realtime priority to top app (prevents userspace from setting scheduling policy)
 
 	  Sched & io priority of tasks from "background" will be IDLE.
-	  Tasks from "foreground" cpuset will get SCHED_NORMAL policy with normal io priority.
+	  Tasks from "foreground" cpuset will get SCHED_BATCH policy with normal io priority.
 
 	  If tune_android_tasks = 2, tasks from "top-app" cpuset will run with SCHED_FIFO policy.
 
