@@ -1199,25 +1199,6 @@ if ANDROID
 
 menu "Android tuning and workarounds"
 
-config ANDROID_TASK_TUNING
-	bool "Optimize scheduling for top app"
-	depends on CGROUPS && CPUSETS
-	help
-	  Boosts top app by reducing scheduling priority of background tasks.
-
-	  Controlled via "tune_android_tasks" sysctl node.
-
-	  Sysctl tune_android_tasks:
-
-	  * 0 = disabled
-	  * 1 = enabled (default)
-	  * 2 = enabled and set realtime priority to top app (prevents userspace from setting scheduling policy)
-
-	  Sched & io priority of tasks from "background" will be IDLE.
-	  Tasks from "foreground" cpuset will get SCHED_BATCH policy with normal io priority.
-
-	  If tune_android_tasks = 2, tasks from "top-app" cpuset will run with SCHED_FIFO policy.
-
 config BACKGROUND_PROCESS_RECLAIM
 	bool "Automatically reclaim background apps anon pages"
 	depends on SWAP

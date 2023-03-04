@@ -6268,14 +6268,7 @@ SYSCALL_DEFINE3(sched_setscheduler, pid_t, pid, int, policy,
 	if (policy < 0)
 		return -EINVAL;
 
-#ifdef CONFIG_ANDROID_TASK_TUNING
-	if (sysctl_tune_android_tasks == 2)
-		return 0;
-	else
-		return do_sched_setscheduler(pid, policy, param);
-#else
 	return do_sched_setscheduler(pid, policy, param);
-#endif
 }
 
 /**
