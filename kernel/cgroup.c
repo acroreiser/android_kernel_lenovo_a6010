@@ -197,11 +197,6 @@ struct cgroup_event {
 };
 
 #ifdef CONFIG_ANDROID_TASK_TUNING
-#define CG_NONE_APP 0
-#define CG_TOP_APP 1
-#define CG_FG_APP 2
-#define CG_BG_APP 3
-#define CG_REST_APP 4
 unsigned int sysctl_tune_android_tasks = 1;
 #endif
 
@@ -2003,67 +1998,40 @@ static void cgroup_task_migrate(struct cgroup *old_cgrp,
 }
 
 #ifdef CONFIG_ANDROID_TASK_TUNING
-unsigned int get_app_state(struct cgroup *cgrp)
-{
-	if (!memcmp(cgrp->name->name, "restricted", 10))
-		return CG_REST_APP;
-	if (!memcmp(cgrp->name->name, "background", 10))
-		return CG_BG_APP;
-	if (!memcmp(cgrp->name->name, "foreground", 10))
-		return CG_FG_APP;
-	if (!memcmp(cgrp->name->name, "top-app", 7))
-		return CG_TOP_APP;
-
-	return CG_NONE_APP;
-}
-
 void butter_task_tune(struct cgroup *cgrp, struct task_struct *tsk)
 {
 	struct sched_param param;
 
-	int app_state;
-	int mode;
-	int policy;
-	int ioclass;
-	int ioprio;
-
-	app_state = get_app_state(cgrp);
 	param.sched_priority = 0;
-	mode = sysctl_tune_android_tasks;
-	policy = SCHED_NORMAL;
-	ioclass = IOPRIO_CLASS_NONE;
 
-	if (!mode)
-		return;
-
-	switch(app_state)
+	if (sysctl_tune_android_tasks == 0)
 	{
-		case CG_FG_APP:
-			ioprio = 4;
-		case CG_TOP_APP:
-			if (mode > 1)
-			{
-				policy = SCHED_RR|SCHED_RESET_ON_FORK;
-				param.sched_priority = 1;
-			}
-			ioclass = IOPRIO_CLASS_RT;
-			if (mode > 2)
-			{
-				param.sched_priority = 2;
-				ioprio = 5;
-			}
-			break;
-		case CG_BG_APP:
-			policy = SCHED_IDLE;
-			ioclass = IOPRIO_CLASS_IDLE;
-			break;
-		case CG_NONE_APP:
-		case CG_REST_APP:
-			return;
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
+		sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
+		return;
 	}
 
-	set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(ioclass, ioprio));
-	sched_setscheduler_nocheck(tsk, policy, &param);
+	if (!memcmp(cgrp->name->name, "background", sizeof("background")))
+	{
+		sched_setscheduler_nocheck(tsk, SCHED_IDLE, &param);
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
+	}
+	else if (!memcmp(cgrp->name->name, "foreground", sizeof("foreground")))
+	{
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_NONE, 0));
+		sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
+	}
+	else if (!memcmp(cgrp->name->name, "top-app", sizeof("top-app")))
+	{
+		set_task_ioprio(tsk, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 0));
+		if (sysctl_tune_android_tasks == 2)
+		{
+			param.sched_priority = 1;
+			sched_setscheduler_nocheck(tsk, SCHED_FIFO|SCHED_RESET_ON_FORK, &param);
+		}
+		else
+			sched_setscheduler_nocheck(tsk, SCHED_NORMAL, &param);
+	}
 }
 #endif
 
