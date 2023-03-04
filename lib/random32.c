@@ -247,7 +247,7 @@ static void __prandom_reseed(bool late)
 		struct rnd_state *state = &per_cpu(net_rand_state,i);
 		u32 seeds[4];
 
-		erandom_get_random_bytes((char *)&seeds, sizeof(seeds));
+		get_random_bytes(&seeds, sizeof(seeds));
 		state->s1 = __seed(seeds[0],   2U);
 		state->s2 = __seed(seeds[1],   8U);
 		state->s3 = __seed(seeds[2],  16U);
