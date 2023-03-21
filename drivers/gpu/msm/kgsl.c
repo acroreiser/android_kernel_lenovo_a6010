@@ -1,4 +1,5 @@
 /* Copyright (c) 2008-2014,2016,2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2947,15 +2948,6 @@ out:
 	return ret;
 }
 
-static int match_file(const void *p, struct file *file, unsigned int fd)
-{
-	/*
-	 * We must return fd + 1 because iterate_fd stops searching on
-	 * non-zero return, but 0 is a valid fd.
-	 */
-	return (p == file) ? (fd + 1) : 0;
-}
-
 static void _setup_cache_mode(struct kgsl_mem_entry *entry,
 		struct vm_area_struct *vma)
 {
@@ -2996,8 +2988,6 @@ static int kgsl_setup_useraddr(struct kgsl_mem_entry *entry,
 	vma = find_vma(current->mm, param->hostptr);
 
 	if (vma && vma->vm_file) {
-		int fd;
-
 		ret = check_vma_flags(vma, entry->memdesc.flags);
 		if (ret) {
 			up_read(&current->mm->mmap_sem);
@@ -3013,11 +3003,12 @@ static int kgsl_setup_useraddr(struct kgsl_mem_entry *entry,
 			return -EFAULT;
 		}
 
-		/* Look for the fd that matches this the vma file */
-		fd = iterate_fd(current->files, 0,
-				match_file, vma->vm_file);
-		if (fd != 0)
-			dmabuf = dma_buf_get(fd - 1);
+		/*
+		 * Take a refcount because dma_buf_put() decrements the
+		 * refcount
+		 */
+		get_file(vma->vm_file);
+		dmabuf = vma->vm_file->private_data;
 	}
 
 	if (!IS_ERR_OR_NULL(dmabuf)) {
