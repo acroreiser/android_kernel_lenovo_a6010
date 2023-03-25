@@ -9,6 +9,7 @@
 
 static bool enabled = false;
 extern bool wq_power_efficient;
+extern bool backlight_dimmer;
 extern void set_mmc_scale_down_in_low_wr_load(bool value);
 
 // returns whether battery saver is enabled or disabled
@@ -44,8 +45,9 @@ static int set_enabled(const char *val, const struct kernel_param *kp)
 		printk(KERN_INFO "Leaving battery saving mode\n");
 
 	enabled = state;
-	wq_power_efficient = state;
-	set_mmc_scale_down_in_low_wr_load(state);
+	wq_power_efficient = enabled;
+	backlight_dimmer = enabled;
+	set_mmc_scale_down_in_low_wr_load(enabled);
 	return 0;
 }
 
