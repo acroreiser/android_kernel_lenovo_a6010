@@ -9,6 +9,7 @@
 
 static bool enabled = false;
 extern bool wq_power_efficient;
+extern void set_mmc_scale_down_in_low_wr_load(bool value);
 
 // returns whether battery saver is enabled or disabled
 bool is_battery_saver_on(void)
@@ -44,6 +45,7 @@ static int set_enabled(const char *val, const struct kernel_param *kp)
 
 	enabled = state;
 	wq_power_efficient = state;
+	set_mmc_scale_down_in_low_wr_load(state);
 	return 0;
 }
 
