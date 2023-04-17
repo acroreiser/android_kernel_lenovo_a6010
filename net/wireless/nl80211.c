@@ -7711,8 +7711,8 @@ static int nl80211_tx_mgmt(struct sk_buff *skb, struct genl_info *info)
 
 	dont_wait_for_ack = info->attrs[NL80211_ATTR_DONT_WAIT_FOR_ACK];
 
-	if (!info->attrs[NL80211_ATTR_FRAME])
-		return -EINVAL;
+//	if (!info->attrs[NL80211_ATTR_FRAME])
+//		return -EINVAL;
 
 	if (!rdev->ops->mgmt_tx)
 		return -EOPNOTSUPP;
@@ -7732,30 +7732,30 @@ static int nl80211_tx_mgmt(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	if (info->attrs[NL80211_ATTR_DURATION]) {
-		if (!(rdev->wiphy.flags & WIPHY_FLAG_OFFCHAN_TX))
-			return -EINVAL;
+//		if (!(rdev->wiphy.flags & WIPHY_FLAG_OFFCHAN_TX))
+//			return -EINVAL;
 		wait = nla_get_u32(info->attrs[NL80211_ATTR_DURATION]);
 
 		/*
 		 * We should wait on the channel for at least a minimum amount
 		 * of time (10ms) but no longer than the driver supports.
 		 */
-		if (wait < NL80211_MIN_REMAIN_ON_CHANNEL_TIME ||
-		    wait > rdev->wiphy.max_remain_on_channel_duration)
-			return -EINVAL;
+//		if (wait < NL80211_MIN_REMAIN_ON_CHANNEL_TIME ||
+//		    wait > rdev->wiphy.max_remain_on_channel_duration)
+//			return -EINVAL;
 
 	}
 
 	offchan = info->attrs[NL80211_ATTR_OFFCHANNEL_TX_OK];
 
-	if (offchan && !(rdev->wiphy.flags & WIPHY_FLAG_OFFCHAN_TX))
-		return -EINVAL;
+//	if (offchan && !(rdev->wiphy.flags & WIPHY_FLAG_OFFCHAN_TX))
+//		return -EINVAL;
 
 	no_cck = nla_get_flag(info->attrs[NL80211_ATTR_TX_NO_CCK_RATE]);
 
-	err = nl80211_parse_chandef(rdev, info, &chandef);
-	if (err)
-		return err;
+/*	err = */ nl80211_parse_chandef(rdev, info, &chandef);
+//	if (err)
+//		return err;
 
 	if (!dont_wait_for_ack) {
 		msg = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
