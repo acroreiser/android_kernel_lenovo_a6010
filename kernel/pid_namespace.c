@@ -18,6 +18,7 @@
 #include <linux/proc_ns.h>
 #include <linux/reboot.h>
 #include <linux/export.h>
+#include "pid_sysctl.h"
 
 struct pid_cache {
 	int nr_ids;
@@ -121,6 +122,8 @@ static struct pid_namespace *create_pid_namespace(struct user_namespace *user_ns
 
 	for (i = 1; i < PIDMAP_ENTRIES; i++)
 		atomic_set(&ns->pidmap[i].nr_free, BITS_PER_PAGE);
+
+	initialize_memfd_noexec_scope(ns);
 
 	return ns;
 
@@ -378,6 +381,8 @@ static __init int pid_namespaces_init(void)
 #ifdef CONFIG_CHECKPOINT_RESTORE
 	register_sysctl_paths(kern_path, pid_ns_ctl_table);
 #endif
+
+	register_pid_ns_sysctl_table_vm();
 	return 0;
 }
 
