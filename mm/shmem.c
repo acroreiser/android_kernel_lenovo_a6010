@@ -3029,11 +3029,14 @@ SYSCALL_DEFINE2(memfd_create,
 		struct inode *inode = file_inode(file);
 
 		file_inode(file)->i_mode &= ~0111;
-		info->seals &= ~F_SEAL_SEAL;
-		info->seals |= F_SEAL_EXEC;
+		if(info->seals) {
+			info->seals &= ~F_SEAL_SEAL;
+			info->seals |= F_SEAL_EXEC;
+		}
 	} else if (flags & MFD_ALLOW_SEALING) {
 		/* MFD_EXEC and MFD_ALLOW_SEALING are set */
-		info->seals &= ~F_SEAL_SEAL;
+		if(info->seals)
+			info->seals &= ~F_SEAL_SEAL;
 	}
 
 	fd_install(fd, file);
