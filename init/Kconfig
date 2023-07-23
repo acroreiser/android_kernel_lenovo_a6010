@@ -1265,7 +1265,8 @@ config ANDROID_TREBLE_MOUNT_LEGACY_LINKERCONFIG
 		Use this only for Project Treble purposes.
 
 config ANDROID_TREBLE_SPOOF_KERNEL_VERSION
-	bool "TREBLE: report 3.18 kernel version to userspace"
+	string "TREBLE: report fake kernel version to userspace"
+	default "3.17"
 	help
 		Workaround for system crash due to kernel version older than 3.17.
 		Android ART requires Linux 3.17 to use memfd_create() syscall and
