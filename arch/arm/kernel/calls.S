@@ -396,7 +396,7 @@
 /* 385 */	CALL(sys_getrandom)
 		CALL(sys_memfd_create)
 		CALL(sys_ni_syscall)
-		CALL(sys_ni_syscall)
+		CALL(sys_userfaultfd)
 		CALL(sys_membarrier)
 /* 390 */	CALL(sys_ni_syscall)
 		CALL(sys_ni_syscall)
