@@ -1968,6 +1968,10 @@ static inline void membarrier_execve(struct task_struct *t)
 }
 #endif
 
+static inline bool vma_is_anonymous(struct vm_area_struct *vma)
+{
+	return !vma->vm_ops;
+}
 
 #endif /* __KERNEL__ */
 #endif /* _LINUX_MM_H */
