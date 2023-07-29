@@ -1744,6 +1744,7 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 
 bad_fork_cancel_cgroup:
 	cgroup_cancel_fork(p, cgrp_ss_priv);
+bad_fork_put_pidfd:
 	if (clone_flags & CLONE_PIDFD)
 		sys_close(pidfd);
 bad_fork_free_pid:
