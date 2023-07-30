@@ -146,10 +146,6 @@ static inline u32 __compat_get_random_u32(void)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) && !defined(ISRHEL7)
-static inline void netif_keep_dst(struct net_device *dev)
-{
-	dev->priv_flags &= ~IFF_XMIT_DST_RELEASE;
-}
 #define COMPAT_CANNOT_USE_CSUM_LEVEL
 #endif
 
