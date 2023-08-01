@@ -146,10 +146,6 @@ static inline u32 __compat_get_random_u32(void)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) && !defined(ISRHEL7)
-static inline void netif_keep_dst(struct net_device *dev)
-{
-	dev->priv_flags &= ~IFF_XMIT_DST_RELEASE;
-}
 #define COMPAT_CANNOT_USE_CSUM_LEVEL
 #endif
 
@@ -807,10 +803,6 @@ struct __kernel_timespec {
 #define skb_probe_transport_header(a) skb_probe_transport_header(a, 0)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) && !defined(ISRHEL7)
-#define ignore_df local_df
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) && !defined(ISRHEL8)
 /* Note that all intentional uses of the non-_bh variety need to explicitly
  * undef these, conditionalized on COMPAT_CANNOT_DEPRECIATE_BH_RCU.
@@ -942,20 +934,6 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 #define chacha20_arm zinc_chacha20_arm
 #define hchacha20_arm zinc_hchacha20_arm
 #define chacha20_neon zinc_chacha20_neon
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0) && !defined(ISRHEL7)
-#include <linux/skbuff.h>
-static inline int skb_ensure_writable(struct sk_buff *skb, int write_len)
-{
-	if (!pskb_may_pull(skb, write_len))
-		return -ENOMEM;
-
-	if (!skb_cloned(skb) || skb_clone_writable(skb, write_len))
-		return 0;
-
-	return pskb_expand_head(skb, 0, 0, GFP_ATOMIC);
-}
 #endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)) || (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 102) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 178) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)) || (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 223) && LINUX_VERSION_CODE > KERNEL_VERSION(4, 10, 0)) || LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 259) || defined(ISRHEL8) || defined(ISUBUNTU1804)

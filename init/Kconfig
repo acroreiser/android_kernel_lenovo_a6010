@@ -861,7 +861,8 @@ config NUMA_BALANCING
 
 menuconfig CGROUPS
 	boolean "Control Group support"
-	depends on EVENTFD
+	select KERNFS
+	select PERCPU_RWSEM
 	help
 	  This option adds support for grouping sets of processes together, for
 	  use with process control subsystems such as Cpusets, CFS, memory
@@ -890,6 +891,22 @@ config CGROUP_FREEZER
 	help
 	  Provides a way to freeze and unfreeze all tasks in a
 	  cgroup.
+
+config CGROUP_PIDS
+	bool "PIDs cgroup subsystem"
+	help
+	  Provides enforcement of process number limits in the scope of a
+	  cgroup. Any attempt to fork more processes than is allowed in the
+	  cgroup will fail. PIDs are fundamentally a global resource because it
+	  is fairly trivial to reach PID exhaustion before you reach even a
+	  conservative kmemcg limit. As a result, it is possible to grind a
+	  system to halt without being limited by other cgroup policies. The
+	  PIDs cgroup subsystem is designed to stop this from happening.
+
+	  It should be noted that organisational operations (such as attaching
+	  to a cgroup hierarchy will *not* be blocked by the PIDs subsystem),
+	  since the PIDs limit only affects a process's ability to fork, not to
+	  attach to a cgroup.
 
 config CGROUP_DEVICE
 	bool "Device controller for cgroups"
@@ -928,6 +945,7 @@ config MEMCG
 	bool "Memory Resource Controller for Control Groups"
 	depends on RESOURCE_COUNTERS
 	select MM_OWNER
+	select EVENTFD
 	help
 	  Provides a memory resource controller that manages both anonymous
 	  memory and page cache. (See Documentation/cgroups/memory.txt)
@@ -1082,6 +1100,22 @@ config DEBUG_BLK_CGROUP
 	Enable some debugging help. Currently it exports additional stat
 	files in a cgroup which can be useful for debugging.
 
+config CGROUP_BPF
+        bool "Support for eBPF programs attached to cgroups"
+        depends on BPF_SYSCALL
+        select SOCK_CGROUP_DATA
+        help
+          Allow attaching eBPF programs to a cgroup using the bpf(2)
+          syscall command BPF_PROG_ATTACH.
+
+          In which context these programs are accessed depends on the type
+          of attachment. For instance, programs that are attached using
+          BPF_CGROUP_INET_INGRESS will be executed on the ingress path of
+          inet sockets.
+config SOCK_CGROUP_DATA
+	bool
+	default n
+
 endif # CGROUPS
 
 config SCHED_HMP
@@ -1184,7 +1218,6 @@ config UIDGID_STRICT_TYPE_CHECKS
 
 config SCHED_AUTOGROUP
 	bool "Automatic process group scheduling"
-	select EVENTFD
 	select CGROUPS
 	select CGROUP_SCHED
 	select FAIR_GROUP_SCHED
@@ -1198,29 +1231,6 @@ config SCHED_AUTOGROUP
 if ANDROID
 
 menu "Android tuning and workarounds"
-
-config ANDROID_DETECT_TOP_APP
-	bool "Detect top app for in-kernel handling"
-	depends on CGROUPS && CPUSETS
-
-config ANDROID_TASK_TUNING
-	bool "Optimize scheduling for top app"
-	depends on CGROUPS && CPUSETS
-	help
-	  Boosts top app by reducing scheduling priority of background tasks.
-
-	  Controlled via "tune_android_tasks" sysctl node.
-
-	  Sysctl tune_android_tasks:
-
-	  * 0 = disabled
-	  * 1 = enabled (default)
-	  * 2 = enabled and set realtime priority to top app (prevents userspace from setting scheduling policy)
-
-	  Sched & io priority of tasks from "background" will be IDLE.
-	  Tasks from "foreground" cpuset will get SCHED_NORMAL policy with normal io priority.
-
-	  If tune_android_tasks = 2, tasks from "top-app" cpuset will run with SCHED_FIFO policy.
 
 config BACKGROUND_PROCESS_RECLAIM
 	bool "Automatically reclaim background apps anon pages"
@@ -1242,14 +1252,6 @@ config BACKGROUND_PROCESS_RECLAIM_VERBOSE
 
 config ANDROID_DONT_KILL_MAGISK
 	bool "WORKAROUND: prevent Magisk from killing"
-
-config ANDROID_KILL_BUGGY_CAMERA
-	bool "WORKAROUND: kill known buggy camera apps after user leaving"
-	help
-		Currently kills Google Camera Go and Lineage OS Snap camera.
-
-config ANDROID_SHUTDOWN_SLEEP_HACK
-	bool "WORKAROUND: prevent going to deep sleep state during system shutdown"
 
 config ANDROID_MDSS_HACK_FOR_RECOVERY
 	bool "HACK: don't free reserved memory for splash logo"
@@ -1398,6 +1400,10 @@ config PANIC_TIMEOUT
 	default 0
 	help
 	  Set default panic timeout.
+
+# interpreter that classic socket filters depend on
+config BPF
+	bool
 
 menuconfig EXPERT
 	bool "Configure standard kernel features (expert users)"
@@ -1559,6 +1565,23 @@ config EVENTFD
 
 	  If unsure, say Y.
 
+# syscall, maps, verifier
+config BPF_SYSCALL
+	bool "Enable bpf() system call"
+	select ANON_INODES
+	select BPF
+	default n
+	help
+	  Enable the bpf() system call that allows to manipulate eBPF
+	  programs and maps via file descriptors.
+
+config BPF_JIT_ALWAYS_ON
+	bool "Permanently enable BPF JIT and remove BPF interpreter"
+	depends on BPF_SYSCALL && HAVE_BPF_JIT && BPF_JIT
+	help
+	  Enables BPF JIT and removes BPF interpreter to avoid
+	  speculative execution of BPF instructions by the interpreter
+
 config SHMEM
 	bool "Use full shmem filesystem" if EXPERT
 	default y
@@ -1577,6 +1600,16 @@ config AIO
 	  This option enables POSIX asynchronous I/O which may by used
 	  by some high performance threaded applications. Disabling
 	  this option saves about 7k.
+
+config BPF_UNPRIV_DEFAULT_OFF
+	bool "Disable unprivileged BPF by default"
+	depends on BPF_SYSCALL
+	help
+	  Disables unprivileged BPF by default by setting the corresponding
+	  /proc/sys/kernel/unprivileged_bpf_disabled knob to 2. An admin can
+	  still reenable it by setting it to 0 later on, or permanently
+	  disable it by setting it to 1 (from which no other transition to
+	  0 is possible anymore).
 
 config USERFAULTFD
 	bool "Enable userfaultfd() system call"

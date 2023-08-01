@@ -903,7 +903,7 @@ void do_exit(long code)
 	 */
 	perf_event_exit_task(tsk);
 
-	cgroup_exit(tsk, 1);
+	cgroup_exit(tsk);
 
 	module_put(task_thread_info(tsk)->exec_domain->module);
 
