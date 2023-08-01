@@ -45,13 +45,6 @@
 #include <asm/cacheflush.h>
 #include "audit.h"	/* audit_signal_info() */
 
-#ifdef CONFIG_ANDROID_SHUTDOWN_SLEEP_HACK
-#include <linux/wakelock.h>
-
-static struct wake_lock shutdown_wl;
-static unsigned int shutdown_wl_used = 0;
-#endif
-
 #ifdef CONFIG_ANDROID_DONT_KILL_MAGISK
 unsigned int sysctl_magisk_workaround = 0;
 #endif
@@ -1086,19 +1079,6 @@ static int __send_signal(int sig, struct siginfo *info, struct task_struct *t,
 	}
 #endif
 
-#ifdef CONFIG_ANDROID_SHUTDOWN_SLEEP_HACK
-	if (shutdown_wl_used == 0 && t->cred->uid.val == 0 && sig == SIGKILL &&
-		t && t->comm && !memcmp(t->comm, "main", sizeof("main")))
-	{
-		wake_lock_init(&shutdown_wl, WAKE_LOCK_SUSPEND, "shutdown_workaround_wakelock");
-
-		printk(KERN_INFO "WORKAROUND: using wakelock to prevent sleep during shutdown\n");
-		
-		wake_lock(&shutdown_wl);
-
-		shutdown_wl_used = 1;
-	}
-#endif
 	assert_spin_locked(&t->sighand->siglock);
 
 	result = TRACE_SIGNAL_IGNORED;

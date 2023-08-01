@@ -598,6 +598,15 @@ is completely unused; @cgrp->parent is still valid. (Note - can also
 be called for a newly-created cgroup if an error occurs after this
 subsystem's create() method has been called for the new cgroup).
 
+int allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
+(cgroup_mutex held by caller)
+
+Called prior to moving a task into a cgroup; if the subsystem
+returns an error, this will abort the attach operation.  Used
+to extend the permission checks - if all subsystems in a cgroup
+return 0, the attach will be allowed to proceed, even if the
+default permission check (root or same user) fails.
+
 int can_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
 (cgroup_mutex held by caller)
 
@@ -618,6 +627,20 @@ cgroup_taskset_for_each() iterator. Note that this isn't called on a
 fork. If this method returns 0 (success) then this should remain valid
 while the caller holds cgroup_mutex and it is ensured that either
 attach() or cancel_attach() will be called in future.
+
+void css_reset(struct cgroup_subsys_state *css)
+(cgroup_mutex held by caller)
+
+An optional operation which should restore @css's configuration to the
+initial state.  This is currently only used on the unified hierarchy
+when a subsystem is disabled on a cgroup through
+"cgroup.subtree_control" but should remain enabled because other
+subsystems depend on it.  cgroup core makes such a css invisible by
+removing the associated interface files and invokes this callback so
+that the hidden subsystem can return to the initial neutral state.
+This prevents unexpected resource control from a hidden css and
+ensures that the configuration is in the initial state when it is made
+visible again later.
 
 void cancel_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
 (cgroup_mutex held by caller)
@@ -642,6 +665,10 @@ Called when a task is forked into a cgroup.
 void exit(struct task_struct *task)
 
 Called during task exit.
+
+void free(struct task_struct *task)
+
+Called when the task_struct is freed.
 
 void bind(struct cgroup *root)
 (cgroup_mutex held by caller)

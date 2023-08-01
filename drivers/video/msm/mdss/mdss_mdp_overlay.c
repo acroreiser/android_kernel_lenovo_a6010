@@ -4318,8 +4318,7 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 		goto init_fail;
 	}
 
-	mdp5_data->vsync_event_sd = sysfs_get_dirent(dev->kobj.sd, NULL,
-						     "vsync_event");
+	mdp5_data->vsync_event_sd = sysfs_get_dirent(dev->kobj.sd, "vsync_event");
 	if (!mdp5_data->vsync_event_sd) {
 		pr_err("vsync_event sysfs lookup failed\n");
 		rc = -ENODEV;
