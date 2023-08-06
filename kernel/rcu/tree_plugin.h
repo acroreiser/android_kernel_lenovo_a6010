@@ -2369,6 +2369,10 @@ static void rcu_bind_gp_kthread(void)
 	if (raw_smp_processor_id() != cpu)
 		set_cpus_allowed_ptr(current, cpumask_of(cpu));
 }
+#else
+static void rcu_bind_gp_kthread(void)
+{
+}
 #endif
 
 #ifdef CONFIG_NO_HZ_FULL_SYSIDLE
@@ -2761,10 +2765,6 @@ static void rcu_sysidle_check_cpu(struct rcu_data *rdp, bool *isidle,
 static bool is_sysidle_rcu_state(struct rcu_state *rsp)
 {
 	return false;
-}
-
-static void rcu_bind_gp_kthread(void)
-{
 }
 
 static void rcu_sysidle_report_gp(struct rcu_state *rsp, int isidle,
