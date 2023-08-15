@@ -59,14 +59,14 @@
 extern int extra_free_kbytes;
 
 static uint32_t lowmem_debug_level = 1;
-static short lowmem_adj[6] = {
+static short lowmem_adj[13] = {
 	0,
 	1,
 	6,
 	12,
 };
 static int lowmem_adj_size = 4;
-static int lowmem_minfree[6] = {
+static int lowmem_minfree[13] = {
 	3 * 512,	/* 6MB */
 	2 * 1024,	/* 8MB */
 	4 * 1024,	/* 16MB */
