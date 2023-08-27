@@ -959,6 +959,8 @@ int kgsl_cma_alloc_coherent(struct kgsl_device *device,
 	KGSL_STATS_ADD(size, kgsl_driver.stats.coherent,
 		       kgsl_driver.stats.coherent_max);
 
+	kgsl_trace_gpu_mem_total(device, memdesc->size);
+
 err:
 	if (result)
 		kgsl_sharedmem_free(memdesc);
@@ -1057,6 +1059,7 @@ int kgsl_cma_alloc_secure(struct kgsl_device *device,
 	KGSL_STATS_ADD(size, kgsl_driver.stats.secure,
 		       kgsl_driver.stats.secure_max);
 
+	kgsl_trace_gpu_mem_total(device, memdesc->size);
 err:
 	kfree(chunk_list);
 

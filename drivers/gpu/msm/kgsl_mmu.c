@@ -432,6 +432,22 @@ err:
 	return ret;
 }
 
+#ifdef CONFIG_TRACE_GPU_MEM
+static void kgsl_mmu_trace_gpu_mem_pagetable(struct kgsl_pagetable *pagetable)
+{
+	if (pagetable->name == KGSL_MMU_GLOBAL_PT ||
+		pagetable->name == KGSL_MMU_SECURE_PT)
+		return;
+
+	trace_gpu_mem_total(0, pagetable->name,
+			(u64)atomic_long_read(&pagetable->stats.mapped));
+}
+#else
+static void kgsl_mmu_trace_gpu_mem_pagetable(struct kgsl_pagetable *pagetable)
+{
+}
+#endif
+
 void
 kgsl_mmu_detach_pagetable(struct kgsl_pagetable *pagetable)
 {
@@ -782,12 +798,16 @@ kgsl_mmu_get_gpuaddr(struct kgsl_pagetable *pagetable,
 }
 EXPORT_SYMBOL(kgsl_mmu_get_gpuaddr);
 
+#define KGSL_MMU_DEVICE(_mmu) \
+	container_of((_mmu), struct kgsl_device, mmu)
+
 int
 kgsl_mmu_map(struct kgsl_pagetable *pagetable,
 				struct kgsl_memdesc *memdesc)
 {
 	int ret = 0;
 	int size;
+	struct kgsl_device *device = KGSL_MMU_DEVICE(pagetable->mmu);
 
 	if (!memdesc->gpuaddr)
 		return -EINVAL;
@@ -816,6 +836,13 @@ kgsl_mmu_map(struct kgsl_pagetable *pagetable,
 	KGSL_STATS_ADD(size, pagetable->stats.mapped,
 		       pagetable->stats.max_mapped);
 	pagetable->stats.entries++;
+
+	kgsl_mmu_trace_gpu_mem_pagetable(pagetable);
+
+	if (!kgsl_memdesc_is_global(memdesc)
+			&& !(memdesc->flags & KGSL_MEMFLAGS_USERMEM_ION)) {
+		kgsl_trace_gpu_mem_total(device, size);
+	}
 
 	spin_unlock(&pagetable->lock);
 	memdesc->priv |= KGSL_MEMDESC_MAPPED;
@@ -888,6 +915,7 @@ kgsl_mmu_unmap(struct kgsl_pagetable *pagetable,
 	int size;
 	unsigned int start_addr = 0;
 	unsigned int end_addr = 0;
+	struct kgsl_device *device = KGSL_MMU_DEVICE(pagetable->mmu);
 
 	if (memdesc->size == 0 || memdesc->gpuaddr == 0 ||
 		!(KGSL_MEMDESC_MAPPED & memdesc->priv))
@@ -919,9 +947,14 @@ kgsl_mmu_unmap(struct kgsl_pagetable *pagetable,
 	pagetable->stats.entries--;
 	pagetable->stats.mapped -= size;
 
+	kgsl_mmu_trace_gpu_mem_pagetable(pagetable);
+
 	spin_unlock(&pagetable->lock);
-	if (!kgsl_memdesc_is_global(memdesc))
+	if (!kgsl_memdesc_is_global(memdesc)) {
 		memdesc->priv &= ~KGSL_MEMDESC_MAPPED;
+		if (!(memdesc->flags & KGSL_MEMFLAGS_USERMEM_ION))
+			kgsl_trace_gpu_mem_total(device, -(size));
+	}
 	return 0;
 }
 EXPORT_SYMBOL(kgsl_mmu_unmap);
