@@ -207,7 +207,7 @@ int kgsl_readtimestamp(struct kgsl_device *device, void *priv,
 EXPORT_SYMBOL(kgsl_readtimestamp);
 
 static inline struct kgsl_mem_entry *
-kgsl_mem_entry_create(void)
+kgsl_mem_entry_create(struct kgsl_device *device)
 {
 	struct kgsl_mem_entry *entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 
@@ -216,6 +216,11 @@ kgsl_mem_entry_create(void)
 		/* put this ref in the caller functions after init */
 		kref_get(&entry->refcount);
 	}
+
+	entry->device = device;
+
+	kgsl_trace_gpu_mem_total(device,
+			 entry->memdesc.size);
 
 	return entry;
 }
@@ -243,6 +248,8 @@ kgsl_mem_entry_destroy(struct kref *kref)
 	struct kgsl_mem_entry *entry = container_of(kref,
 						    struct kgsl_mem_entry,
 						    refcount);
+        struct kgsl_device *device = entry->device;
+
 	unsigned int memtype;
 
 	if (entry == NULL)
@@ -280,6 +287,9 @@ kgsl_mem_entry_destroy(struct kref *kref)
 				set_page_dirty_lock(nth_page(page, j));
 		}
 	}
+
+        kgsl_trace_gpu_mem_total(entry->device,
+                        -(entry->memdesc.size));
 
 	kgsl_sharedmem_free(&entry->memdesc);
 
@@ -3187,12 +3197,13 @@ long kgsl_ioctl_map_user_mem(struct kgsl_device_private *dev_priv,
 				     unsigned int cmd, void *data)
 {
 	int result = -EINVAL;
+	struct kgsl_device *device = dev_priv->device;
 	struct kgsl_map_user_mem *param = data;
 	struct kgsl_mem_entry *entry = NULL;
 	struct kgsl_process_private *private = dev_priv->process_priv;
 	unsigned int memtype;
 
-	entry = kgsl_mem_entry_create();
+	entry = kgsl_mem_entry_create(device);
 
 	if (entry == NULL)
 		return -ENOMEM;
@@ -3584,6 +3595,7 @@ _gpumem_alloc(struct kgsl_device_private *dev_priv,
 		size_t size, unsigned int flags)
 {
 	int result;
+        struct kgsl_device *device = dev_priv->device;
 	struct kgsl_process_private *private = dev_priv->process_priv;
 	struct kgsl_mem_entry *entry;
 	int align;
@@ -3621,7 +3633,7 @@ _gpumem_alloc(struct kgsl_device_private *dev_priv,
 
 	flags = kgsl_filter_cachemode(flags);
 
-	entry = kgsl_mem_entry_create();
+	entry = kgsl_mem_entry_create(device);
 	if (entry == NULL)
 		return -ENOMEM;
 

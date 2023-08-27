@@ -18,6 +18,7 @@
 #include <linux/pm_qos.h>
 #include <linux/sched.h>
 #include <linux/workqueue.h>
+#include <trace/events/gpu_mem.h>
 
 #include "kgsl.h"
 #include "kgsl_mmu.h"
@@ -354,6 +355,8 @@ struct kgsl_device {
 	uint32_t requested_state;
 
 	atomic_t active_cnt;
+	/** @total_mapped: To trace overall gpu memory usage */
+	atomic64_t total_mapped;
 
 	wait_queue_head_t wait_queue;
 	wait_queue_head_t active_cnt_wq;
@@ -990,4 +993,23 @@ void kgsl_snapshot_add_section(struct kgsl_device *device, u16 id,
 	size_t (*func)(struct kgsl_device *, u8 *, size_t, void *),
 	void *priv);
 
+/**
+ * kgsl_trace_gpu_mem_total - Overall gpu memory usage tracking which includes
+ * process allocations, imported dmabufs and kgsl globals
+ * @device: A KGSL device handle
+ * @delta: delta of total mapped memory size
+ */
+#ifdef CONFIG_TRACE_GPU_MEM
+static inline void kgsl_trace_gpu_mem_total(struct kgsl_device *device,
+						s64 delta)
+{
+	u64 total_size;
+
+	total_size = atomic64_add_return(delta, &device->total_mapped);
+	trace_gpu_mem_total(0, 0, total_size);
+}
+#else
+static inline void kgsl_trace_gpu_mem_total(struct kgsl_device *device,
+						s64 delta) {}
+#endif
 #endif  /* __KGSL_DEVICE_H */
