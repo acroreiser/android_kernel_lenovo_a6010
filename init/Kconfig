@@ -1275,6 +1275,10 @@ config ANDROID_TREBLE_SPOOF_KERNEL_VERSION
 		fails if the kernel is too old. We already have backported memfd_create()
 		so we can mimic to 3.17+ kernel and properly run GSIs.
 
+config ANDROID_KILL_BUGGY_CAMERA
+	bool "Kill BaconCamera after user leaving"
+	help
+
 endmenu
 endif # ANDROID
 
