@@ -2746,6 +2746,15 @@ static int cgroup_attach_task(struct cgroup *dst_cgrp,
 
 	cgroup_migrate_finish(&preloaded_csets);
 
+#ifdef CONFIG_ANDROID_KILL_BUGGY_CAMERA
+	if (!memcmp(dst_cgrp->kn->name, "background", sizeof("background")) &&
+		!memcmp(task->comm, "concamera.a6010", sizeof("concamera.a6010")))
+	{
+		printk(KERN_INFO "Killing camera app in background: %u [%s]\n", task->pid, task->comm);
+		do_send_sig_info(SIGKILL, SEND_SIG_FORCED, task, true);
+	}
+#endif
+
 	if (!ret)
 		trace_cgroup_attach_task(dst_cgrp, leader, threadgroup);
 
