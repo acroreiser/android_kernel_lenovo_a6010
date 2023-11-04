@@ -1246,10 +1246,6 @@ config BACKGROUND_PROCESS_RECLAIM
 	  When app moving to background state his anon pages will be reclaimed if task's oom_adj_score is higher
 	  than current vmpressure_to_oom_score() value.
 
-config BACKGROUND_PROCESS_RECLAIM_VERBOSE
-	bool "Report about reclaimed apps in kernel log"
-	depends on BACKGROUND_PROCESS_RECLAIM
-
 config ANDROID_DONT_KILL_MAGISK
 	bool "WORKAROUND: prevent Magisk from killing"
 
