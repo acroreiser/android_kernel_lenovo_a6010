@@ -1037,17 +1037,6 @@ static ssize_t oom_score_adj_read(struct file *file, char __user *buf,
 	return simple_read_from_buffer(buf, count, ppos, buffer, len);
 }
 
-#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM
-extern void reclaim_from_kernel(struct task_struct *task, unsigned int vmpscore, int oomscore);
-
-unsigned int bpr_vmpressure;
-
-static unsigned int vmpressure_to_oom_score(void)
-{
-	return (1000 - (bpr_vmpressure * 10));
-}
-#endif
-
 static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 					size_t count, loff_t *ppos)
 {
@@ -1055,10 +1044,6 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 	char buffer[PROC_NUMBUF];
 	unsigned long flags;
 	int oom_score_adj;
-#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM
-	int oom_score_adj_old;
-	unsigned int vmpressure_oom_score;
-#endif
 	int err;
 
 	memset(buffer, 0, sizeof(buffer));
@@ -1100,11 +1085,6 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 		goto err_sighand;
 	}
 
-#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM
-	oom_score_adj_old = task->signal->oom_score_adj;
-	vmpressure_oom_score = vmpressure_to_oom_score();
-#endif
-
 	task->signal->oom_score_adj = (short)oom_score_adj;
 	if (has_capability_noaudit(current, CAP_SYS_RESOURCE))
 		task->signal->oom_score_adj_min = (short)oom_score_adj;
@@ -1115,11 +1095,6 @@ err_sighand:
 err_task_lock:
 	task_unlock(task);
 	put_task_struct(task);
-
-#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM
-	if (task->signal->oom_score_adj > vmpressure_oom_score && oom_score_adj_old < vmpressure_oom_score)
-		reclaim_from_kernel(task, vmpressure_oom_score, task->signal->oom_score_adj);
-#endif
 out:
 	return err < 0 ? err : count;
 }

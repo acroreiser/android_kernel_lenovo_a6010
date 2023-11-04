@@ -1288,7 +1288,7 @@ const struct file_operations proc_pagemap_operations = {
 };
 #endif /* CONFIG_PROC_PAGE_MONITOR */
 
-#if defined(CONFIG_PROCESS_RECLAIM) || defined(CONFIG_BACKGROUND_PROCESS_RECLAIM)
+#ifdef CONFIG_PROCESS_RECLAIM
 static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 				unsigned long end, struct mm_walk *walk)
 {
@@ -1340,8 +1340,6 @@ cont:
 	cond_resched();
 	return 0;
 }
-#endif
-#ifdef CONFIG_PROCESS_RECLAIM
 
 enum reclaim_type {
 	RECLAIM_FILE,
@@ -1520,75 +1518,6 @@ const struct file_operations proc_reclaim_operations = {
 	.write		= reclaim_write,
 	.llseek		= noop_llseek,
 };
-#endif
-
-#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM
-void reclaim_from_kernel(struct task_struct *task, unsigned int vmpscore, int oomscore)
-{
-	struct mm_struct *mm;
-	struct vm_area_struct *vma;
-	struct mm_walk reclaim_walk = {};
-	struct reclaim_param rp;
-	unsigned int attempts = 0;
-	unsigned int total_reclaimed = 0;
-
-	get_task_struct(task);
-	mm = get_task_mm(task);
-	if (!mm)
-		goto out;
-
-again:
-	attempts++;
-
-	reclaim_walk.mm = mm;
-	reclaim_walk.pmd_entry = reclaim_pte_range;
-
-	rp.nr_to_reclaim = ~0;
-	rp.nr_reclaimed = 0;
-	reclaim_walk.private = &rp;
-
-	down_read(&mm->mmap_sem);
-	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if (is_vm_hugetlb_page(vma))
-			continue;
-
-		if (vma->vm_file)
-			continue;
-
-		rp.vma = vma;
-		walk_page_range(vma->vm_start, vma->vm_end,
-			&reclaim_walk);
-	}
-
-	flush_tlb_mm(mm);
-	up_read(&mm->mmap_sem);
-	mmput(mm);
-
-	total_reclaimed += rp.nr_reclaimed;
-out:
-	put_task_struct(task);
-
-	if (rp.nr_reclaimed == 32)
-	{
-		get_task_struct(task);
-		mm = get_task_mm(task);
-		if (!mm)
-		{
-			put_task_struct(task);
-			goto out2;
-		}
-
-		goto again;
-	}
-
-out2:
-#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM
-	if (attempts > 0)
-		printk(KERN_INFO "process_reclaim: reclaiming %u anon pages in %u attempts from pid %u [%s] vmpressure_to_oom_score=%u oom_adj_score=%d\n", total_reclaimed, attempts, task->pid, task->comm, vmpscore, oomscore);
-#endif
-
-	return;
-}
 #endif
 
 #ifdef CONFIG_NUMA
