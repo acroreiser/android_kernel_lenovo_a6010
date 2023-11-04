@@ -1232,20 +1232,6 @@ if ANDROID
 
 menu "Android tuning and workarounds"
 
-config BACKGROUND_PROCESS_RECLAIM
-	bool "Automatically reclaim background apps anon pages"
-	depends on SWAP
-	help
-	  Partially based on process_reclaim patchset.
-
-	  Automatic anon page reclaim when ActivityManager puts some 
-	  task to background state and assigning it higher than 0 oom_adj_score.
-	  To make decision vmpressure_to_oom_score() function calculating oom_adj_score from vmpressure state
-	  to use as threshold for reclamation.
-
-	  When app moving to background state his anon pages will be reclaimed if task's oom_adj_score is higher
-	  than current vmpressure_to_oom_score() value.
-
 config ANDROID_DONT_KILL_MAGISK
 	bool "WORKAROUND: prevent Magisk from killing"
 
