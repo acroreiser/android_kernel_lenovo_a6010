@@ -1534,9 +1534,7 @@ void reclaim_from_kernel(struct task_struct *task, unsigned int vmpscore, int oo
 	struct vm_area_struct *vma;
 	struct mm_walk reclaim_walk = {};
 	struct reclaim_param rp;
-#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM_VERBOSE
 	unsigned int attempts = 0;
-#endif
 	unsigned int total_reclaimed = 0;
 
 	get_task_struct(task);
@@ -1545,9 +1543,7 @@ void reclaim_from_kernel(struct task_struct *task, unsigned int vmpscore, int oo
 		goto out;
 
 again:
-#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM_VERBOSE
 	attempts++;
-#endif
 
 	reclaim_walk.mm = mm;
 	reclaim_walk.pmd_entry = reclaim_pte_range;
@@ -1591,7 +1587,7 @@ out:
 	}
 
 out2:
-#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM_VERBOSE
+#ifdef CONFIG_BACKGROUND_PROCESS_RECLAIM
 	if (attempts > 0)
 		printk(KERN_INFO "process_reclaim: reclaiming %u anon pages in %u attempts from pid %u [%s] vmpressure_to_oom_score=%u oom_adj_score=%d\n", total_reclaimed, attempts, task->pid, task->comm, vmpscore, oomscore);
 #endif
