@@ -418,13 +418,8 @@ static irqreturn_t wdog_bark_handler(int irq, void *dev_id)
 		wdog_dd->last_pet, nanosec_rem / 1000);
 	if (wdog_dd->do_ipi_ping)
 		dump_cpu_alive_mask(wdog_dd);
-//	msm_trigger_wdog_bite();
-//	panic("Failed to cause a watchdog bite! - Falling back to kernel panic!");
-
-	printk(KERN_INFO "Attempt to recover the system from hang...\n");
-	pet_watchdog(wdog_dd);
-	schedule();
-
+	msm_trigger_wdog_bite();
+	panic("Failed to cause a watchdog bite! - Falling back to kernel panic!");
 	return IRQ_HANDLED;
 }
 
