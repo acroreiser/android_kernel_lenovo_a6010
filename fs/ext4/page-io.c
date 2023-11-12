@@ -25,6 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
+#include <linux/backing-dev.h>
 
 #include "ext4_jbd2.h"
 #include "xattr.h"
@@ -237,6 +238,10 @@ static void ext4_end_bio(struct bio *bio, int error)
 	for (i = 0; i < bio->bi_vcnt; i++) {
 		struct bio_vec *bvec = &bio->bi_io_vec[i];
 		struct page *page = bvec->bv_page;
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+		struct page *data_page = NULL;
+		struct ext4_crypto_ctx *ctx = NULL;
+#endif
 		struct buffer_head *bh, *head;
 		unsigned bio_start = bvec->bv_offset;
 		unsigned bio_end = bio_start + bvec->bv_len;
@@ -245,6 +250,15 @@ static void ext4_end_bio(struct bio *bio, int error)
 
 		if (!page)
 			continue;
+
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+		if (!page->mapping) {
+			/* The bounce data pages are unmapped. */
+			data_page = page;
+			ctx = (struct ext4_crypto_ctx *)page_private(data_page);
+			page = ctx->w.control_page;
+		}
+#endif
 
 		if (error) {
 			SetPageError(page);
@@ -270,8 +284,13 @@ static void ext4_end_bio(struct bio *bio, int error)
 		} while ((bh = bh->b_this_page) != head);
 		bit_spin_unlock(BH_Uptodate_Lock, &head->b_state);
 		local_irq_restore(flags);
-		if (!under_io)
+		if (!under_io) {
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+			if (ctx)
+				ext4_restore_control_page(data_page);
+#endif
 			end_page_writeback(page);
+		}
 	}
 	bio_put(bio);
 
@@ -339,6 +358,7 @@ static int io_submit_init(struct ext4_io_submit *io,
 static int io_submit_add_bh(struct ext4_io_submit *io,
 			    struct inode *inode,
 			    struct writeback_control *wbc,
+			    struct page *page,
 			    struct buffer_head *bh)
 {
 	ext4_io_end_t *io_end;
@@ -358,7 +378,7 @@ submit_and_retry:
 		ext4_set_io_unwritten_flag(inode, io_end);
 	io->io_end->size += bh->b_size;
 	io->io_next_block++;
-	ret = bio_add_page(io->io_bio, bh->b_page, bh->b_size, bh_offset(bh));
+	ret = bio_add_page(io->io_bio, page, bh->b_size, bh_offset(bh));
 	if (ret != bh->b_size)
 		goto submit_and_retry;
 	return 0;
@@ -369,11 +389,13 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 			int len,
 			struct writeback_control *wbc)
 {
+	struct page *data_page = NULL;
 	struct inode *inode = page->mapping->host;
 	unsigned block_start, blocksize;
 	struct buffer_head *bh, *head;
 	int ret = 0;
 	int nr_submitted = 0;
+	int nr_to_submit = 0;
 
 	blocksize = 1 << inode->i_blkbits;
 
@@ -423,21 +445,44 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 			unmap_underlying_metadata(bh->b_bdev, bh->b_blocknr);
 		}
 		set_buffer_async_write(bh);
+		nr_to_submit++;
 	} while ((bh = bh->b_this_page) != head);
 
-	/* Now submit buffers to write */
 	bh = head = page_buffers(page);
+
+	if (ext4_encrypted_inode(inode) && S_ISREG(inode->i_mode) &&
+	    nr_to_submit) {
+		gfp_t gfp_flags = GFP_NOFS;
+
+	retry_encrypt:
+		data_page = ext4_encrypt(inode, page, gfp_flags);
+		if (IS_ERR(data_page)) {
+			ret = PTR_ERR(data_page);
+			if (ret == -ENOMEM && wbc->sync_mode == WB_SYNC_ALL) {
+				if (io->io_bio) {
+					ext4_io_submit(io);
+					congestion_wait(BLK_RW_ASYNC, HZ/50);
+				}
+				gfp_flags |= __GFP_NOFAIL;
+				goto retry_encrypt;
+			}
+			data_page = NULL;
+			goto out;
+		}
+	}
+
+	/* Now submit buffers to write */
 	do {
 		if (!buffer_async_write(bh))
 			continue;
-		ret = io_submit_add_bh(io, inode, wbc, bh);
+		ret = io_submit_add_bh(io, inode, wbc, 
+				       data_page ? data_page : page, bh);
 		if (ret) {
 			/*
 			 * We only get here on ENOMEM.  Not much else
 			 * we can do but mark the page as dirty, and
 			 * better luck next time.
 			 */
-			redirty_page_for_writepage(wbc, page);
 			break;
 		}
 		nr_submitted++;
@@ -446,6 +491,11 @@ int ext4_bio_write_page(struct ext4_io_submit *io,
 
 	/* Error stopped previous loop? Clean up buffers... */
 	if (ret) {
+	out:
+		if (data_page)
+			ext4_restore_control_page(data_page);
+		printk_ratelimited(KERN_ERR "%s: ret = %d\n", __func__, ret);
+		redirty_page_for_writepage(wbc, page);
 		do {
 			clear_buffer_async_write(bh);
 			bh = bh->b_this_page;

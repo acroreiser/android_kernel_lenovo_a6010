@@ -197,7 +197,17 @@ static inline u64 snmp_fold_field64(void __percpu *mib[], int offt, size_t syncp
 }
 #endif
 extern int snmp_mib_init(void __percpu *ptr[2], size_t mibsize, size_t align);
-extern void snmp_mib_free(void __percpu *ptr[2]);
+
+static inline void snmp_mib_free(void __percpu *ptr[SNMP_ARRAY_SZ])
+{
+	int i;
+
+	BUG_ON(ptr == NULL);
+	for (i = 0; i < SNMP_ARRAY_SZ; i++) {
+		free_percpu(ptr[i]);
+		ptr[i] = NULL;
+	}
+}
 
 extern struct local_ports {
 	seqlock_t	lock;
@@ -265,7 +275,7 @@ static inline void ip_select_ident_segs(struct sk_buff *skb, struct sock *sk, in
 {
 	struct iphdr *iph = ip_hdr(skb);
 
-	if ((iph->frag_off & htons(IP_DF)) && !skb->local_df) {
+	if ((iph->frag_off & htons(IP_DF)) && !skb->ignore_df) {
 		/* This is only to work around buggy Windows95/2000
 		 * VJ compression implementations.  If the ID field
 		 * does not change, they drop every other packet in
@@ -462,6 +472,10 @@ extern void	ip_icmp_error(struct sock *sk, struct sk_buff *skb, int err,
 			      __be16 port, u32 info, u8 *payload);
 extern void	ip_local_error(struct sock *sk, int err, __be32 daddr, __be16 dport,
 			       u32 info);
+
+bool icmp_global_allow(void);
+extern int sysctl_icmp_msgs_per_sec;
+extern int sysctl_icmp_msgs_burst;
 
 #ifdef CONFIG_PROC_FS
 extern int ip_misc_proc_init(void);

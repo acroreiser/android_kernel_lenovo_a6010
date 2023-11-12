@@ -80,12 +80,12 @@ struct rtnl_link_stats64 *ip_tunnel_get_stats64(struct net_device *dev,
 		unsigned int start;
 
 		do {
-			start = u64_stats_fetch_begin_bh(&tstats->syncp);
+			start = u64_stats_fetch_begin_irq(&tstats->syncp);
 			rx_packets = tstats->rx_packets;
 			tx_packets = tstats->tx_packets;
 			rx_bytes = tstats->rx_bytes;
 			tx_bytes = tstats->tx_bytes;
-		} while (u64_stats_fetch_retry_bh(&tstats->syncp, start));
+		} while (u64_stats_fetch_retry_irq(&tstats->syncp, start));
 
 		tot->rx_packets += rx_packets;
 		tot->tx_packets += tx_packets;
@@ -142,9 +142,10 @@ struct ip_tunnel *ip_tunnel_lookup(struct ip_tunnel_net *itn,
 				   __be32 remote, __be32 local,
 				   __be32 key)
 {
-	unsigned int hash;
 	struct ip_tunnel *t, *cand = NULL;
 	struct hlist_head *head;
+	struct net_device *ndev;
+	unsigned int hash;
 
 	hash = ip_tunnel_hash(itn, key, remote);
 	head = &itn->tunnels[hash];
@@ -219,9 +220,9 @@ skip_key_lookup:
 	if (cand)
 		return cand;
 
-	if (itn->fb_tunnel_dev && itn->fb_tunnel_dev->flags & IFF_UP)
-		return netdev_priv(itn->fb_tunnel_dev);
-
+	ndev = READ_ONCE(itn->fb_tunnel_dev);
+	if (ndev && ndev->flags & IFF_UP)
+		return netdev_priv(ndev);
 
 	return NULL;
 }
@@ -542,6 +543,7 @@ void ip_tunnel_xmit(struct sk_buff *skb, struct net_device *dev,
 		    const struct iphdr *tnl_params)
 {
 	struct ip_tunnel *tunnel = netdev_priv(dev);
+	unsigned int inner_nhdr_len = 0;
 	const struct iphdr *inner_iph;
 	struct iphdr *iph;
 	struct flowi4 fl4;
@@ -551,6 +553,14 @@ void ip_tunnel_xmit(struct sk_buff *skb, struct net_device *dev,
 	struct net_device *tdev;	/* Device to other host */
 	unsigned int max_headroom;	/* The extra header space needed */
 	__be32 dst;
+
+	/* ensure we can access the inner net header, for several users below */
+	if (skb->protocol == htons(ETH_P_IP))
+		inner_nhdr_len = sizeof(struct iphdr);
+	else if (skb->protocol == htons(ETH_P_IPV6))
+		inner_nhdr_len = sizeof(struct ipv6hdr);
+	if (unlikely(!pskb_may_pull(skb, inner_nhdr_len)))
+		goto tx_error;
 
 	inner_iph = (const struct iphdr *)skb_inner_network_header(skb);
 
@@ -1006,12 +1016,18 @@ int ip_tunnel_init(struct net_device *dev)
 {
 	struct ip_tunnel *tunnel = netdev_priv(dev);
 	struct iphdr *iph = &tunnel->parms.iph;
-	int err;
+	int i, err;
 
 	dev->destructor	= ip_tunnel_dev_free;
 	dev->tstats = alloc_percpu(struct pcpu_tstats);
 	if (!dev->tstats)
 		return -ENOMEM;
+
+	for_each_possible_cpu(i) {
+		struct pcpu_tstats *ipt_stats;
+		ipt_stats = per_cpu_ptr(dev->tstats, i);
+		u64_stats_init(&ipt_stats->syncp);
+	}
 
 	err = gro_cells_init(&tunnel->gro_cells, dev);
 	if (err) {
@@ -1035,9 +1051,9 @@ void ip_tunnel_uninit(struct net_device *dev)
 	struct ip_tunnel_net *itn;
 
 	itn = net_generic(net, tunnel->ip_tnl_net_id);
-	/* fb_tunnel_dev will be unregisted in net-exit call. */
-	if (itn->fb_tunnel_dev != dev)
-		ip_tunnel_del(netdev_priv(dev));
+	ip_tunnel_del(netdev_priv(dev));
+	if (itn->fb_tunnel_dev == dev)
+		WRITE_ONCE(itn->fb_tunnel_dev, NULL);
 }
 EXPORT_SYMBOL_GPL(ip_tunnel_uninit);
 

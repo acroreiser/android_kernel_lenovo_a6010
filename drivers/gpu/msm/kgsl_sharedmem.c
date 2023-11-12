@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2017,2019,2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -195,7 +195,7 @@ kgsl_process_init_sysfs(struct kgsl_device *device,
 	unsigned char name[16];
 	int i, ret = 0;
 
-	snprintf(name, sizeof(name), "%d", private->pid);
+	snprintf(name, sizeof(name), "%d", pid_nr(private->pid));
 
 	ret = kobject_init_and_add(&private->kobj, &ktype_mem_entry,
 		kgsl_driver.prockobj, name);
@@ -660,9 +660,8 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 			struct kgsl_pagetable *pagetable,
 			size_t size)
 {
-	size_t len;
-	int ret = 0, page_size, sglen_alloc, sglen = 0;
-	void *ptr;
+	int ret = 0;
+	int len, page_size, sglen_alloc, sglen = 0;
 	unsigned int align;
 
 	size = PAGE_ALIGN(size);
@@ -727,8 +726,6 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 		else
 			gfp_mask |= GFP_KERNEL;
 
-		gfp_mask |= __GFP_ZERO;
-
 		page = alloc_pages(gfp_mask, get_order(page_size));
 
 		if (page == NULL) {
@@ -756,11 +753,23 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 			goto done;
 		}
 
+		/*
+		 * All memory that goes to the user has to be zeroed out before it gets
+		 * exposed to userspace. This means that the memory has to be mapped in
+		 * the kernel, zeroed (memset) and then unmapped.  This also means that
+		 * the dcache has to be flushed to ensure coherency between the kernel
+		 * and user pages. We used to pass __GFP_ZERO to alloc_page which mapped
+		 * zeroed and unmaped each individual page, and then we had to turn
+		 * around and call flush_dcache_page() on that page to clear the caches.
+		 * Since __GFP_ZERO will kmap_atomic;clear_page;kunmap_atomic it is faster
+		 * to do everything at once here making things faster for all buffer sizes.
+		 */
 		for (j = 0; j < page_size >> PAGE_SHIFT; j++) {
 			struct page *p = nth_page(page, j);
-			ptr = kmap_atomic(p);
-			dmac_flush_range(ptr, ptr + PAGE_SIZE);
-			kunmap_atomic(ptr);
+			void *kaddr = kmap_atomic(p);
+			clear_page(kaddr);
+			dmac_flush_range(kaddr, kaddr + PAGE_SIZE);
+			kunmap_atomic(kaddr);
 		}
 
 		sg_set_page(&memdesc->sg[sglen++], page, page_size, 0);
@@ -826,8 +835,8 @@ kgsl_sharedmem_readl(const struct kgsl_memdesc *memdesc,
 	if (offsetbytes % sizeof(uint32_t) != 0)
 		return -EINVAL;
 
-	WARN_ON(offsetbytes + sizeof(uint32_t) > memdesc->size);
-	if (offsetbytes + sizeof(uint32_t) > memdesc->size)
+	WARN_ON(offsetbytes > (memdesc->size - sizeof(uint32_t)));
+	if (offsetbytes > (memdesc->size - sizeof(uint32_t)))
 		return -ERANGE;
 
 	rmb();
@@ -849,8 +858,8 @@ kgsl_sharedmem_writel(struct kgsl_device *device,
 	if (offsetbytes % sizeof(uint32_t) != 0)
 		return -EINVAL;
 
-	WARN_ON(offsetbytes + sizeof(uint32_t) > memdesc->size);
-	if (offsetbytes + sizeof(uint32_t) > memdesc->size)
+	WARN_ON(offsetbytes > (memdesc->size - sizeof(uint32_t)));
+	if (offsetbytes > (memdesc->size - sizeof(uint32_t)))
 		return -ERANGE;
 	kgsl_cffdump_write(device,
 		memdesc->gpuaddr + offsetbytes,
@@ -950,6 +959,8 @@ int kgsl_cma_alloc_coherent(struct kgsl_device *device,
 	KGSL_STATS_ADD(size, kgsl_driver.stats.coherent,
 		       kgsl_driver.stats.coherent_max);
 
+	kgsl_trace_gpu_mem_total(device, memdesc->size);
+
 err:
 	if (result)
 		kgsl_sharedmem_free(memdesc);
@@ -973,6 +984,9 @@ int kgsl_cma_alloc_secure(struct kgsl_device *device,
 
 	/* Align size to 1M boundaries */
 	size = ALIGN(size, SZ_1M);
+
+	if (size > UINT_MAX)
+		return -EINVAL;
 
 	memdesc->size = size;
 	memdesc->pagetable = pagetable;
@@ -1045,6 +1059,7 @@ int kgsl_cma_alloc_secure(struct kgsl_device *device,
 	KGSL_STATS_ADD(size, kgsl_driver.stats.secure,
 		       kgsl_driver.stats.secure_max);
 
+	kgsl_trace_gpu_mem_total(device, memdesc->size);
 err:
 	kfree(chunk_list);
 

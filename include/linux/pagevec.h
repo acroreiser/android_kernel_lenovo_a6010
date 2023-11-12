@@ -8,20 +8,23 @@
 #ifndef _LINUX_PAGEVEC_H
 #define _LINUX_PAGEVEC_H
 
-/* 14 pointers + two long's align the pagevec structure to a power of two */
-#define PAGEVEC_SIZE	14
+/* 15 pointers + header align the pagevec structure to a power of two */
+#define PAGEVEC_SIZE	15
 
 struct page;
 struct address_space;
 
 struct pagevec {
-	unsigned long nr;
+	unsigned char nr;
 	unsigned long cold;
 	struct page *pages[PAGEVEC_SIZE];
 };
 
 void __pagevec_release(struct pagevec *pvec);
-void __pagevec_lru_add(struct pagevec *pvec, enum lru_list lru);
+void __pagevec_lru_add(struct pagevec *pvec);
+unsigned __pagevec_lookup(struct pagevec *pvec, struct address_space *mapping,
+			  pgoff_t start, unsigned nr_pages, pgoff_t *indices);
+void pagevec_remove_exceptionals(struct pagevec *pvec);
 unsigned pagevec_lookup(struct pagevec *pvec, struct address_space *mapping,
 		pgoff_t start, unsigned nr_pages);
 unsigned pagevec_lookup_tag(struct pagevec *pvec,
@@ -62,38 +65,6 @@ static inline void pagevec_release(struct pagevec *pvec)
 {
 	if (pagevec_count(pvec))
 		__pagevec_release(pvec);
-}
-
-static inline void __pagevec_lru_add_anon(struct pagevec *pvec)
-{
-	__pagevec_lru_add(pvec, LRU_INACTIVE_ANON);
-}
-
-static inline void __pagevec_lru_add_active_anon(struct pagevec *pvec)
-{
-	__pagevec_lru_add(pvec, LRU_ACTIVE_ANON);
-}
-
-static inline void __pagevec_lru_add_file(struct pagevec *pvec)
-{
-	__pagevec_lru_add(pvec, LRU_INACTIVE_FILE);
-}
-
-static inline void __pagevec_lru_add_active_file(struct pagevec *pvec)
-{
-	__pagevec_lru_add(pvec, LRU_ACTIVE_FILE);
-}
-
-static inline void pagevec_lru_add_file(struct pagevec *pvec)
-{
-	if (pagevec_count(pvec))
-		__pagevec_lru_add_file(pvec);
-}
-
-static inline void pagevec_lru_add_anon(struct pagevec *pvec)
-{
-	if (pagevec_count(pvec))
-		__pagevec_lru_add_anon(pvec);
 }
 
 #endif /* _LINUX_PAGEVEC_H */

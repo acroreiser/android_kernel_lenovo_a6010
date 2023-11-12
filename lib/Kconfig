@@ -45,6 +45,16 @@ config STMP_DEVICE
 config PERCPU_RWSEM
 	boolean
 
+config ARCH_USE_CMPXCHG_LOCKREF
+	bool
+
+config CMPXCHG_LOCKREF
+	def_bool y if ARCH_USE_CMPXCHG_LOCKREF
+	depends on SMP
+	depends on !GENERIC_LOCKBREAK
+	depends on !DEBUG_SPINLOCK
+	depends on !DEBUG_LOCK_ALLOC
+
 config CRC_CCITT
 	tristate "CRC-CCITT functions"
 	help
@@ -189,6 +199,32 @@ config LZO_COMPRESS
 config LZO_DECOMPRESS
 	tristate
 
+config LZ4_COMPRESS
+	tristate
+
+config ZBEWALGO_COMPRESS
+	tristate
+
+config LZ4HC_COMPRESS
+	tristate
+
+config LZ4_DECOMPRESS
+	tristate
+
+config XXHASH
+	tristate
+
+config ZSTD_COMPRESS
+	select XXHASH
+	tristate
+
+config ZSTD_DECOMPRESS
+	select XXHASH
+	tristate
+
+config LZ4_DECOMPRESS
+	tristate
+
 source "lib/xz/Kconfig"
 
 #
@@ -211,6 +247,10 @@ config DECOMPRESS_XZ
 
 config DECOMPRESS_LZO
 	select LZO_DECOMPRESS
+	tristate
+
+config DECOMPRESS_LZ4
+	select LZ4_DECOMPRESS
 	tristate
 
 #

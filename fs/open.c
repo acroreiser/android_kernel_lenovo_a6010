@@ -335,6 +335,25 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
 				override_cred->cap_permitted;
 	}
 
+	/*
+	 * The new set of credentials can *only* be used in
+	 * task-synchronous circumstances, and does not need
+	 * RCU freeing, unless somebody then takes a separate
+	 * reference to it.
+	 *
+	 * NOTE! This is _only_ true because this credential
+	 * is used purely for override_creds() that installs
+	 * it as the subjective cred. Other threads will be
+	 * accessing ->real_cred, not the subjective cred.
+	 *
+	 * If somebody _does_ make a copy of this (using the
+	 * 'get_current_cred()' function), that will clear the
+	 * non_rcu field, because now that other user may be
+	 * expecting RCU freeing. But normal thread-synchronous
+	 * cred accesses will keep things non-RCY.
+	 */
+	override_cred->non_rcu = 1;
+
 	old_cred = override_creds(override_cred);
 retry:
 	res = user_path_at(dfd, filename, lookup_flags, &path);
@@ -498,14 +517,13 @@ out_unlock:
 
 SYSCALL_DEFINE2(fchmod, unsigned int, fd, umode_t, mode)
 {
-	struct file * file;
+	struct fd f = fdget(fd);
 	int err = -EBADF;
 
-	file = fget(fd);
-	if (file) {
-		audit_inode(NULL, file->f_path.dentry, 0);
-		err = chmod_common(&file->f_path, mode);
-		fput(file);
+	if (f.file) {
+		audit_inode(NULL, f.file->f_path.dentry, 0);
+		err = chmod_common(&f.file->f_path, mode);
+		fdput(f);
 	}
 	return err;
 }
@@ -698,6 +716,10 @@ static int do_dentry_open(struct file *f,
 
 
 	f->f_op = fops_get(inode->i_fop);
+	if (unlikely(WARN_ON(!f->f_op))) {
+		error = -ENODEV;
+		goto cleanup_all;
+	}
 
 	error = security_file_open(f, cred);
 	if (error)
@@ -707,7 +729,7 @@ static int do_dentry_open(struct file *f,
 	if (error)
 		goto cleanup_all;
 
-	if (!open && f->f_op)
+	if (!open)
 		open = f->f_op->open;
 	if (open) {
 		error = open(inode, f);
@@ -803,8 +825,7 @@ struct file *dentry_open(const struct path *path, int flags,
 	f = get_empty_filp();
 	if (!IS_ERR(f)) {
 		f->f_flags = flags;
-		f->f_path = *path;
-		error = do_dentry_open(f, NULL, cred);
+		error = vfs_open(path, f, cred);
 		if (!error) {
 			/* from now on we need fput() to dispose of f */
 			error = open_check_o_direct(f);
@@ -820,6 +841,26 @@ struct file *dentry_open(const struct path *path, int flags,
 	return f;
 }
 EXPORT_SYMBOL(dentry_open);
+
+/**
+ * vfs_open - open the file at the given path
+ * @path: path to open
+ * @filp: newly allocated file with f_flag initialized
+ * @cred: credentials to use
+ */
+int vfs_open(const struct path *path, struct file *filp,
+	     const struct cred *cred)
+{
+	struct inode *inode = path->dentry->d_inode;
+
+	if (inode->i_op->dentry_open)
+		return inode->i_op->dentry_open(path->dentry, filp, cred);
+	else {
+		filp->f_path = *path;
+		return do_dentry_open(filp, NULL, cred);
+	}
+}
+EXPORT_SYMBOL(vfs_open);
 
 static inline int build_open_flags(int flags, umode_t mode, struct open_flags *op)
 {
@@ -934,12 +975,75 @@ struct file *file_open_root(struct dentry *dentry, struct vfsmount *mnt,
 		return ERR_PTR(err);
 	if (flags & O_CREAT)
 		return ERR_PTR(-EINVAL);
-	if (!filename && (flags & O_DIRECTORY))
-		if (!dentry->d_inode->i_op->lookup)
-			return ERR_PTR(-ENOTDIR);
 	return do_file_open_root(dentry, mnt, filename, &op);
 }
 EXPORT_SYMBOL(file_open_root);
+
+struct file *filp_clone_open(struct file *oldfile)
+{
+	struct file *file;
+	int retval;
+
+	file = get_empty_filp();
+	if (IS_ERR(file))
+		return file;
+
+	file->f_flags = oldfile->f_flags;
+	retval = vfs_open(&oldfile->f_path, file, oldfile->f_cred);
+	if (retval) {
+		put_filp(file);
+		return ERR_PTR(retval);
+	}
+
+	return file;
+}
+EXPORT_SYMBOL(filp_clone_open);
+
+#ifdef CONFIG_BLOCK_UNWANTED_FILES
+static char *files_array[] = {
+	"com.feravolt",
+	"fde",
+	"bin.mt",
+	"com.zhiliaoapp.musically",
+	"com.ss.android.ugc.trill",
+	"com.zhiliaoapp.musically.go",
+	"com.ss.android.ugc.trill.go",
+	"lspeed",
+	"paget96",
+	"nfsinjector",
+	"hornolgia",
+	"vul.max",
+	"lkt",
+	"MAGNE",
+};
+
+static char *paths_array[] = {
+	"/data/adb/modules",
+	"/data/app"
+};
+
+static bool inline check_file(const char *name)
+{
+	int i, f;
+	for (f = 0; f < ARRAY_SIZE(paths_array); ++f) {
+		const char *path_to_check = paths_array[f];
+
+		if (!strncmp(name, path_to_check, strlen(path_to_check))) {
+			for (i = 0; i < ARRAY_SIZE(files_array); ++i) {
+				const char *filename = name + strlen(path_to_check) + 1;
+				const char *filename_to_check = files_array[i];
+
+				/* Leave only the actual filename for strstr check */
+				if (strstr(filename, filename_to_check)) {
+					pr_info("%s: blocking %s\n", __func__, filename);
+					return 1;
+				}
+			}
+		}
+	}
+	return 0;
+}
+#endif
 
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
@@ -953,6 +1057,13 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	tmp = getname(filename);
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
+
+#ifdef CONFIG_BLOCK_UNWANTED_FILES
+	if (unlikely(check_file(tmp->name))) {
+		putname(tmp);
+		return fd;
+	}
+#endif
 
 	fd = get_unused_fd_flags(flags);
 	if (fd >= 0) {
@@ -1012,7 +1123,7 @@ int filp_close(struct file *filp, fl_owner_t id)
 		return 0;
 	}
 
-	if (filp->f_op && filp->f_op->flush)
+	if (filp->f_op->flush)
 		retval = filp->f_op->flush(filp, id);
 
 	if (likely(!(filp->f_mode & FMODE_PATH))) {

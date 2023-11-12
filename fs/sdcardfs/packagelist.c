@@ -168,7 +168,7 @@ int check_caller_access_to_name(struct inode *parent_node, const struct qstr *na
 	/* Root always has access; access for any other UIDs should always
 	 * be controlled through packages.list.
 	 */
-	if (current_fsuid() == 0)
+	if (from_kuid(&init_user_ns, current_fsuid()) == 0)
 		return 1;
 
 	/* No extra permissions to enforce */
@@ -556,7 +556,7 @@ static void package_details_release(struct config_item *item)
 {
 	struct package_details *package_details = to_package_details(item);
 
-	pr_info("sdcardfs: removing %s\n", package_details->name.name);
+	pr_debug("sdcardfs: removing %s\n", package_details->name.name);
 	remove_packagelist_entry(&package_details->name);
 	kfree(package_details->name.name);
 	kfree(package_details);

@@ -261,7 +261,7 @@ int __cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 			 const u8 *ssid, int ssid_len,
 			 const u8 *ie, int ie_len,
 			 const u8 *key, int key_len, int key_idx,
-			 const u8 *sae_data, int sae_data_len)
+			 const u8 *auth_data, int auth_data_len)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	struct cfg80211_auth_request req;
@@ -281,8 +281,8 @@ int __cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 
 	req.ie = ie;
 	req.ie_len = ie_len;
-	req.sae_data = sae_data;
-	req.sae_data_len = sae_data_len;
+	req.auth_data = auth_data;
+	req.auth_data_len = auth_data_len;
 	req.auth_type = auth_type;
 	req.bss = cfg80211_get_bss(&rdev->wiphy, chan, bssid, ssid, ssid_len,
 				   WLAN_CAPABILITY_ESS, WLAN_CAPABILITY_ESS);
@@ -310,7 +310,7 @@ int cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 		       const u8 *ssid, int ssid_len,
 		       const u8 *ie, int ie_len,
 		       const u8 *key, int key_len, int key_idx,
-		       const u8 *sae_data, int sae_data_len)
+		       const u8 *auth_data, int auth_data_len)
 {
 	int err;
 
@@ -319,7 +319,7 @@ int cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 	err = __cfg80211_mlme_auth(rdev, dev, chan, auth_type, bssid,
 				   ssid, ssid_len, ie, ie_len,
 				   key, key_len, key_idx,
-				   sae_data, sae_data_len);
+				   auth_data, auth_data_len);
 	wdev_unlock(dev->ieee80211_ptr);
 	mutex_unlock(&rdev->devlist_mtx);
 
@@ -454,6 +454,11 @@ int __cfg80211_mlme_deauth(struct cfg80211_registered_device *rdev,
 	if (local_state_change && (!wdev->current_bss ||
 	    !ether_addr_equal(wdev->current_bss->pub.bssid, bssid)))
 		return 0;
+
+	if (ether_addr_equal(wdev->disconnect_bssid, bssid) ||
+	    (wdev->current_bss &&
+	     ether_addr_equal(wdev->current_bss->pub.bssid, bssid)))
+		wdev->conn_owner_nlportid = 0;
 
 	return rdev_deauth(rdev, dev, &req);
 }
@@ -774,7 +779,7 @@ int cfg80211_mlme_mgmt_tx(struct cfg80211_registered_device *rdev,
 }
 
 bool cfg80211_rx_mgmt(struct wireless_dev *wdev, int freq, int sig_mbm,
-		      const u8 *buf, size_t len, gfp_t gfp)
+		      const u8 *buf, size_t len, u32 flags, gfp_t gfp)
 {
 	struct wiphy *wiphy = wdev->wiphy;
 	struct cfg80211_registered_device *rdev = wiphy_to_dev(wiphy);
@@ -817,7 +822,7 @@ bool cfg80211_rx_mgmt(struct wireless_dev *wdev, int freq, int sig_mbm,
 		/* Indicate the received Action frame to user space */
 		if (nl80211_send_mgmt(rdev, wdev, reg->nlportid,
 				      freq, sig_mbm,
-				      buf, len, gfp))
+				      buf, len, flags, gfp))
 			continue;
 
 		result = true;

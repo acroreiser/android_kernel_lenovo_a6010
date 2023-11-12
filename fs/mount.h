@@ -1,16 +1,19 @@
 #include <linux/mount.h>
 #include <linux/seq_file.h>
 #include <linux/poll.h>
+#include <linux/ns_common.h>
 
 struct mnt_namespace {
 	atomic_t		count;
-	unsigned int		proc_inum;
+	struct ns_common	ns;
 	struct mount *	root;
 	struct list_head	list;
 	struct user_namespace	*user_ns;
 	u64			seq;	/* Sequence number to prevent loops */
 	wait_queue_head_t poll;
 	int event;
+	unsigned int		mounts; /* # of mounts in the namespace */
+	unsigned int		pending_mounts;
 };
 
 struct mnt_pcp {

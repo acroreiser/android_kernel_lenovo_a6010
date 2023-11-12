@@ -63,7 +63,6 @@
 #include <linux/init.h>
 #include <linux/swap.h>
 #include <linux/slab.h>
-#include <linux/loop.h>
 #include <linux/compat.h>
 #include <linux/suspend.h>
 #include <linux/freezer.h>
@@ -76,6 +75,7 @@
 #include <linux/sysfs.h>
 #include <linux/miscdevice.h>
 #include <linux/falloc.h>
+#include "loop.h"
 
 #include <asm/uaccess.h>
 
@@ -596,10 +596,40 @@ static int loop_switch(struct loop_device *lo, struct file *file)
 static int loop_flush(struct loop_device *lo)
 {
 	/* loop not yet configured, no running thread, nothing to flush */
-	if (!lo->lo_thread)
+	if (lo->lo_state != Lo_bound)
 		return 0;
-
+	
 	return loop_switch(lo, NULL);
+}
+
+static inline int is_loop_device(struct file *file)
+{
+	struct inode *i = file->f_mapping->host;
+
+	return i && S_ISBLK(i->i_mode) && MAJOR(i->i_rdev) == LOOP_MAJOR;
+}
+
+static int loop_validate_file(struct file *file, struct block_device *bdev)
+{
+	struct inode	*inode = file->f_mapping->host;
+	struct file	*f = file;
+
+	/* Avoid recursion */
+	while (is_loop_device(f)) {
+		struct loop_device *l;
+
+		if (f->f_mapping->host->i_bdev == bdev)
+			return -EBADF;
+
+		l = f->f_mapping->host->i_bdev->bd_disk->private_data;
+		if (l->lo_state == Lo_unbound) {
+			return -EINVAL;
+		}
+		f = l->lo_backing_file;
+	}
+	if (!S_ISREG(inode->i_mode) && !S_ISBLK(inode->i_mode))
+		return -EINVAL;
+	return 0;
 }
 
 /*
@@ -656,13 +686,14 @@ static int loop_change_fd(struct loop_device *lo, struct block_device *bdev,
 	if (!file)
 		goto out;
 
+	error = loop_validate_file(file, bdev);
+	if (error)
+		goto out_putf;
+
 	inode = file->f_mapping->host;
 	old_file = lo->lo_backing_file;
 
 	error = -EINVAL;
-
-	if (!S_ISREG(inode->i_mode) && !S_ISBLK(inode->i_mode))
-		goto out_putf;
 
 	/* size of the new backing store needs to be the same */
 	if (get_loop_size(lo, file) != get_loop_size(lo, old_file))
@@ -682,13 +713,6 @@ static int loop_change_fd(struct loop_device *lo, struct block_device *bdev,
 	fput(file);
  out:
 	return error;
-}
-
-static inline int is_loop_device(struct file *file)
-{
-	struct inode *i = file->f_mapping->host;
-
-	return i && S_ISBLK(i->i_mode) && MAJOR(i->i_rdev) == LOOP_MAJOR;
 }
 
 /* loop sysfs attributes */
@@ -778,16 +802,17 @@ static struct attribute_group loop_attribute_group = {
 	.attrs= loop_attrs,
 };
 
-static int loop_sysfs_init(struct loop_device *lo)
+static void loop_sysfs_init(struct loop_device *lo)
 {
-	return sysfs_create_group(&disk_to_dev(lo->lo_disk)->kobj,
-				  &loop_attribute_group);
+	lo->sysfs_inited = !sysfs_create_group(&disk_to_dev(lo->lo_disk)->kobj,
+						&loop_attribute_group);
 }
 
 static void loop_sysfs_exit(struct loop_device *lo)
 {
-	sysfs_remove_group(&disk_to_dev(lo->lo_disk)->kobj,
-			   &loop_attribute_group);
+	if (lo->sysfs_inited)
+		sysfs_remove_group(&disk_to_dev(lo->lo_disk)->kobj,
+				   &loop_attribute_group);
 }
 
 static void loop_config_discard(struct loop_device *lo)
@@ -822,7 +847,7 @@ static void loop_config_discard(struct loop_device *lo)
 static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 		       struct block_device *bdev, unsigned int arg)
 {
-	struct file	*file, *f;
+	struct file	*file;
 	struct inode	*inode;
 	struct address_space *mapping;
 	unsigned lo_blocksize;
@@ -842,28 +867,12 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	if (lo->lo_state != Lo_unbound)
 		goto out_putf;
 
-	/* Avoid recursion */
-	f = file;
-	while (is_loop_device(f)) {
-		struct loop_device *l;
-
-		if (f->f_mapping->host->i_bdev == bdev)
-			goto out_putf;
-
-		l = f->f_mapping->host->i_bdev->bd_disk->private_data;
-		if (l->lo_state == Lo_unbound) {
-			error = -EINVAL;
-			goto out_putf;
-		}
-		f = l->lo_backing_file;
-	}
+	error = loop_validate_file(file, bdev);
+	if (error)
+		goto out_putf;
 
 	mapping = file->f_mapping;
 	inode = mapping->host;
-
-	error = -EINVAL;
-	if (!S_ISREG(inode->i_mode) && !S_ISBLK(inode->i_mode))
-		goto out_putf;
 
 	if (!(file->f_mode & FMODE_WRITE) || !(mode & FMODE_WRITE) ||
 	    !file->f_op->write)
@@ -1031,6 +1040,7 @@ static int loop_clr_fd(struct loop_device *lo)
 	memset(lo->lo_encrypt_key, 0, LO_KEY_SIZE);
 	memset(lo->lo_crypt_name, 0, LO_NAME_SIZE);
 	memset(lo->lo_file_name, 0, LO_NAME_SIZE);
+	blk_queue_logical_block_size(lo->lo_queue, 512);
 	if (bdev) {
 		bdput(bdev);
 		invalidate_bdev(bdev);
@@ -1078,6 +1088,12 @@ loop_set_status(struct loop_device *lo, const struct loop_info64 *info)
 	if ((unsigned int) info->lo_encrypt_key_size > LO_KEY_SIZE)
 		return -EINVAL;
 
+	if (lo->lo_offset != info->lo_offset ||
+	    lo->lo_sizelimit != info->lo_sizelimit) {
+		sync_blockdev(lo->lo_device);
+		kill_bdev(lo->lo_device);
+	}
+
 	err = loop_release_xfer(lo);
 	if (err)
 		return err;
@@ -1098,9 +1114,17 @@ loop_set_status(struct loop_device *lo, const struct loop_info64 *info)
 		return err;
 
 	if (lo->lo_offset != info->lo_offset ||
-	    lo->lo_sizelimit != info->lo_sizelimit)
+	    lo->lo_sizelimit != info->lo_sizelimit) {
+		/* kill_bdev should have truncated all the pages */
+		if (lo->lo_device->bd_inode->i_mapping->nrpages) {
+			pr_warn("%s: loop%d (%s) has still dirty pages (nrpages=%lu)\n",
+				__func__, lo->lo_number, lo->lo_file_name,
+				lo->lo_device->bd_inode->i_mapping->nrpages);
+			return -EAGAIN;
+		}
 		if (figure_loop_size(lo, info->lo_offset, info->lo_sizelimit))
 			return -EFBIG;
+	}
 
 	loop_config_discard(lo);
 
@@ -1284,6 +1308,40 @@ static int loop_set_capacity(struct loop_device *lo, struct block_device *bdev)
 	return figure_loop_size(lo, lo->lo_offset, lo->lo_sizelimit);
 }
 
+static int loop_set_block_size(struct loop_device *lo, unsigned long arg)
+{
+	int err = 0;
+
+	if (lo->lo_state != Lo_bound)
+		return -ENXIO;
+
+	if (arg < 512 || arg > PAGE_SIZE || !is_power_of_2(arg))
+		return -EINVAL;
+
+	if (lo->lo_queue->limits.logical_block_size != arg) {
+		sync_blockdev(lo->lo_device);
+		kill_bdev(lo->lo_device);
+	}
+
+	spin_lock_irq(&lo->lo_lock);
+
+	/* kill_bdev should have truncated all the pages */
+	if (lo->lo_queue->limits.logical_block_size != arg &&
+			lo->lo_device->bd_inode->i_mapping->nrpages) {
+		err = -EAGAIN;
+		pr_warn("%s: loop%d (%s) has still dirty pages (nrpages=%lu)\n",
+			__func__, lo->lo_number, lo->lo_file_name,
+			lo->lo_device->bd_inode->i_mapping->nrpages);
+		goto out_unlock;
+	}
+
+	blk_queue_logical_block_size(lo->lo_queue, arg);
+out_unlock:
+	spin_unlock_irq(&lo->lo_lock);
+
+	return err;
+}
+
 static int lo_ioctl(struct block_device *bdev, fmode_t mode,
 	unsigned int cmd, unsigned long arg)
 {
@@ -1326,6 +1384,11 @@ static int lo_ioctl(struct block_device *bdev, fmode_t mode,
 		err = -EPERM;
 		if ((mode & FMODE_WRITE) || capable(CAP_SYS_ADMIN))
 			err = loop_set_capacity(lo, bdev);
+		break;
+	case LOOP_SET_BLOCK_SIZE:
+		err = -EPERM;
+		if ((mode & FMODE_WRITE) || capable(CAP_SYS_ADMIN))
+			err = loop_set_block_size(lo, arg);
 		break;
 	default:
 		err = lo->ioctl ? lo->ioctl(lo, cmd, arg) : -EINVAL;
@@ -1481,6 +1544,7 @@ static int lo_compat_ioctl(struct block_device *bdev, fmode_t mode,
 		arg = (unsigned long) compat_ptr(arg);
 	case LOOP_SET_FD:
 	case LOOP_CHANGE_FD:
+	case LOOP_SET_BLOCK_SIZE:
 		err = lo_ioctl(bdev, mode, cmd, arg);
 		break;
 	default:
@@ -1511,9 +1575,8 @@ out:
 	return err;
 }
 
-static void lo_release(struct gendisk *disk, fmode_t mode)
+static void __lo_release(struct loop_device *lo)
 {
-	struct loop_device *lo = disk->private_data;
 	int err;
 
 	mutex_lock(&lo->lo_ctl_mutex);
@@ -1539,6 +1602,13 @@ static void lo_release(struct gendisk *disk, fmode_t mode)
 
 out:
 	mutex_unlock(&lo->lo_ctl_mutex);
+}
+
+static void lo_release(struct gendisk *disk, fmode_t mode)
+{
+	mutex_lock(&loop_index_mutex);
+	__lo_release(disk->private_data);
+	mutex_unlock(&loop_index_mutex);
 }
 
 static const struct block_device_operations lo_fops = {
@@ -1635,6 +1705,13 @@ static int loop_add(struct loop_device **l, int i)
 	 */
 	blk_queue_make_request(lo->lo_queue, loop_make_request);
 	lo->lo_queue->queuedata = lo;
+
+	blk_queue_max_hw_sectors(lo->lo_queue, BLK_DEF_MAX_SECTORS);
+	/*
+	 * It doesn't make sense to enable merge because the I/O
+	 * submitted to backing file is handled page by page.
+	 */
+	queue_flag_set_unlocked(QUEUE_FLAG_NOMERGES, lo->lo_queue);
 
 	disk = lo->lo_disk = alloc_disk(1 << part_shift);
 	if (!disk)

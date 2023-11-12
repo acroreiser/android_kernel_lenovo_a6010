@@ -80,7 +80,7 @@ static const int bfq_back_max = 16 * 1024;
 static const int bfq_back_penalty = 2;
 
 /* Idling period duration, in jiffies. */
-static int bfq_slice_idle = HZ / 125;
+static int bfq_slice_idle = 0;
 
 /* Default maximum budget values, in sectors and number of requests. */
 static const int bfq_default_max_budget = 16 * 1024;
@@ -94,8 +94,8 @@ static const int bfq_max_budget_async_rq = 4;
 static const int bfq_async_charge_factor = 10;
 
 /* Default timeout values, in jiffies, approximating CFQ defaults. */
-static const int bfq_timeout_sync = HZ / 8;
-static int bfq_timeout_async = HZ / 25;
+static const int bfq_timeout_sync = 75;
+static int bfq_timeout_async = 40;
 
 struct kmem_cache *bfq_pool;
 
@@ -1120,7 +1120,7 @@ static int bfq_merge(struct request_queue *q, struct request **req,
 	struct request *__rq;
 
 	__rq = bfq_find_rq_fmerge(bfqd, bio);
-	if (__rq != NULL && elv_rq_merge_ok(__rq, bio)) {
+	if (__rq != NULL && elv_bio_merge_ok(__rq, bio)) {
 		*req = __rq;
 		return ELEVATOR_FRONT_MERGE;
 	}
@@ -1584,7 +1584,7 @@ static inline void bfq_bfqq_increase_failed_cooperations(struct bfq_queue *bfqq)
 	}
 }
 
-static int bfq_allow_merge(struct request_queue *q, struct request *rq,
+static int bfq_allow_bio_merge(struct request_queue *q, struct request *rq,
 			   struct bio *bio)
 {
 	struct bfq_data *bfqd = q->elevator->elevator_data;
@@ -1626,6 +1626,12 @@ static int bfq_allow_merge(struct request_queue *q, struct request *rq,
 	}
 
 	return bfqq == RQ_BFQQ(rq);
+}
+
+static int bfq_allow_rq_merge(struct request_queue *q, struct request *rq,
+                             struct request *next)
+{
+       return RQ_BFQQ(rq) == RQ_BFQQ(next);
 }
 
 static void __bfq_set_in_service_queue(struct bfq_data *bfqd,
@@ -4119,12 +4125,15 @@ static ssize_t bfq_low_latency_store(struct elevator_queue *e,
 #define BFQ_ATTR(name) \
 	__ATTR(name, S_IRUGO|S_IWUSR, bfq_##name##_show, bfq_##name##_store)
 
+#define BFQ_ATTR_RO(name) \
+	__ATTR(name, S_IRUGO, bfq_##name##_show, bfq_##name##_store)
+
 static struct elv_fs_entry bfq_attrs[] = {
 	BFQ_ATTR(fifo_expire_sync),
 	BFQ_ATTR(fifo_expire_async),
 	BFQ_ATTR(back_seek_max),
 	BFQ_ATTR(back_seek_penalty),
-	BFQ_ATTR(slice_idle),
+	BFQ_ATTR_RO(slice_idle),
 	BFQ_ATTR(max_budget),
 	BFQ_ATTR(max_budget_async_rq),
 	BFQ_ATTR(timeout_sync),
@@ -4145,7 +4154,8 @@ static struct elevator_type iosched_bfq = {
 		.elevator_merge_fn =		bfq_merge,
 		.elevator_merged_fn =		bfq_merged_request,
 		.elevator_merge_req_fn =	bfq_merged_requests,
-		.elevator_allow_merge_fn =	bfq_allow_merge,
+		.elevator_allow_bio_merge_fn =	bfq_allow_bio_merge,
+		.elevator_allow_rq_merge_fn =	bfq_allow_rq_merge,
 		.elevator_dispatch_fn =		bfq_dispatch_requests,
 		.elevator_add_req_fn =		bfq_insert_request,
 		.elevator_activate_req_fn =	bfq_activate_request,
@@ -4173,8 +4183,8 @@ static int __init bfq_init(void)
 	/*
 	 * Can be 0 on HZ < 1000 setups.
 	 */
-	if (bfq_slice_idle == 0)
-		bfq_slice_idle = 1;
+	//if (bfq_slice_idle == 0)
+	//	bfq_slice_idle = 1;
 
 	if (bfq_timeout_async == 0)
 		bfq_timeout_async = 1;

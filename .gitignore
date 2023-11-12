@@ -19,6 +19,9 @@
 *.so.dbg
 *.mod.c
 *.i
+*.zip
+*.md5
+*.rej
 *.lst
 *.symtypes
 *.order
@@ -29,6 +32,7 @@ modules.builtin
 *.bz2
 *.lzma
 *.xz
+*.lz4
 *.lzo
 *.patch
 *.gcno
@@ -94,3 +98,6 @@ x509.genkey
 
 # Generated source files
 smd_rpc_sym.c
+
+net/wireguard/crypto/zinc/chacha20/chacha20-arm.S
+net/wireguard/crypto/zinc/poly1305/poly1305-arm.S

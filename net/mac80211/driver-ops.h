@@ -609,6 +609,12 @@ static inline int drv_conf_tx(struct ieee80211_local *local,
 
 	check_sdata_in_driver(sdata);
 
+	if (WARN_ONCE(params->cw_min == 0 ||
+		      params->cw_min > params->cw_max,
+		      "%s: invalid CW_min/CW_max: %d/%d\n",
+		      sdata->name, params->cw_min, params->cw_max))
+		return -EINVAL;
+
 	trace_drv_conf_tx(local, sdata, ac, params);
 	if (local->ops->conf_tx)
 		ret = local->ops->conf_tx(&local->hw, &sdata->vif,
@@ -1070,5 +1076,19 @@ static inline void drv_ipv6_addr_change(struct ieee80211_local *local,
 	trace_drv_return_void(local);
 }
 #endif
+
+static inline int drv_get_txpower(struct ieee80211_local *local,
+				  struct ieee80211_sub_if_data *sdata, int *dbm)
+{
+	int ret;
+
+	if (!local->ops->get_txpower)
+		return -EOPNOTSUPP;
+
+	ret = local->ops->get_txpower(&local->hw, &sdata->vif, dbm);
+	trace_drv_get_txpower(local, sdata, *dbm, ret);
+
+	return ret;
+}
 
 #endif /* __MAC80211_DRIVER_OPS */

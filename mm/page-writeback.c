@@ -63,14 +63,18 @@
  * After a CPU has dirtied this many pages, balance_dirty_pages_ratelimited
  * will look to see if it needs to force writeback or throttling.
  */
-static long ratelimit_pages = 32;
+static long ratelimit_pages = 1024;
 
 /* The following parameters are exported via /proc/sys/vm */
 
 /*
  * Start background writeback (via writeback threads) at this percentage
  */
-int dirty_background_ratio = 10;
+#ifdef CONFIG_DECREASE_DIRTY_BACKGROUND_RATIO
+int dirty_background_ratio = 1;
+#else
+int dirty_background_ratio = 5;
+#endif
 
 /*
  * dirty_background_bytes starts at 0 (disabled) so that it is a function of
@@ -82,12 +86,12 @@ unsigned long dirty_background_bytes;
  * free highmem will not be subtracted from the total free memory
  * for calculating free ratios if vm_highmem_is_dirtyable is true
  */
-int vm_highmem_is_dirtyable;
+int vm_highmem_is_dirtyable = 1;
 
 /*
  * The generator of dirty data starts writeback at this percentage
  */
-int vm_dirty_ratio = 20;
+int vm_dirty_ratio = 10;
 
 /*
  * vm_dirty_bytes starts at 0 (disabled) so that it is a function of
@@ -98,7 +102,7 @@ unsigned long vm_dirty_bytes;
 /*
  * The interval between `kupdate'-style writebacks
  */
-unsigned int dirty_writeback_interval = 5 * 100; /* centiseconds */
+unsigned int dirty_writeback_interval; /* centiseconds */
 
 EXPORT_SYMBOL_GPL(dirty_writeback_interval);
 
@@ -116,7 +120,7 @@ int block_dump;
  * Flag that puts the machine in "laptop mode". Doubles as a timeout in jiffies:
  * a full sync is triggered after this time elapses without any disk activity.
  */
-int laptop_mode = 1;
+int laptop_mode = 0;
 
 EXPORT_SYMBOL(laptop_mode);
 
@@ -300,6 +304,12 @@ void global_dirty_limits(unsigned long *pbackground, unsigned long *pdirty)
 	else
 		background = (dirty_background_ratio * available_memory) / 100;
 
+	if (!vm_dirty_bytes && dirty < 2560) {
+		dirty = 2560;
+		if (!dirty_background_bytes)
+			background = dirty / 2;
+	}
+
 	if (background >= dirty)
 		background = dirty / 2;
 	tsk = current;
@@ -358,10 +368,13 @@ int dirty_background_ratio_handler(struct ctl_table *table, int write,
 		loff_t *ppos)
 {
 	int ret;
-
+#ifndef CONFIG_DIRTY_RATIO_HARDCODE
 	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
 	if (ret == 0 && write)
 		dirty_background_bytes = 0;
+#else
+	ret = proc_dointvec_minmax(table, 0, buffer, lenp, ppos);
+#endif
 	return ret;
 }
 
@@ -370,10 +383,13 @@ int dirty_background_bytes_handler(struct ctl_table *table, int write,
 		loff_t *ppos)
 {
 	int ret;
-
+#ifndef CONFIG_DIRTY_RATIO_HARDCODE
 	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos);
 	if (ret == 0 && write)
 		dirty_background_ratio = 0;
+#else
+	ret = proc_doulongvec_minmax(table, 0, buffer, lenp, ppos);
+#endif
 	return ret;
 }
 
@@ -381,14 +397,17 @@ int dirty_ratio_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp,
 		loff_t *ppos)
 {
-	int old_ratio = vm_dirty_ratio;
 	int ret;
-
+#ifndef CONFIG_DIRTY_RATIO_HARDCODE
+	int old_ratio = vm_dirty_ratio;
 	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
 	if (ret == 0 && write && vm_dirty_ratio != old_ratio) {
 		writeback_set_ratelimit();
 		vm_dirty_bytes = 0;
 	}
+#else
+	ret = proc_dointvec_minmax(table, 0, buffer, lenp, ppos);
+#endif
 	return ret;
 }
 
@@ -396,14 +415,17 @@ int dirty_bytes_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp,
 		loff_t *ppos)
 {
-	unsigned long old_bytes = vm_dirty_bytes;
 	int ret;
-
+#ifndef CONFIG_DIRTY_RATIO_HARDCODE
+	unsigned long old_bytes = vm_dirty_bytes;
 	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos);
 	if (ret == 0 && write && vm_dirty_bytes != old_bytes) {
 		writeback_set_ratelimit();
 		vm_dirty_ratio = 0;
 	}
+#else
+	ret = proc_doulongvec_minmax(table, 0, buffer, lenp, ppos);
+#endif
 	return ret;
 }
 

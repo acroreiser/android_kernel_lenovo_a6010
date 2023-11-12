@@ -33,6 +33,13 @@ extern __read_mostly int scheduler_running;
 #define TASK_USER_PRIO(p)	USER_PRIO((p)->static_prio)
 #define MAX_USER_PRIO		(USER_PRIO(MAX_PRIO))
 
+struct freq_max_load {
+	struct rcu_head rcu;
+	u32 freqs[0];
+};
+
+extern DEFINE_PER_CPU(struct freq_max_load *, freq_max_load);
+
 /*
  * Helpers for converting nanosecond timing to jiffy resolution
  */
@@ -149,8 +156,10 @@ struct task_group {
 	unsigned long shares;
 
 	atomic_t load_weight;
-	atomic64_t load_avg;
+#ifdef	CONFIG_SMP
+	atomic_long_t load_avg;
 	atomic_t runnable_avg;
+#endif
 #endif
 
 #ifdef CONFIG_RT_GROUP_SCHED
@@ -269,27 +278,20 @@ struct cfs_rq {
 #endif
 
 #ifdef CONFIG_SMP
-/*
- * Load-tracking only depends on SMP, FAIR_GROUP_SCHED dependency below may be
- * removed when useful for applications beyond shares distribution (e.g.
- * load-balance).
- */
-#ifdef CONFIG_FAIR_GROUP_SCHED
 	/*
 	 * CFS Load tracking
 	 * Under CFS, load is tracked on a per-entity basis and aggregated up.
 	 * This allows for the description of both thread and group usage (in
 	 * the FAIR_GROUP_SCHED case).
 	 */
-	u64 runnable_load_avg, blocked_load_avg;
+	unsigned long runnable_load_avg, blocked_load_avg;
 	atomic64_t decay_counter, removed_load;
 	u64 last_decay;
-#endif /* CONFIG_FAIR_GROUP_SCHED */
-/* These always depend on CONFIG_FAIR_GROUP_SCHED */
+
 #ifdef CONFIG_FAIR_GROUP_SCHED
+	/* Required to track per-cpu representation of a task_group */
 	u32 tg_runnable_contrib;
-	u64 tg_load_contrib;
-#endif /* CONFIG_FAIR_GROUP_SCHED */
+	unsigned long tg_load_contrib;
 
 	/*
 	 *   h_load = weight * f(tg)
@@ -298,6 +300,9 @@ struct cfs_rq {
 	 * this group.
 	 */
 	unsigned long h_load;
+	u64 last_h_load_update;
+	struct sched_entity *h_load_next;
+#endif /* CONFIG_FAIR_GROUP_SCHED */
 #endif /* CONFIG_SMP */
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -414,6 +419,7 @@ struct rq {
 	 * remote CPUs use both these fields when doing load calculation.
 	 */
 	unsigned int nr_running;
+	unsigned int nr_pinned_tasks;
 	#define CPU_LOAD_IDX_MAX 5
 	unsigned long cpu_load[CPU_LOAD_IDX_MAX];
 	unsigned long last_load_update_tick;
@@ -426,6 +432,13 @@ struct rq {
 #endif
 	int skip_clock_update;
 
+#ifdef CONFIG_CPU_QUIET
+	/* time-based average load */
+	u64 nr_last_stamp;
+	u64 nr_running_integral;
+	seqcount_t ave_seqcnt;
+#endif
+
 	/* capture load from *all* tasks on this cpu: */
 	struct load_weight load;
 	unsigned long nr_load_updates;
@@ -437,9 +450,6 @@ struct rq {
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	/* list of leaf cfs_rq on this cpu: */
 	struct list_head leaf_cfs_rq_list;
-#ifdef CONFIG_SMP
-	unsigned long h_load_throttle;
-#endif /* CONFIG_SMP */
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 
 #ifdef CONFIG_RT_GROUP_SCHED
@@ -513,6 +523,8 @@ struct rq {
 #ifdef CONFIG_SCHED_FREQ_INPUT
 	u64 curr_runnable_sum;
 	u64 prev_runnable_sum;
+	u64 nt_curr_runnable_sum;
+	u64 nt_prev_runnable_sum;
 #endif
 
 #ifdef CONFIG_SCHED_HMP
@@ -868,7 +880,6 @@ static inline void clear_reserved(int cpu)
 }
 
 extern unsigned int sched_enable_hmp;
-extern unsigned int sched_enable_power_aware;
 
 int mostly_idle_cpu(int cpu);
 extern void check_for_migration(struct rq *rq, struct task_struct *p);
@@ -883,7 +894,7 @@ extern void boost_kick(int cpu);
 
 #else /* CONFIG_SCHED_HMP */
 
-#define sched_enable_hmp 0
+#define sched_enable_hmp 1
 #define sched_freq_legacy_mode 1
 
 static inline void check_for_migration(struct rq *rq, struct task_struct *p) { }
@@ -912,9 +923,9 @@ static inline void clear_reserved(int cpu) { }
 /*
  * Return the group to which this tasks belongs.
  *
- * We cannot use task_subsys_state() and friends because the cgroup
- * subsystem changes that value before the cgroup_subsys::attach() method
- * is called, therefore we cannot pin it and might observe the wrong value.
+ * We cannot use task_css() and friends because the cgroup subsystem
+ * changes that value before the cgroup_subsys::attach() method is called,
+ * therefore we cannot pin it and might observe the wrong value.
  *
  * The same is true for autogroup's p->signal->autogroup->tg, the autogroup
  * core changes this before calling sched_move_task().
@@ -1304,17 +1315,8 @@ extern void update_group_power(struct sched_domain *sd, int cpu);
 extern void trigger_load_balance(struct rq *rq, int cpu);
 extern void idle_balance(int this_cpu, struct rq *this_rq);
 
-/*
- * Only depends on SMP, FAIR_GROUP_SCHED may be removed when runnable_avg
- * becomes useful in lb
- */
-#if defined(CONFIG_FAIR_GROUP_SCHED)
 extern void idle_enter_fair(struct rq *this_rq);
 extern void idle_exit_fair(struct rq *this_rq);
-#else
-static inline void idle_enter_fair(struct rq *this_rq) {}
-static inline void idle_exit_fair(struct rq *this_rq) {}
-#endif
 
 #else	/* CONFIG_SMP */
 
@@ -1350,7 +1352,7 @@ static inline u64 steal_ticks(u64 steal)
 }
 #endif
 
-static inline void inc_nr_running(struct rq *rq)
+static inline void __inc_nr_running(struct rq *rq)
 {
 	sched_update_nr_prod(cpu_of(rq), 1, true);
 	rq->nr_running++;
@@ -1371,11 +1373,48 @@ static inline void inc_nr_running(struct rq *rq)
 	}
 }
 
-static inline void dec_nr_running(struct rq *rq)
+static inline void __dec_nr_running(struct rq *rq)
 {
 	sched_update_nr_prod(cpu_of(rq), 1, false);
 	rq->nr_running--;
 }
+
+#ifdef CONFIG_CPU_QUIET
+#define NR_AVE_SCALE(x)		((x) << FSHIFT)
+static inline u64 do_nr_running_integral(struct rq *rq)
+{
+	s64 nr, deltax;
+	u64 nr_running_integral = rq->nr_running_integral;
+
+	deltax = rq->clock_task - rq->nr_last_stamp;
+	nr = NR_AVE_SCALE(rq->nr_running);
+
+	nr_running_integral += nr * deltax;
+
+	return nr_running_integral;
+}
+
+static inline void inc_nr_running(struct rq *rq)
+{
+	write_seqcount_begin(&rq->ave_seqcnt);
+	rq->nr_running_integral = do_nr_running_integral(rq);
+	rq->nr_last_stamp = rq->clock_task;
+	__inc_nr_running(rq);
+	write_seqcount_end(&rq->ave_seqcnt);
+}
+
+static inline void dec_nr_running(struct rq *rq)
+{
+	write_seqcount_begin(&rq->ave_seqcnt);
+	rq->nr_running_integral = do_nr_running_integral(rq);
+	rq->nr_last_stamp = rq->clock_task;
+	__dec_nr_running(rq);
+	write_seqcount_end(&rq->ave_seqcnt);
+}
+#else
+#define inc_nr_running __inc_nr_running
+#define dec_nr_running __dec_nr_running
+#endif
 
 static inline void rq_last_tick_reset(struct rq *rq)
 {
@@ -1668,15 +1707,7 @@ static inline u64 irq_time_read(int cpu)
 #endif /* CONFIG_64BIT */
 #endif /* CONFIG_IRQ_TIME_ACCOUNTING */
 
-static inline void account_reset_rq(struct rq *rq)
-{
-#ifdef CONFIG_IRQ_TIME_ACCOUNTING
-	rq->prev_irq_time = 0;
-#endif
-#ifdef CONFIG_PARAVIRT
-	rq->prev_steal_time = 0;
-#endif
-#ifdef CONFIG_PARAVIRT_TIME_ACCOUNTING
-	rq->prev_steal_time_rq = 0;
-#endif
-}
+/*
+ * task_may_not_preempt - check whether a task may not be preemptible soon
+ */
+extern bool task_may_not_preempt(struct task_struct *task, int cpu);

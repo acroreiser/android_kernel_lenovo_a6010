@@ -26,6 +26,7 @@ __read_mostly bool force_irqthreads;
 
 static int __init setup_forced_irqthreads(char *arg)
 {
+	pr_info("forced threading enabled\n");
 	force_irqthreads = true;
 	return 0;
 }
@@ -150,6 +151,8 @@ int irq_do_set_affinity(struct irq_data *data, const struct cpumask *mask,
 	struct irq_chip *chip = irq_data_get_irq_chip(data);
 	int ret;
 
+	/* IRQs only run on the first CPU in the affinity mask; reflect that */
+	mask = cpumask_of(cpumask_first(mask));
 	ret = chip->irq_set_affinity(data, mask, force);
 	switch (ret) {
 	case IRQ_SET_MASK_OK:
@@ -462,7 +465,7 @@ void __enable_irq(struct irq_desc *desc, unsigned int irq, bool resume)
 	switch (desc->depth) {
 	case 0:
  err_out:
-		WARN(1, KERN_WARNING "Unbalanced enable for IRQ %d\n", irq);
+		//WARN(1, KERN_WARNING "Unbalanced enable for IRQ %d\n", irq);
 		break;
 	case 1: {
 		if (desc->istate & IRQS_SUSPENDED)
@@ -554,7 +557,7 @@ int irq_set_irq_wake(unsigned int irq, unsigned int on)
 		}
 	} else {
 		if (desc->wake_depth == 0) {
-			WARN(1, "Unbalanced IRQ %d wake disable\n", irq);
+			//WARN(1, "Unbalanced IRQ %d wake disable\n", irq);
 		} else if (--desc->wake_depth == 0) {
 			ret = set_irq_wake_real(irq, on);
 			if (ret)
@@ -893,9 +896,6 @@ static void irq_thread_dtor(struct callback_head *unused)
 static int irq_thread(void *data)
 {
 	struct callback_head on_exit_work;
-	static const struct sched_param param = {
-		.sched_priority = MAX_USER_RT_PRIO/2,
-	};
 	struct irqaction *action = data;
 	struct irq_desc *desc = irq_to_desc(action->irq);
 	irqreturn_t (*handler_fn)(struct irq_desc *desc,
@@ -906,8 +906,6 @@ static int irq_thread(void *data)
 		handler_fn = irq_forced_thread_fn;
 	else
 		handler_fn = irq_thread_fn;
-
-	sched_setscheduler(current, SCHED_FIFO, &param);
 
 	init_task_work(&on_exit_work, irq_thread_dtor);
 	task_work_add(current, &on_exit_work, false);
@@ -1003,6 +1001,9 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
 	 */
 	if (new->thread_fn && !nested) {
 		struct task_struct *t;
+		static const struct sched_param param = {
+			.sched_priority = MAX_USER_RT_PRIO/2,
+		};
 
 		t = kthread_create(irq_thread, new, "irq/%d-%s", irq,
 				   new->name);
@@ -1010,6 +1011,9 @@ __setup_irq(unsigned int irq, struct irq_desc *desc, struct irqaction *new)
 			ret = PTR_ERR(t);
 			goto out_mput;
 		}
+
+		sched_setscheduler_nocheck(t, SCHED_FIFO, &param);
+
 		/*
 		 * We keep the reference to the task struct even if
 		 * the thread dies to avoid that the interrupt code

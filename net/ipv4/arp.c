@@ -149,6 +149,14 @@ static const struct neigh_ops arp_direct_ops = {
 	.connected_output =	neigh_direct_output,
 };
 
+static const struct neigh_ops arp_broken_ops = {
+	.family =		AF_INET,
+	.solicit =		arp_solicit,
+	.error_report =		arp_error_report,
+	.output =		neigh_compat_output,
+	.connected_output =	neigh_compat_output,
+};
+
 struct neigh_table arp_tbl = {
 	.family		= AF_INET,
 	.key_len	= 4,
@@ -360,9 +368,7 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 	} else {
 		probes -= neigh->parms->app_probes;
 		if (probes < 0) {
-#ifdef CONFIG_ARPD
 			neigh_app_ns(neigh);
-#endif
 			return;
 		}
 	}
@@ -796,6 +802,14 @@ static int arp_process(struct sk_buff *skb)
  */
 	if (ipv4_is_multicast(tip) ||
 	    (!IN_DEV_ROUTE_LOCALNET(in_dev) && ipv4_is_loopback(tip)))
+		goto out;
+
+ /*
+  *	For some 802.11 wireless deployments (and possibly other networks),
+  *	there will be an ARP proxy and gratuitous ARP frames are attacks
+  *	and thus should not be accepted.
+  */
+	if (sip == tip && IN_DEV_ORCONF(in_dev, DROP_GRATUITOUS_ARP))
 		goto out;
 
 /*

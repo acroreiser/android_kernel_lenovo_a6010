@@ -57,7 +57,11 @@ extern tANI_U32 gPktAllocCnt, gPktFreeCnt;
 extern  VOS_TRACE_LEVEL getVosDebugLevel(tANI_U32 debugLevel);
 
 /// Debug dumps
+#ifdef ANI_LOGDUMP
 extern void logPrintf(tpAniSirGlobal, tANI_U32, tANI_U32 arg1, tANI_U32 arg2, tANI_U32 arg3, tANI_U32 arg4);
+#else
+#define logPrintf(arg...)
+#endif
 
 /// RTAI dump
 extern int logRtaiDump(tpAniSirGlobal, tANI_U32, tANI_U32, tANI_U32, tANI_U32, tANI_U32, tANI_U8 *);
@@ -705,7 +709,7 @@ halRoundS32(tANI_S32 p)
     else
         k = p;
 
-        return(k);
+    return(k);
 }
 
 // New functions for endianess conversion

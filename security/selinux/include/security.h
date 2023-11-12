@@ -8,6 +8,7 @@
 #ifndef _SELINUX_SECURITY_H_
 #define _SELINUX_SECURITY_H_
 
+#include <linux/compiler.h>
 #include <linux/dcache.h>
 #include <linux/magic.h>
 #include <linux/types.h>
@@ -75,6 +76,8 @@ enum {
 };
 #define POLICYDB_CAPABILITY_MAX (__POLICYDB_CAPABILITY_MAX - 1)
 
+extern int selinux_android_netlink_route;
+extern int selinux_android_netlink_getneigh;
 extern int selinux_policycap_netpeer;
 extern int selinux_policycap_openperm;
 
@@ -159,7 +162,7 @@ int security_sid_to_context(u32 sid, char **scontext,
 int security_sid_to_context_force(u32 sid, char **scontext, u32 *scontext_len);
 
 int security_context_to_sid(const char *scontext, u32 scontext_len,
-	u32 *out_sid);
+			    u32 *out_sid, gfp_t gfp);
 
 int security_context_to_sid_default(const char *scontext, u32 scontext_len,
 				    u32 *out_sid, u32 def_sid, gfp_t gfp_flags);
@@ -244,7 +247,7 @@ struct selinux_kernel_status {
 	/*
 	 * The version > 0 supports above members.
 	 */
-} __attribute__((packed));
+} __packed;
 
 extern void selinux_status_update_setenforce(int enforcing);
 extern void selinux_status_update_policyload(int seqno);
@@ -256,6 +259,7 @@ extern struct vfsmount *selinuxfs_mount;
 extern void selnl_notify_setenforce(int val);
 extern void selnl_notify_policyload(u32 seqno);
 extern int selinux_nlmsg_lookup(u16 sclass, u16 nlmsg_type, u32 *perm);
+extern void selinux_nlmsg_init(void);
 
 #endif /* _SELINUX_SECURITY_H_ */
 

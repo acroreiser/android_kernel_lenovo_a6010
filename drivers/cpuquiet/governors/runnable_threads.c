@@ -42,8 +42,8 @@ static unsigned int default_thresholds[] = {
 };
 
 static unsigned int nr_run_last;
-static unsigned int nr_run_hysteresis = 2;	     /* 1 / 2 thread */
-static unsigned int default_threshold_level = 4;	/* 1 / 4 thread */
+static unsigned int nr_run_hysteresis = 1;	     /* 1 / 2 thread */
+static unsigned int default_threshold_level = 1;	/* 1 / 4 thread */
 static unsigned int nr_run_thresholds[NR_CPUS];
 
 struct runnables_avg_sample {
@@ -222,17 +222,17 @@ static void runnables_stop(void)
 	runnables_enabled = false;
 	del_timer_sync(&runnables_timer);
 	cancel_work_sync(&runnables_work);
-	runnables_sysfs_exit();
+	//runnables_sysfs_exit();
 }
 
 static int runnables_start(void)
 {
 	int i, err, arch_specific_sample_rate;
 
-	err = runnables_sysfs_init();
+/*	err = runnables_sysfs_init();
 	if (err)
 		return err;
-
+*/
 	INIT_WORK(&runnables_work, runnables_work_func);
 
 	init_timer(&runnables_timer);

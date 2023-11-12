@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -832,7 +832,7 @@ static int mdss_edp_get_base_address(struct mdss_edp_drv_pdata *edp_drv)
 		(int)edp_drv, (int)edp_drv->base, edp_drv->base_size);
 
 	mdss_debug_register_base("edp",
-			edp_drv->base, edp_drv->base_size);
+			edp_drv->base, edp_drv->base_size, NULL);
 
 	return 0;
 }
@@ -892,7 +892,7 @@ static int edp_event_thread(void *data)
 	ep = (struct mdss_edp_drv_pdata *)data;
 
 	while (1) {
-		wait_event(ep->event_q, (ep->event_pndx != ep->event_gndx));
+		wait_event_interruptible(ep->event_q, (ep->event_pndx != ep->event_gndx));
 		spin_lock_irqsave(&ep->event_lock, flag);
 		if (ep->event_pndx == ep->event_gndx) {
 			spin_unlock_irqrestore(&ep->event_lock, flag);

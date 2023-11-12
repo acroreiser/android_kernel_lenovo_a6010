@@ -10,6 +10,7 @@
 #include <linux/node.h>
 #include <linux/fs.h>
 #include <linux/atomic.h>
+#include <linux/page-flags.h>
 #include <asm/page.h>
 
 struct notifier_block;
@@ -19,10 +20,13 @@ struct bio;
 #define SWAP_FLAG_PREFER	0x8000	/* set if swap priority specified */
 #define SWAP_FLAG_PRIO_MASK	0x7fff
 #define SWAP_FLAG_PRIO_SHIFT	0
-#define SWAP_FLAG_DISCARD	0x10000 /* discard swap cluster after use */
+#define SWAP_FLAG_DISCARD	0x10000 /* enable discard for swap */
+#define SWAP_FLAG_DISCARD_ONCE	0x20000 /* discard swap area at swapon-time */
+#define SWAP_FLAG_DISCARD_PAGES 0x40000 /* discard page-clusters after use */
 
 #define SWAP_FLAGS_VALID	(SWAP_FLAG_PRIO_MASK | SWAP_FLAG_PREFER | \
-				 SWAP_FLAG_DISCARD)
+				 SWAP_FLAG_DISCARD | SWAP_FLAG_DISCARD_ONCE | \
+				 SWAP_FLAG_DISCARD_PAGES)
 
 static inline int current_is_kswapd(void)
 {
@@ -146,15 +150,17 @@ struct swap_extent {
 enum {
 	SWP_USED	= (1 << 0),	/* is slot in swap_info[] used? */
 	SWP_WRITEOK	= (1 << 1),	/* ok to write to this swap?	*/
-	SWP_DISCARDABLE = (1 << 2),	/* swapon+blkdev support discard */
+	SWP_DISCARDABLE = (1 << 2),	/* blkdev support discard */
 	SWP_DISCARDING	= (1 << 3),	/* now discarding a free cluster */
 	SWP_SOLIDSTATE	= (1 << 4),	/* blkdev seeks are cheap */
 	SWP_CONTINUED	= (1 << 5),	/* swap_map has count continuation */
 	SWP_BLKDEV	= (1 << 6),	/* its a block device */
 	SWP_FILE	= (1 << 7),	/* set after swap_activate success */
-	SWP_FAST	= (1 << 8),	/* blkdev access is fast and cheap */
+	SWP_AREA_DISCARD = (1 << 8),	/* single-time swap area discards */
+	SWP_PAGE_DISCARD = (1 << 9),	/* freed swap page-cluster discards */
+	SWP_FAST	= (1 << 10),	/* blkdev access is fast and cheap */
 					/* add others here before... */
-	SWP_SCANNING	= (1 << 9),	/* refcount in scan_swap_map */
+	SWP_SCANNING	= (1 << 11),	/* refcount in scan_swap_map */
 };
 
 #define SWAP_CLUSTER_MAX 32UL
@@ -222,6 +228,44 @@ struct swap_list_t {
 	int next;	/* swapfile to be used next */
 };
 
+/* linux/mm/workingset.c */
+void *workingset_eviction(struct address_space *mapping, struct page *page);
+bool workingset_refault(void *shadow);
+void workingset_activation(struct page *page);
+extern struct list_lru workingset_shadow_nodes;
+
+static inline unsigned int workingset_node_pages(struct radix_tree_node *node)
+{
+	return node->count & RADIX_TREE_COUNT_MASK;
+}
+
+static inline void workingset_node_pages_inc(struct radix_tree_node *node)
+{
+	node->count++;
+}
+
+static inline void workingset_node_pages_dec(struct radix_tree_node *node)
+{
+	VM_BUG_ON(!workingset_node_pages(node));
+	node->count--;
+}
+
+static inline unsigned int workingset_node_shadows(struct radix_tree_node *node)
+{
+	return node->count >> RADIX_TREE_COUNT_SHIFT;
+}
+
+static inline void workingset_node_shadows_inc(struct radix_tree_node *node)
+{
+	node->count += 1U << RADIX_TREE_COUNT_SHIFT;
+}
+
+static inline void workingset_node_shadows_dec(struct radix_tree_node *node)
+{
+	VM_BUG_ON(!workingset_node_shadows(node));
+	node->count -= 1U << RADIX_TREE_COUNT_SHIFT;
+}
+
 /* linux/mm/page_alloc.c */
 extern unsigned long totalram_pages;
 extern unsigned long totalreserve_pages;
@@ -234,8 +278,8 @@ extern unsigned long nr_free_pagecache_pages(void);
 
 
 /* linux/mm/swap.c */
-extern void __lru_cache_add(struct page *, enum lru_list lru);
-extern void lru_cache_add_lru(struct page *, enum lru_list lru);
+extern void __lru_cache_add(struct page *);
+extern void lru_cache_add(struct page *);
 extern void lru_add_page_tail(struct page *page, struct page *page_tail,
 			 struct lruvec *lruvec, struct list_head *head);
 extern void activate_page(struct page *);
@@ -248,6 +292,8 @@ extern void deactivate_page(struct page *page);
 extern void swap_setup(void);
 
 extern void add_page_to_unevictable_list(struct page *page);
+extern void lru_cache_add_active_or_unevictable(struct page *page,
+						struct vm_area_struct *vma);
 
 /**
  * lru_cache_add: add a page to the page lists
@@ -255,12 +301,14 @@ extern void add_page_to_unevictable_list(struct page *page);
  */
 static inline void lru_cache_add_anon(struct page *page)
 {
-	__lru_cache_add(page, LRU_INACTIVE_ANON);
+	ClearPageActive(page);
+	__lru_cache_add(page);
 }
 
 static inline void lru_cache_add_file(struct page *page)
 {
-	__lru_cache_add(page, LRU_INACTIVE_FILE);
+	ClearPageActive(page);
+	__lru_cache_add(page);
 }
 
 /* linux/mm/vmscan.c */
@@ -277,6 +325,12 @@ extern unsigned long shrink_all_memory(unsigned long nr_pages);
 extern int vm_swappiness;
 extern int remove_mapping(struct address_space *mapping, struct page *page);
 extern unsigned long vm_total_pages;
+
+#ifdef CONFIG_MEMCG
+extern unsigned long vmpressure_win;
+extern unsigned int vmpressure_level_med;
+extern unsigned int vmpressure_level_critical;
+#endif
 
 #ifdef CONFIG_NUMA
 extern int zone_reclaim_mode;
@@ -341,6 +395,9 @@ extern void free_pages_and_swap_cache(struct page **, int);
 extern struct page *lookup_swap_cache(swp_entry_t);
 extern struct page *read_swap_cache_async(swp_entry_t, gfp_t,
 			struct vm_area_struct *vma, unsigned long addr);
+extern struct page *__read_swap_cache_async(swp_entry_t, gfp_t,
+			struct vm_area_struct *vma, unsigned long addr,
+			bool *new_page_allocated);
 extern struct page *swapin_readahead(swp_entry_t, gfp_t,
 			struct vm_area_struct *vma, unsigned long addr);
 

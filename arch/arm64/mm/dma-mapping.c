@@ -493,6 +493,7 @@ static void arm64_dma_unremap(struct device *dev, void *remapped_addr,
 {
 	struct vm_struct *area;
 
+	size = PAGE_ALIGN(size);
 	remapped_addr = (void *)((unsigned long)remapped_addr & PAGE_MASK);
 
 	area = find_vm_area(remapped_addr);
@@ -502,6 +503,8 @@ static void arm64_dma_unremap(struct device *dev, void *remapped_addr,
 		return;
 	}
 	vunmap(remapped_addr);
+	flush_tlb_kernel_range((unsigned long)remapped_addr,
+			(unsigned long)(remapped_addr + size));
 }
 
 const struct dma_map_ops noncoherent_swiotlb_dma_ops = {
@@ -745,9 +748,13 @@ static struct page **__iommu_alloc_buffer(struct device *dev, size_t size,
 	while (count) {
 		int j, order = __fls(count);
 
-		pages[i] = alloc_pages(gfp, order);
-		while (!pages[i] && order)
-			pages[i] = alloc_pages(gfp, --order);
+		pages[i] = alloc_pages(order ? gfp | __GFP_NORETRY :
+						gfp, order);
+		while (!pages[i] && order) {
+			order--;
+			pages[i] = alloc_pages(order ? gfp | __GFP_NORETRY :
+							gfp, order);
+		}
 		if (!pages[i])
 			goto error;
 

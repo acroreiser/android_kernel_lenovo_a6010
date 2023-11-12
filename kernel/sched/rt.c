@@ -5,6 +5,7 @@
 
 #include "sched.h"
 
+#include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <trace/events/sched.h>
 
@@ -16,8 +17,8 @@ struct rt_bandwidth def_rt_bandwidth;
 
 static enum hrtimer_restart sched_rt_period_timer(struct hrtimer *timer)
 {
-	struct rt_bandwidth *rt_b =
-		container_of(timer, struct rt_bandwidth, rt_period_timer);
+	struct rt_bandwidth *rt_b = container_of(
+		timer, struct rt_bandwidth, rt_period_timer);
 	ktime_t now;
 	int overrun;
 	int idle = 0;
@@ -1274,11 +1275,29 @@ select_task_rq_rt_hmp(struct task_struct *p, int sd_flag, int flags)
 	return cpu;
 }
 
+/*
+ * Return whether the task on the given cpu is currently non-preemptible
+ * while handling a potentially long softint, or if the task is likely
+ * to block preemptions soon because it is a ksoftirq thread that is
+ * handling slow softints.
+ */
+bool
+task_may_not_preempt(struct task_struct *task, int cpu)
+{
+	__u32 softirqs = per_cpu(active_softirqs, cpu) |
+			__IRQ_STAT(cpu, __softirq_pending);
+	struct task_struct *cpu_ksoftirqd = per_cpu(ksoftirqd, cpu);
+	return ((softirqs & LONG_SOFTIRQ_MASK) &&
+		(task == cpu_ksoftirqd ||
+		 task_thread_info(task)->preempt_count & SOFTIRQ_MASK));
+}
+
 static int
 select_task_rq_rt(struct task_struct *p, int sd_flag, int flags)
 {
 	struct task_struct *curr;
 	struct rq *rq;
+	bool may_not_preempt;
 	int cpu;
 
 	cpu = task_cpu(p);
@@ -1299,7 +1318,12 @@ select_task_rq_rt(struct task_struct *p, int sd_flag, int flags)
 	curr = ACCESS_ONCE(rq->curr); /* unlocked access */
 
 	/*
-	 * If the current task on @p's runqueue is an RT task, then
+	 * If the current task on @p's runqueue is a softirq task,
+	 * it may run without preemption for a time that is
+	 * ill-suited for a waiting RT task. Therefore, try to
+	 * wake this RT task on another runqueue.
+	 *
+	 * Also, if the current task on @p's runqueue is an RT task, then
 	 * try to see if we can wake this RT task up on another
 	 * runqueue. Otherwise simply start this RT task
 	 * on its current runqueue.
@@ -1320,13 +1344,23 @@ select_task_rq_rt(struct task_struct *p, int sd_flag, int flags)
 	 * This test is optimistic, if we get it wrong the load-balancer
 	 * will have to sort it out.
 	 */
-	if (curr && unlikely(rt_task(curr)) &&
-	    (curr->nr_cpus_allowed < 2 ||
-	     curr->prio <= p->prio) &&
-	    (p->nr_cpus_allowed > 1)) {
+	may_not_preempt = task_may_not_preempt(curr, cpu);
+	if (curr && (may_not_preempt ||
+		     (unlikely(rt_task(curr)) &&
+		      (curr->nr_cpus_allowed < 2 ||
+		       curr->prio <= p->prio) &&
+		      (p->nr_cpus_allowed > 1)))) {
 		int target = find_lowest_rq(p);
 
-		if (target != -1)
+		/*
+		 * If cpu is non-preemptible, prefer remote cpu
+		 * even if it's running a higher-prio task.
+ 		 * Otherwise: Possible race. Don't bother moving it if the
+ 		 * destination CPU is not running a lower priority task.
+ 		*/
+		if (target != -1 &&
+		    (may_not_preempt ||
+		     p->prio < cpu_rq(target)->rt.highest_prio.curr))
 			cpu = target;
 	}
 	rcu_read_unlock();
@@ -1661,6 +1695,16 @@ static struct rq *find_lock_lowest_rq(struct task_struct *task, struct rq *rq)
 			break;
 
 		lowest_rq = cpu_rq(cpu);
+
+		if (lowest_rq->rt.highest_prio.curr <= task->prio) {
+ 			/*
+			* Target rq has tasks of equal or higher priority,
+			* retrying does not release any lock and is unlikely
+			* to yield a different result.
+			*/
+ 			lowest_rq = NULL;
+ 			break;
+ 		}
 
 		/* if the prio of this runqueue changed, try again */
 		if (double_lock_balance(rq, lowest_rq)) {

@@ -28,6 +28,23 @@
 #define F_GETPIPE_SZ	(F_LINUX_SPECIFIC_BASE + 8)
 
 /*
+ * Set/Get seals
+ */
+#define F_ADD_SEALS	(F_LINUX_SPECIFIC_BASE + 9)
+#define F_GET_SEALS	(F_LINUX_SPECIFIC_BASE + 10)
+
+/*
+ * Types of seals
+ */
+#define F_SEAL_SEAL	0x0001	/* prevent further seals from being set */
+#define F_SEAL_SHRINK	0x0002	/* prevent file from shrinking */
+#define F_SEAL_GROW	0x0004	/* prevent file from growing */
+#define F_SEAL_WRITE	0x0008	/* prevent writes */
+#define F_SEAL_FUTURE_WRITE	0x0010	/* prevent future writes while mapped */
+#define F_SEAL_EXEC	0x0020  /* prevent chmod modifying exec bits */
+/* (1U << 31) is reserved for signed error codes */
+
+/*
  * Types of directory notifications that may be requested.
  */
 #define DN_ACCESS	0x00000001	/* File accessed */

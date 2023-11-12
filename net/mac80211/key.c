@@ -337,12 +337,12 @@ struct ieee80211_key *ieee80211_key_alloc(u32 cipher, int idx, size_t key_len,
 	switch (cipher) {
 	case WLAN_CIPHER_SUITE_WEP40:
 	case WLAN_CIPHER_SUITE_WEP104:
-		key->conf.iv_len = WEP_IV_LEN;
-		key->conf.icv_len = WEP_ICV_LEN;
+		key->conf.iv_len = IEEE80211_WEP_IV_LEN;
+		key->conf.icv_len = IEEE80211_WEP_ICV_LEN;
 		break;
 	case WLAN_CIPHER_SUITE_TKIP:
-		key->conf.iv_len = TKIP_IV_LEN;
-		key->conf.icv_len = TKIP_ICV_LEN;
+		key->conf.iv_len = IEEE80211_TKIP_IV_LEN;
+		key->conf.icv_len = IEEE80211_TKIP_ICV_LEN;
 		if (seq) {
 			for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
 				key->u.tkip.rx[i].iv32 =
@@ -354,13 +354,13 @@ struct ieee80211_key *ieee80211_key_alloc(u32 cipher, int idx, size_t key_len,
 		spin_lock_init(&key->u.tkip.txlock);
 		break;
 	case WLAN_CIPHER_SUITE_CCMP:
-		key->conf.iv_len = CCMP_HDR_LEN;
-		key->conf.icv_len = CCMP_MIC_LEN;
+		key->conf.iv_len = IEEE80211_CCMP_HDR_LEN;
+		key->conf.icv_len = IEEE80211_CCMP_MIC_LEN;
 		if (seq) {
 			for (i = 0; i < IEEE80211_NUM_TIDS + 1; i++)
-				for (j = 0; j < CCMP_PN_LEN; j++)
+				for (j = 0; j < IEEE80211_CCMP_PN_LEN; j++)
 					key->u.ccmp.rx_pn[i][j] =
-						seq[CCMP_PN_LEN - j - 1];
+						seq[IEEE80211_CCMP_PN_LEN - j - 1];
 		}
 		/*
 		 * Initialize AES key state here as an optimization so that
@@ -377,9 +377,9 @@ struct ieee80211_key *ieee80211_key_alloc(u32 cipher, int idx, size_t key_len,
 		key->conf.iv_len = 0;
 		key->conf.icv_len = sizeof(struct ieee80211_mmie);
 		if (seq)
-			for (j = 0; j < CMAC_PN_LEN; j++)
+			for (j = 0; j < IEEE80211_CMAC_PN_LEN; j++)
 				key->u.aes_cmac.rx_pn[j] =
-					seq[CMAC_PN_LEN - j - 1];
+					seq[IEEE80211_CMAC_PN_LEN - j - 1];
 		/*
 		 * Initialize AES key state here as an optimization so that
 		 * it does not need to be initialized for every packet.
@@ -453,6 +453,39 @@ void ieee80211_key_free_unused(struct ieee80211_key *key)
 	ieee80211_key_free_common(key);
 }
 
+static bool ieee80211_key_identical(struct ieee80211_sub_if_data *sdata,
+				    struct ieee80211_key *old,
+				    struct ieee80211_key *new)
+{
+	u8 tkip_old[WLAN_KEY_LEN_TKIP], tkip_new[WLAN_KEY_LEN_TKIP];
+	u8 *tk_old, *tk_new;
+
+	if (!old || new->conf.keylen != old->conf.keylen)
+		return false;
+
+	tk_old = old->conf.key;
+	tk_new = new->conf.key;
+
+	/*
+	 * In station mode, don't compare the TX MIC key, as it's never used
+	 * and offloaded rekeying may not care to send it to the host. This
+	 * is the case in iwlwifi, for example.
+	 */
+	if (sdata->vif.type == NL80211_IFTYPE_STATION &&
+	    new->conf.cipher == WLAN_CIPHER_SUITE_TKIP &&
+	    new->conf.keylen == WLAN_KEY_LEN_TKIP &&
+	    !(new->conf.flags & IEEE80211_KEY_FLAG_PAIRWISE)) {
+		memcpy(tkip_old, tk_old, WLAN_KEY_LEN_TKIP);
+		memcpy(tkip_new, tk_new, WLAN_KEY_LEN_TKIP);
+		memset(tkip_old + NL80211_TKIP_DATA_OFFSET_TX_MIC_KEY, 0, 8);
+		memset(tkip_new + NL80211_TKIP_DATA_OFFSET_TX_MIC_KEY, 0, 8);
+		tk_old = tkip_old;
+		tk_new = tkip_new;
+	}
+
+	return !crypto_memneq(tk_old, tk_new, new->conf.keylen);
+}
+
 int ieee80211_key_link(struct ieee80211_key *key,
 		       struct ieee80211_sub_if_data *sdata,
 		       struct sta_info *sta)
@@ -480,8 +513,7 @@ int ieee80211_key_link(struct ieee80211_key *key,
 	 * Silently accept key re-installation without really installing the
 	 * new version of the key to avoid nonce reuse or replay issues.
 	 */
-	if (old_key && key->conf.keylen == old_key->conf.keylen &&
-	    !crypto_memneq(key->conf.key, old_key->conf.key, key->conf.keylen)) {
+	if (ieee80211_key_identical(sdata, old_key, key)) {
 		ieee80211_key_free_unused(key);
 		ret = 0;
 		goto out;
@@ -755,13 +787,13 @@ void ieee80211_get_key_rx_seq(struct ieee80211_key_conf *keyconf,
 			pn = key->u.ccmp.rx_pn[IEEE80211_NUM_TIDS];
 		else
 			pn = key->u.ccmp.rx_pn[tid];
-		memcpy(seq->ccmp.pn, pn, CCMP_PN_LEN);
+		memcpy(seq->ccmp.pn, pn, IEEE80211_CCMP_PN_LEN);
 		break;
 	case WLAN_CIPHER_SUITE_AES_CMAC:
 		if (WARN_ON(tid != 0))
 			return;
 		pn = key->u.aes_cmac.rx_pn;
-		memcpy(seq->aes_cmac.pn, pn, CMAC_PN_LEN);
+		memcpy(seq->aes_cmac.pn, pn, IEEE80211_CMAC_PN_LEN);
 		break;
 	}
 }

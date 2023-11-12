@@ -43,8 +43,10 @@ struct msm_isp_bufq *msm_isp_get_bufq(
 {
 	struct msm_isp_bufq *bufq = NULL;
 	uint32_t bufq_index = bufq_handle & 0xFF;
-	if (bufq_index > buf_mgr->num_buf_q)
-		return bufq;
+
+	if ((bufq_handle == 0) ||
+		(bufq_index > buf_mgr->num_buf_q))
+		return NULL;
 
 	bufq = &buf_mgr->bufq[bufq_index];
 	if (bufq->bufq_handle == bufq_handle)
@@ -195,6 +197,12 @@ static void msm_isp_unprepare_v4l2_buf(
 	else
 		domain_num = buf_mgr->iommu_domain_num_secure;
 
+	if (buf_info->num_planes > VIDEO_MAX_PLANES) {
+		pr_err("%s: Invalid num_planes %d \n",
+			__func__, buf_info->num_planes);
+		return;
+	}
+
 	for (i = 0; i < buf_info->num_planes; i++) {
 		mapped_info = &buf_info->mapped_info[i];
 
@@ -230,6 +238,12 @@ static int msm_isp_buf_prepare(struct msm_isp_buf_mgr *buf_mgr,
 		info->handle, info->buf_idx);
 	if (!buf_info) {
 		pr_err("Invalid buffer prepare\n");
+		return rc;
+	}
+
+	if (buf_info->num_planes > VIDEO_MAX_PLANES) {
+		pr_err("%s: Invalid num_planes %d \n",
+			__func__, buf_info->num_planes);
 		return rc;
 	}
 
@@ -647,11 +661,9 @@ static int msm_isp_buf_done(struct msm_isp_buf_mgr *buf_mgr,
 		buf_info->state = MSM_ISP_BUFFER_STATE_DISPATCHED;
 		spin_unlock_irqrestore(&bufq->bufq_lock, flags);
 		if (MSM_ISP_BUFFER_SRC_HAL == BUF_SRC(bufq->stream_id)) {
-			buf_info->vb2_buf->v4l2_buf.timestamp = *tv;
-			buf_info->vb2_buf->v4l2_buf.sequence  = frame_id;
-			buf_info->vb2_buf->v4l2_buf.reserved  = output_format;
 			buf_mgr->vb2_ops->buf_done(buf_info->vb2_buf,
-				bufq->session_id, bufq->stream_id);
+				bufq->session_id, bufq->stream_id,
+				frame_id, tv, output_format);
 		} else {
 			rc = msm_isp_put_buf(buf_mgr, buf_info->bufq_handle,
 						buf_info->buf_idx);

@@ -405,6 +405,12 @@ static struct tun_struct *tun_enable_queue(struct tun_file *tfile)
 	return tun;
 }
 
+static void tun_queue_purge(struct tun_file *tfile)
+{
+	skb_queue_purge(&tfile->sk.sk_receive_queue);
+	skb_queue_purge(&tfile->sk.sk_error_queue);
+}
+
 static void __tun_detach(struct tun_file *tfile, bool clean)
 {
 	struct tun_file *ntfile;
@@ -431,7 +437,7 @@ static void __tun_detach(struct tun_file *tfile, bool clean)
 		synchronize_net();
 		tun_flow_delete_by_queue(tun, tun->numqueues + 1);
 		/* Drop read queue */
-		skb_queue_purge(&tfile->sk.sk_receive_queue);
+		tun_queue_purge(tfile);
 		tun_set_real_num_queues(tun);
 	} else if (tfile->detached && clean) {
 		tun = tun_enable_queue(tfile);
@@ -483,12 +489,12 @@ static void tun_detach_all(struct net_device *dev)
 	for (i = 0; i < n; i++) {
 		tfile = rtnl_dereference(tun->tfiles[i]);
 		/* Drop read queue */
-		skb_queue_purge(&tfile->sk.sk_receive_queue);
+		tun_queue_purge(tfile);
 		sock_put(&tfile->sk);
 	}
 	list_for_each_entry_safe(tfile, tmp, &tun->disabled, next) {
 		tun_enable_queue(tfile);
-		skb_queue_purge(&tfile->sk.sk_receive_queue);
+		tun_queue_purge(tfile);
 		sock_put(&tfile->sk);
 	}
 	BUG_ON(tun->numdisabled != 0);
@@ -521,9 +527,11 @@ static int tun_attach(struct tun_struct *tun, struct file *file)
 
 	err = 0;
 
-	/* Re-attach the filter to presist device */
+	/* Re-attach the filter to persist device */
 	if (tun->filter_attached == true) {
+		lock_sock(tfile->socket.sk);
 		err = sk_attach_filter(&tun->fprog, tfile->socket.sk);
+		release_sock(tfile->socket.sk);
 		if (!err)
 			goto out;
 	}
@@ -739,10 +747,17 @@ static netdev_tx_t tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 			  >= dev->tx_queue_len / tun->numqueues)
 		goto drop;
 
-	/* Orphan the skb - required as we might hang on to it
-	 * for indefinite time. */
 	if (unlikely(skb_orphan_frags(skb, GFP_ATOMIC)))
 		goto drop;
+
+	if (skb->sk) {
+		sock_tx_timestamp(skb->sk, &skb_shinfo(skb)->tx_flags);
+		sw_tx_timestamp(skb);
+	}
+
+	/* Orphan the skb - required as we might hang on to it
+	 * for indefinite time.
+	 */
 	skb_orphan(skb);
 
 	nf_reset(skb);
@@ -1496,7 +1511,6 @@ static int tun_sendmsg(struct kiocb *iocb, struct socket *sock,
 	return ret;
 }
 
-
 static int tun_recvmsg(struct kiocb *iocb, struct socket *sock,
 		       struct msghdr *m, size_t total_len,
 		       int flags)
@@ -1508,8 +1522,13 @@ static int tun_recvmsg(struct kiocb *iocb, struct socket *sock,
 	if (!tun)
 		return -EBADFD;
 
-	if (flags & ~(MSG_DONTWAIT|MSG_TRUNC)) {
+	if (flags & ~(MSG_DONTWAIT|MSG_TRUNC|MSG_ERRQUEUE)) {
 		ret = -EINVAL;
+		goto out;
+	}
+	if (flags & MSG_ERRQUEUE) {
+		ret = sock_recv_errqueue(sock->sk, m, total_len,
+					 SOL_PACKET, TUN_TX_TIMESTAMP);
 		goto out;
 	}
 	ret = tun_do_read(tun, tfile, iocb, m->msg_iov, total_len,
@@ -1824,7 +1843,9 @@ static void tun_detach_filter(struct tun_struct *tun, int n)
 
 	for (i = 0; i < n; i++) {
 		tfile = rtnl_dereference(tun->tfiles[i]);
+		lock_sock(tfile->socket.sk);
 		sk_detach_filter(tfile->socket.sk);
+		release_sock(tfile->socket.sk);
 	}
 
 	tun->filter_attached = false;
@@ -1837,7 +1858,9 @@ static int tun_attach_filter(struct tun_struct *tun)
 
 	for (i = 0; i < tun->numqueues; i++) {
 		tfile = rtnl_dereference(tun->tfiles[i]);
+		lock_sock(tfile->socket.sk);
 		ret = sk_attach_filter(&tun->fprog, tfile->socket.sk);
+		release_sock(tfile->socket.sk);
 		if (ret) {
 			tun_detach_filter(tun, i);
 			return ret;
@@ -2305,6 +2328,7 @@ static const struct ethtool_ops tun_ethtool_ops = {
 	.get_msglevel	= tun_get_msglevel,
 	.set_msglevel	= tun_set_msglevel,
 	.get_link	= ethtool_op_get_link,
+	.get_ts_info	= ethtool_op_get_ts_info,
 };
 
 

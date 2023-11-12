@@ -147,10 +147,25 @@ struct tcp_sock {
  *	read the code and the spec side by side (and laugh ...)
  *	See RFC793 and RFC1122. The RFC writes these in capitals.
  */
+	u64	bytes_received;	/* RFC4898 tcpEStatsAppHCThruOctetsReceived
+				 * sum(delta(rcv_nxt)), or how many bytes
+				 * were acked.
+				 */
+	u32	segs_in;	/* RFC4898 tcpEStatsPerfSegsIn
+				 * total number of segments in.
+				 */
  	u32	rcv_nxt;	/* What we want to receive next 	*/
 	u32	copied_seq;	/* Head of yet unread data		*/
 	u32	rcv_wup;	/* rcv_nxt on last window update sent	*/
  	u32	snd_nxt;	/* Next sequence we send		*/
+	u32	segs_out;	/* RFC4898 tcpEStatsPerfSegsOut
+				 * The total number of segments sent.
+				 */
+	u64	bytes_acked;	/* RFC4898 tcpEStatsAppHCThruOctetsAcked
+				 * sum(delta(snd_una)), or how many bytes
+				 * were acked.
+				 */
+	struct u64_stats_sync syncp; /* protects 64bit vars (cf tcp_get_info()) */
 
  	u32	snd_una;	/* First byte we want an ack for	*/
  	u32	snd_sml;	/* Last byte of the most recently transmitted small packet */
@@ -245,7 +260,6 @@ struct tcp_sock {
 
 	/* from STCP, retrans queue hinting */
 	struct sk_buff* lost_skb_hint;
-	struct sk_buff *scoreboard_skb_hint;
 	struct sk_buff *retransmit_skb_hint;
 
 	struct sk_buff_head	out_of_order_queue; /* Out of order segments go here */
@@ -387,5 +401,8 @@ static inline int fastopen_init_queue(struct sock *sk, int backlog)
 	queue->fastopenq->max_qlen = backlog;
 	return 0;
 }
+
+int tcp_skb_shift(struct sk_buff *to, struct sk_buff *from, int pcount,
+		  int shiftlen);
 
 #endif	/* _LINUX_TCP_H */

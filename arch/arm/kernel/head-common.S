@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  *
  */
+#include <asm/assembler.h>
 
 #define ATAG_CORE 0x54410001
 #define ATAG_CORE_SIZE ((2*4 + 3*4) >> 2)
@@ -61,10 +62,10 @@ __vet_atags:
 	cmp	r5, r6
 	bne	1f
 
-2:	mov	pc, lr				@ atag/dtb pointer is ok
+2:	ret	lr				@ atag/dtb pointer is ok
 
 1:	mov	r2, #0
-	mov	pc, lr
+	ret	lr
 ENDPROC(__vet_atags)
 
 /*
@@ -133,6 +134,9 @@ ENTRY(lookup_processor_type)
 	ldmfd	sp!, {r4 - r6, r9, pc}
 ENDPROC(lookup_processor_type)
 
+	__FINIT
+	.text
+
 /*
  * Read processor ID register (CP#15, CR0), and look up in the linker-built
  * supported processor list.  Note that we can't use the absolute addresses
@@ -161,7 +165,7 @@ __lookup_processor_type:
 	cmp	r5, r6
 	blo	1b
 	mov	r5, #0				@ unknown processor
-2:	mov	pc, lr
+2:	ret	lr
 ENDPROC(__lookup_processor_type)
 
 /*

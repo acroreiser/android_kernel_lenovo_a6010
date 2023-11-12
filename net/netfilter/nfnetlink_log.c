@@ -814,7 +814,7 @@ nfulnl_recv_config(struct sock *ctnl, struct sk_buff *skb,
 
 	inst = instance_lookup_get(log, group_num);
 	if (inst && inst->peer_portid != NETLINK_CB(skb).portid) {
-		ret = -EPERM;
+		//ret = -EPERM;
 		goto out_put;
 	}
 

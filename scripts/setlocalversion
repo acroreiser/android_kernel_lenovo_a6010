@@ -47,20 +47,7 @@ scm_version()
 
 		# If we are at a tagged commit (like "v2.6.30-rc6"), we ignore
 		# it, because this version is defined in the top level Makefile.
-		if atag="`git describe --exact-match --abbrev=0 2>/dev/null`"; then
-			# Make sure we're at the tag that matches the Makefile.
-			# If not place the hash of the tag as well for
-			# v2.6.30-rc5-g314aef
-			if [ "x$atag" != "x$VERSION" ]; then
-				# If only the short version is requested,
-				# don't bother running further git commands
-				if $short; then
-					echo "+"
-					return
-				fi
-				printf '%s%s' -g "`git show-ref -s --abbrev --tags $atag 2>/dev/null`"
-			fi
-		else
+		if [ -z "`git describe --exact-match 2>/dev/null`" ]; then
 
 			# If only the short version is requested, don't bother
 			# running further git commands
@@ -69,15 +56,13 @@ scm_version()
 				return
 			fi
 			# If we are past a tagged commit (like
-			# "v2.6.30-rc5-302-g72357d5"), we pretty print it and
-			# include the hash of any new tag on top.
+			# "v2.6.30-rc5-302-g72357d5"), we pretty print it.
 			if atag="`git describe 2>/dev/null`"; then
-				tag="`git describe --abbrev=0 2>/dev/null`"
-				commit="`echo "$atag" | awk -F- '{printf("-%05d-%s", $(NF-1),$(NF))}'`"
-				printf '%s%s%s' -g "`git show-ref -s --abbrev --tags $tag 2>/dev/null`" $commit
+				echo "$atag" | awk -F- '{printf("-%05d-%s", $(NF-1),$(NF))}'
+
 			# If we don't have a tag at all we print -g{commitish}.
 			else
-				printf '%s%s'
+				printf '%s%s' -g $head
 			fi
 		fi
 
@@ -89,9 +74,17 @@ scm_version()
 		# Update index only on r/w media
 		[ -w . ] && git update-index --refresh --unmerged > /dev/null
 
-		# Check for uncommitted changes
-		if git diff-index --name-only HEAD | grep -qv "^scripts/package"; then
-			printf '%s'
+		# Check for uncommitted changes.
+		# First, with git-status, but --no-optional-locks is only
+		# supported in git >= 2.14, so fall back to git-diff-index if
+		# it fails. Note that git-diff-index does not refresh the
+		# index, so it may give misleading results. See
+		# git-update-index(1), git-diff-index(1), and git-status(1).
+		if {
+			git --no-optional-locks status -uno --porcelain 2>/dev/null ||
+			git diff-index --name-only HEAD
+		} | grep -qvE '^(.. )?scripts/package'; then
+			printf '%s' -dirty
 		fi
 
 		# All done with git

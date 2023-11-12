@@ -94,6 +94,7 @@ if BLOCK
 menu "DOS/FAT/NT Filesystems"
 
 source "fs/fat/Kconfig"
+source "fs/exfat/Kconfig"
 source "fs/ntfs/Kconfig"
 source "fs/sdfat/Kconfig"
 
@@ -103,11 +104,13 @@ endif # BLOCK
 menu "Pseudo filesystems"
 
 source "fs/proc/Kconfig"
+source "fs/kernfs/Kconfig"
 source "fs/sysfs/Kconfig"
 
 config TMPFS
 	bool "Tmpfs virtual memory file system support (former shm fs)"
 	depends on SHMEM
+	select MEMFD_CREATE
 	help
 	  Tmpfs is a file system which keeps all files in virtual memory.
 
@@ -276,7 +279,21 @@ endif # NETWORK_FILESYSTEMS
 source "fs/nls/Kconfig"
 source "fs/dlm/Kconfig"
 
+config BLOCK_UNWANTED_APPS
+	bool "Enable blocking of unwanted apps"
+	depends on ANDROID
+	help
+	   This option allows you to block a set of apps/binaries (by name)
+	   from running on devices with your kernel installed. May be useful
+	   if your users are uneducated.
+
 endmenu
+
+config REBOOT_AUTO_FSYNC
+	bool "Automatic file sync on reboot/panic"
+	default y
+	help
+	  Force automatic file sync on power off, reboot, panic/freeze
 
 config SWITCH_NOATIME
 	bool "Config option to switch mnt flag default to noatime"
@@ -288,3 +305,8 @@ config SWITCH_NOATIME
 	  always expected from a smartphone device.
 
 	  If unsure, Say Y here.
+
+config BLOCK_UNWANTED_FILES
+	bool "Allow blocking files from executing from kernel"
+	help
+	  This option allows you to make files from certain folders un-openable.

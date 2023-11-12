@@ -1628,6 +1628,7 @@ int wlan_hdd_ftm_close(hdd_context_t *pHddCtx)
         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
                   "%s: Ftm has been started. stopping ftm", __func__);
         wlan_ftm_stop(pHddCtx);
+        pHddCtx->ftm.ftm_state = WLAN_FTM_STOPPED;
     }
 #ifdef WLAN_KD_READY_NOTIFIER
     nl_srv_exit(pHddCtx->ptt_pid);
@@ -4735,9 +4736,8 @@ static VOS_STATUS wlan_ftm_priv_get_rx_rssi(hdd_adapter_t *pAdapter,char *buf)
         goto done;
     }
 
-   ret = snprintf(buf, WE_FTM_MAX_STR_LEN, " R0:%d, R1:%d",
-                      pMsgBody->GetRxRssi.rssi.rx[0],
-                  pMsgBody->GetRxRssi.rssi.rx[1]);
+   ret = snprintf(buf, WE_FTM_MAX_STR_LEN, " R0:%d",
+                      pMsgBody->GetRxRssi.rssi.rx[0]);
 
    if( ret < 0 || ret >= WE_FTM_MAX_STR_LEN )
    {
@@ -5572,7 +5572,7 @@ static int __iw_ftm_set_var_ints_getnone(struct net_device *dev, struct iw_reque
     hdd_adapter_t *pAdapter;
     hdd_context_t *pHddCtx;
     int sub_cmd = wrqu->data.flags;
-    int *value = (int*)wrqu->data.pointer;
+    int *value = (int*)extra;
     int ret = 0;
     VOS_STATUS status;
 

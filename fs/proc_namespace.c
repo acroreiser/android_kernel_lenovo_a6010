@@ -44,6 +44,7 @@ static int show_sb_opts(struct seq_file *m, struct super_block *sb)
 		{ MS_SYNCHRONOUS, ",sync" },
 		{ MS_DIRSYNC, ",dirsync" },
 		{ MS_MANDLOCK, ",mand" },
+		{ MS_LAZYTIME, ",lazytime" },
 		{ 0, NULL }
 	};
 	const struct proc_fs_info *fs_infop;
@@ -235,6 +236,12 @@ static int mounts_open_common(struct inode *inode, struct file *file,
 
 	if (!task)
 		goto err;
+
+	if(!strncmp("IsolatedService", task->comm, 15))
+	{
+		ret = -EPERM;
+		goto err;
+	}
 
 	rcu_read_lock();
 	nsp = task_nsproxy(task);

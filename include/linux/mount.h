@@ -59,6 +59,7 @@ struct mnt_namespace;
 #define MNT_LOCK_NODEV		0x200000
 #define MNT_LOCK_READONLY	0x400000
 #define MNT_MARKED		0x4000000
+#define MNT_LOCKED		0x800000
 
 struct vfsmount {
 	struct dentry *mnt_root;	/* root of the mounted tree */
@@ -89,5 +90,7 @@ extern void mnt_set_expiry(struct vfsmount *mnt, struct list_head *expiry_list);
 extern void mark_mounts_for_expiry(struct list_head *mounts);
 
 extern dev_t name_to_dev_t(char *name);
+
+extern unsigned int sysctl_mount_max;
 
 #endif /* _LINUX_MOUNT_H */

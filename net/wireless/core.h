@@ -90,6 +90,10 @@ struct cfg80211_registered_device {
 	/* netlink port which started critical protocol (0 means not started) */
 	u32 crit_proto_nlportid;
 
+	spinlock_t destroy_list_lock;
+	struct list_head destroy_list;
+	struct work_struct destroy_work;
+
 	/* must be last because of the way we do wiphy_priv(),
 	 * and it should at least be aligned to NETDEV_ALIGN */
 	struct wiphy wiphy __aligned(NETDEV_ALIGN);
@@ -224,6 +228,7 @@ struct cfg80211_event {
 			const u8 *resp_ie;
 			size_t req_ie_len;
 			size_t resp_ie_len;
+			struct cfg80211_bss *bss;
 			u16 status;
 		} cr;
 		struct {
@@ -260,6 +265,13 @@ struct cfg80211_beacon_registration {
 	struct list_head list;
 	u32 nlportid;
 };
+
+struct cfg80211_iface_destroy {
+	struct list_head list;
+	u32 nlportid;
+};
+
+void cfg80211_destroy_ifaces(struct cfg80211_registered_device *rdev);
 
 /* free object */
 extern void cfg80211_dev_free(struct cfg80211_registered_device *rdev);
@@ -321,7 +333,7 @@ int __cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 			 const u8 *ssid, int ssid_len,
 			 const u8 *ie, int ie_len,
 			 const u8 *key, int key_len, int key_idx,
-			 const u8 *sae_data, int sae_data_len);
+			 const u8 *auth_data, int auth_data_len);
 int cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
 		       struct net_device *dev, struct ieee80211_channel *chan,
 		       enum nl80211_auth_type auth_type, const u8 *bssid,
@@ -374,6 +386,7 @@ void cfg80211_oper_and_ht_capa(struct ieee80211_ht_cap *ht_capa,
 			       const struct ieee80211_ht_cap *ht_capa_mask);
 void cfg80211_oper_and_vht_capa(struct ieee80211_vht_cap *vht_capa,
 				const struct ieee80211_vht_cap *vht_capa_mask);
+void cfg80211_autodisconnect_wk(struct work_struct *work);
 
 /* SME */
 int __cfg80211_connect(struct cfg80211_registered_device *rdev,

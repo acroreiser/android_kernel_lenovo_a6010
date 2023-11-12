@@ -8,6 +8,7 @@
 #define CPUID_CACHETYPE	1
 #define CPUID_TCM	2
 #define CPUID_TLBTYPE	3
+#define CPUID_MPUIR	4
 #define CPUID_MPIDR	5
 
 #define CPUID_EXT_PFR0	"c1, 0"
@@ -53,6 +54,7 @@
 #define ARM_CPU_PART_CORTEX_A5		0xC050
 #define ARM_CPU_PART_CORTEX_A15		0xC0F0
 #define ARM_CPU_PART_CORTEX_A7		0xC070
+#define ARM_CPU_PART_CORTEX_A12		0xC0D0
 
 #define ARM_CPU_XSCALE_ARCH_MASK	0xe000
 #define ARM_CPU_XSCALE_ARCH_V1		0x2000
@@ -75,13 +77,18 @@ extern unsigned int processor_id;
 		__val;							\
 	})
 
+/*
+ * The memory clobber prevents gcc 4.5 from reordering the mrc before
+ * any is_smp() tests, which can cause undefined instruction aborts on
+ * ARM1136 r0 due to the missing extended CP15 registers.
+ */
 #define read_cpuid_ext(ext_reg)						\
 	({								\
 		unsigned int __val;					\
 		asm("mrc	p15, 0, %0, c0, " ext_reg		\
 		    : "=r" (__val)					\
 		    :							\
-		    : "cc");						\
+		    : "memory");					\
 		__val;							\
 	})
 
@@ -177,4 +184,38 @@ static inline int cpu_is_xsc3(void)
 #define	cpu_is_xscale()	1
 #endif
 
+static inline int __attribute_const__ cpuid_feature_extract_field(u32 features,
+								  int field)
+{
+	int feature = (features >> field) & 15;
+
+	/* feature registers are signed values */
+	if (feature > 8)
+		feature -= 16;
+
+	return feature;
+}
+
+#define cpuid_feature_extract(reg, field) \
+	cpuid_feature_extract_field(read_cpuid_ext(reg), field)
+
+/*
+ * Marvell's PJ4 and PJ4B cores are based on V7 version,
+ * but require a specical sequence for enabling coprocessors.
+ * For this reason, we need a way to distinguish them.
+ */
+#if defined(CONFIG_CPU_PJ4) || defined(CONFIG_CPU_PJ4B)
+static inline int cpu_is_pj4(void)
+{
+	unsigned int id;
+
+	id = read_cpuid_id();
+	if ((id & 0xff0fff00) == 0x560f5800)
+		return 1;
+
+	return 0;
+}
+#else
+#define cpu_is_pj4()	0
+#endif
 #endif

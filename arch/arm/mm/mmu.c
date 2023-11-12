@@ -33,6 +33,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/mach/pci.h>
+#include <asm/fixmap.h>
 
 #include <asm/user_accessible_timer.h>
 
@@ -50,6 +51,8 @@ EXPORT_SYMBOL(empty_zero_page);
  * The pmd table for the upper-most set of pages.
  */
 pmd_t *top_pmd;
+
+pmdval_t user_pmd_table = _PAGE_USER_TABLE;
 
 #define CPOLICY_UNCACHED	0
 #define CPOLICY_BUFFERED	1
@@ -553,6 +556,26 @@ static void __init build_mem_type_table(void)
 		vecs_pgprot |= L_PTE_MT_VECTORS;
 #endif
 
+#ifndef CONFIG_ARM_LPAE
+	/*
+	 * We don't use domains on ARMv6 (since this causes problems with
+	 * v6/v7 kernels), so we must use a separate memory type for user
+	 * r/o, kernel r/w to map the vectors page.
+	 */
+	if (cpu_arch == CPU_ARCH_ARMv6)
+		vecs_pgprot |= L_PTE_MT_VECTORS;
+
+	/*
+	 * Check is it with support for the PXN bit
+	 * in the Short-descriptor translation table format descriptors.
+	 */
+	if (cpu_arch == CPU_ARCH_ARMv7 &&
+		(read_cpuid_ext(CPUID_EXT_MMFR0) & 0xF) >= 4) {
+		user_pmd_table |= PMD_PXNTABLE;
+		printk("PXN bit supported, enabling\n");
+	}
+#endif
+
 	/*
 	 * ARMv6 and above have extended page tables.
 	 */
@@ -622,6 +645,11 @@ static void __init build_mem_type_table(void)
 	}
 	kern_pgprot |= PTE_EXT_AF;
 	vecs_pgprot |= PTE_EXT_AF;
+
+	/*
+	 * Set PXN for user mappings
+	 */
+	user_pgprot |= PTE_EXT_PXN;
 #endif
 
 	for (i = 0; i < 16; i++) {
@@ -1055,12 +1083,12 @@ void __init debug_ll_io_init(void)
 	map.virtual &= PAGE_MASK;
 	map.length = PAGE_SIZE;
 	map.type = MT_DEVICE;
-	create_mapping(&map);
+	iotable_init(&map, 1);
 }
 #endif
 
 static void * __initdata vmalloc_min =
-	(void *)(VMALLOC_END - (240 << 20) - VMALLOC_OFFSET);
+	(void *)(VMALLOC_END - (400 << 20) - VMALLOC_OFFSET);
 
 /*
  * vmalloc=size forces the vmalloc area to be exactly 'size'
@@ -1189,7 +1217,7 @@ void __init dma_contiguous_early_removal_fixup(void)
 	sanity_check_meminfo();
 }
 
-static inline void prepare_page_table(void)
+static __init void prepare_page_table(void)
 {
 	unsigned long addr;
 	phys_addr_t end;
@@ -1372,6 +1400,9 @@ static void __init kmap_init(void)
 #ifdef CONFIG_HIGHMEM
 	pkmap_page_table = early_pte_alloc(pmd_off_k(PKMAP_BASE),
 		PKMAP_BASE, _PAGE_KERNEL_TABLE);
+
+	fixmap_page_table = early_pte_alloc(pmd_off_k(FIXADDR_START),
+		FIXADDR_START, _PAGE_KERNEL_TABLE);
 #endif
 }
 

@@ -71,6 +71,15 @@
 #define BLANK_FLAG_LP	FB_BLANK_VSYNC_SUSPEND
 #define BLANK_FLAG_ULP	FB_BLANK_NORMAL
 
+#define MDSS_BRIGHT_TO_BL_DIM(out, v) do {\
+			out = (12*v*v+1393*v+3060)/4465;\
+			} while (0)
+bool backlight_dimmer = false;
+module_param(backlight_dimmer, bool, 0644);
+
+int backlight_min = 2;
+module_param(backlight_min, int, 0644);
+
 static struct fb_info *fbi_list[MAX_FBI_LIST];
 static int fbi_list_index;
 
@@ -250,10 +259,18 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
 
-	/* This maps android backlight level 0 to 255 into
-	   driver backlight level 0 to bl_max with rounding */
-	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
-				mfd->panel_info->brightness_max);
+	// Boeffla: apply min limits for LCD backlight (0 is exception for display off)
+	if (value != 0 && value < backlight_min)
+		value = backlight_min;
+
+	if (backlight_dimmer) {
+		MDSS_BRIGHT_TO_BL_DIM(bl_lvl, value);
+	} else {
+		/* This maps android backlight level 0 to 255 into
+		   driver backlight level 0 to bl_max with rounding */
+		MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
+					mfd->panel_info->brightness_max);
+	}
 
 	if (!bl_lvl && value)
 		bl_lvl = 1;
@@ -739,6 +756,11 @@ static void mdss_fb_shutdown(struct platform_device *pdev)
 	struct msm_fb_data_type *mfd = platform_get_drvdata(pdev);
 
 	mfd->shutdown_pending = true;
+
+	/* wake up threads waiting on idle or kickoff queues */
+	wake_up_all(&mfd->idle_wait_q);
+	wake_up_all(&mfd->kickoff_wait_q);
+
 	lock_fb_info(mfd->fbi);
 	mdss_fb_release_all(mfd->fbi, true);
 	sysfs_notify(&mfd->fbi->dev->kobj, NULL, "show_blank_event");
@@ -2349,7 +2371,7 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 		return -EINVAL;
 	}
 
-	if (!wait_event_timeout(mfd->ioctl_q,
+	if (!wait_event_interruptible_timeout(mfd->ioctl_q,
 		!atomic_read(&mfd->ioctl_ref_cnt) || !release_all,
 		msecs_to_jiffies(1000)))
 		pr_warn("fb%d ioctl could not finish. waited 1 sec.\n",
@@ -2678,7 +2700,7 @@ static int mdss_fb_pan_idle(struct msm_fb_data_type *mfd)
 {
 	int ret = 0;
 
-	ret = wait_event_timeout(mfd->idle_wait_q,
+	ret = wait_event_interruptible_timeout(mfd->idle_wait_q,
 			(!atomic_read(&mfd->commits_pending) ||
 			 mfd->shutdown_pending),
 			msecs_to_jiffies(WAIT_DISP_OP_TIMEOUT));
@@ -2702,7 +2724,7 @@ static int mdss_fb_wait_for_kickoff(struct msm_fb_data_type *mfd)
 	if (!mfd->wait_for_kickoff)
 		return mdss_fb_pan_idle(mfd);
 
-	ret = wait_event_timeout(mfd->kickoff_wait_q,
+	ret = wait_event_interruptible_timeout(mfd->kickoff_wait_q,
 			(!atomic_read(&mfd->kickoff_pending) ||
 			 mfd->shutdown_pending),
 			msecs_to_jiffies(WAIT_DISP_OP_TIMEOUT / 2));
@@ -2923,8 +2945,8 @@ static int __mdss_fb_display_thread(void *data)
 		wake_up_all(&mfd->idle_wait_q);
 	}
 
-	mdss_fb_release_kickoff(mfd);
 	atomic_set(&mfd->commits_pending, 0);
+	atomic_set(&mfd->kickoff_pending, 0);
 	wake_up_all(&mfd->idle_wait_q);
 
 	return ret;
@@ -3532,7 +3554,7 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 	}
 
-	if (ret == -ENOSYS)
+	if (ret == -ENOSYS && cmd != 5401)
 		pr_err("unsupported ioctl (%x)\n", cmd);
 
 exit:

@@ -254,12 +254,14 @@ static void pppol2tp_recv(struct l2tp_session *session, struct sk_buff *skb, int
 		po = pppox_sk(sk);
 		ppp_input(&po->chan, skb);
 	} else {
-		l2tp_info(session, PPPOL2TP_MSG_DATA, "%s: socket not bound\n",
-			  session->name);
+		l2tp_dbg(session, PPPOL2TP_MSG_DATA,
+			 "%s: recv %d byte data frame, passing to L2TP socket\n",
+			 session->name, data_len);
 
-		/* Not bound. Nothing we can do, so discard. */
-		atomic_long_inc(&session->stats.rx_errors);
-		kfree_skb(skb);
+		if (sock_queue_rcv_skb(sk, skb) < 0) {
+			atomic_long_inc(&session->stats.rx_errors);
+			kfree_skb(skb);
+		}
 	}
 
 	return;
@@ -602,6 +604,7 @@ static int pppol2tp_connect(struct socket *sock, struct sockaddr *uservaddr,
 	int error = 0;
 	u32 tunnel_id, peer_tunnel_id;
 	u32 session_id, peer_session_id;
+	bool drop_refcnt = false;
 	int ver = 2;
 	int fd;
 
@@ -703,36 +706,36 @@ static int pppol2tp_connect(struct socket *sock, struct sockaddr *uservaddr,
 	if (tunnel->peer_tunnel_id == 0)
 		tunnel->peer_tunnel_id = peer_tunnel_id;
 
-	/* Create session if it doesn't already exist. We handle the
-	 * case where a session was previously created by the netlink
-	 * interface by checking that the session doesn't already have
-	 * a socket and its tunnel socket are what we expect. If any
-	 * of those checks fail, return EEXIST to the caller.
-	 */
-	session = l2tp_session_find(sock_net(sk), tunnel, session_id);
-	if (session == NULL) {
-		/* Default MTU must allow space for UDP/L2TP/PPP
-		 * headers.
-		 */
-		cfg.mtu = cfg.mru = 1500 - PPPOL2TP_HEADER_OVERHEAD;
+	session = l2tp_session_get(sock_net(sk), tunnel, session_id, false);
+	if (session) {
+		drop_refcnt = true;
+		ps = l2tp_session_priv(session);
 
-		/* Allocate and initialize a new session context. */
-		session = l2tp_session_create(sizeof(struct pppol2tp_session),
-					      tunnel, session_id,
-					      peer_session_id, &cfg);
-		if (session == NULL) {
-			error = -ENOMEM;
+		/* Using a pre-existing session is fine as long as it hasn't
+		 * been connected yet.
+		 */
+		if (ps->sock) {
+			error = -EEXIST;
+			goto end;
+		}
+
+		/* consistency checks */
+		if (ps->tunnel_sock != tunnel->sock) {
+			error = -EEXIST;
 			goto end;
 		}
 	} else {
-		ps = l2tp_session_priv(session);
-		error = -EEXIST;
-		if (ps->sock != NULL)
-			goto end;
+		/* Default MTU must allow space for UDP/L2TP/PPP headers */
+		cfg.mtu = 1500 - PPPOL2TP_HEADER_OVERHEAD;
+		cfg.mru = cfg.mtu;
 
-		/* consistency checks */
-		if (ps->tunnel_sock != tunnel->sock)
+		session = l2tp_session_create(sizeof(struct pppol2tp_session),
+					      tunnel, session_id,
+					      peer_session_id, &cfg);
+		if (IS_ERR(session)) {
+			error = PTR_ERR(session);
 			goto end;
+		}
 	}
 
 	/* Associate session with its PPPoL2TP socket */
@@ -797,6 +800,8 @@ out_no_ppp:
 		  session->name);
 
 end:
+	if (drop_refcnt)
+		l2tp_session_dec_refcount(session);
 	release_sock(sk);
 
 	return error;
@@ -824,12 +829,6 @@ static int pppol2tp_session_create(struct net *net, u32 tunnel_id, u32 session_i
 	if (tunnel->sock == NULL)
 		goto out;
 
-	/* Check that this session doesn't already exist */
-	error = -EEXIST;
-	session = l2tp_session_find(net, tunnel, session_id);
-	if (session != NULL)
-		goto out;
-
 	/* Default MTU values. */
 	if (cfg->mtu == 0)
 		cfg->mtu = 1500 - PPPOL2TP_HEADER_OVERHEAD;
@@ -837,12 +836,13 @@ static int pppol2tp_session_create(struct net *net, u32 tunnel_id, u32 session_i
 		cfg->mru = cfg->mtu;
 
 	/* Allocate and initialize a new session context. */
-	error = -ENOMEM;
 	session = l2tp_session_create(sizeof(struct pppol2tp_session),
 				      tunnel, session_id,
 				      peer_session_id, cfg);
-	if (session == NULL)
+	if (IS_ERR(session)) {
+		error = PTR_ERR(session);
 		goto out;
+	}
 
 	ps = l2tp_session_priv(session);
 	ps->tunnel_sock = tunnel->sock;
@@ -1313,6 +1313,7 @@ static int pppol2tp_session_setsockopt(struct sock *sk,
 			po->chan.hdrlen = val ? PPPOL2TP_L2TP_HDR_SIZE_SEQ :
 				PPPOL2TP_L2TP_HDR_SIZE_NOSEQ;
 		}
+		l2tp_session_set_header_len(session, session->tunnel->version);
 		l2tp_info(session, PPPOL2TP_MSG_CONTROL,
 			  "%s: set send_seq=%d\n",
 			  session->name, session->send_seq);
@@ -1796,6 +1797,9 @@ static const struct proto_ops pppol2tp_ops = {
 	.recvmsg	= pppol2tp_recvmsg,
 	.mmap		= sock_no_mmap,
 	.ioctl		= pppox_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = pppox_compat_ioctl,
+#endif
 };
 
 static const struct pppox_proto pppol2tp_proto = {

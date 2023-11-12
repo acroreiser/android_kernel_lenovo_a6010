@@ -235,6 +235,9 @@ out:
 
 extern struct sock *l2tp_tunnel_sock_lookup(struct l2tp_tunnel *tunnel);
 extern void l2tp_tunnel_sock_put(struct sock *sk);
+struct l2tp_session *l2tp_session_get(struct net *net,
+				      struct l2tp_tunnel *tunnel,
+				      u32 session_id, bool do_ref);
 extern struct l2tp_session *l2tp_session_find(struct net *net, struct l2tp_tunnel *tunnel, u32 session_id);
 extern struct l2tp_session *l2tp_session_get_nth(struct l2tp_tunnel *tunnel, int nth,
 						 bool do_ref);
@@ -258,6 +261,7 @@ extern int l2tp_xmit_skb(struct l2tp_session *session, struct sk_buff *skb, int 
 extern int l2tp_nl_register_ops(enum l2tp_pwtype pw_type, const struct l2tp_nl_cmd_ops *ops);
 extern void l2tp_nl_unregister_ops(enum l2tp_pwtype pw_type);
 int l2tp_ioctl(struct sock *sk, int cmd, unsigned long arg);
+void l2tp_session_set_header_len(struct l2tp_session *session, int version);
 
 /* Session reference counts. Incremented when code obtains a reference
  * to a session.

@@ -197,18 +197,32 @@ int cfg80211_validate_key_settings(struct cfg80211_registered_device *rdev,
 	if (pairwise && !mac_addr)
 		return -EINVAL;
 
-	/*
-	 * Disallow pairwise keys with non-zero index unless it's WEP
-	 * or a vendor specific cipher (because current deployments use
-	 * pairwise WEP keys with non-zero indices and for vendor specific
-	 * ciphers this should be validated in the driver or hardware level
-	 * - but 802.11i clearly specifies to use zero)
-	 */
-	if (pairwise && key_idx &&
-	    ((params->cipher == WLAN_CIPHER_SUITE_TKIP) ||
-	     (params->cipher == WLAN_CIPHER_SUITE_CCMP) ||
-	     (params->cipher == WLAN_CIPHER_SUITE_AES_CMAC)))
-		return -EINVAL;
+	switch (params->cipher) {
+	case WLAN_CIPHER_SUITE_TKIP:
+	case WLAN_CIPHER_SUITE_CCMP:
+	case WLAN_CIPHER_SUITE_CCMP_256:
+	case WLAN_CIPHER_SUITE_GCMP:
+	case WLAN_CIPHER_SUITE_GCMP_256:
+		/* Disallow pairwise keys with non-zero index unless it's WEP
+		 * or a vendor specific cipher (because current deployments use
+		 * pairwise WEP keys with non-zero indices and for vendor
+		 * specific ciphers this should be validated in the driver or
+		 * hardware level - but 802.11i clearly specifies to use zero)
+		 */
+		if (pairwise && key_idx)
+			return -EINVAL;
+		break;
+	case WLAN_CIPHER_SUITE_AES_CMAC:
+	case WLAN_CIPHER_SUITE_BIP_CMAC_256:
+	case WLAN_CIPHER_SUITE_BIP_GMAC_128:
+	case WLAN_CIPHER_SUITE_BIP_GMAC_256:
+		/* Disallow BIP (group-only) cipher as pairwise cipher */
+		if (pairwise)
+			return -EINVAL;
+		break;
+	default:
+		break;
+	}
 
 	switch (params->cipher) {
 	case WLAN_CIPHER_SUITE_WEP40:
@@ -223,6 +237,18 @@ int cfg80211_validate_key_settings(struct cfg80211_registered_device *rdev,
 		if (params->key_len != WLAN_KEY_LEN_CCMP)
 			return -EINVAL;
 		break;
+	case WLAN_CIPHER_SUITE_CCMP_256:
+		if (params->key_len != WLAN_KEY_LEN_CCMP_256)
+			return -EINVAL;
+		break;
+	case WLAN_CIPHER_SUITE_GCMP:
+		if (params->key_len != WLAN_KEY_LEN_GCMP)
+			return -EINVAL;
+		break;
+	case WLAN_CIPHER_SUITE_GCMP_256:
+		if (params->key_len != WLAN_KEY_LEN_GCMP_256)
+			return -EINVAL;
+		break;
 	case WLAN_CIPHER_SUITE_WEP104:
 		if (params->key_len != WLAN_KEY_LEN_WEP104)
 			return -EINVAL;
@@ -233,6 +259,18 @@ int cfg80211_validate_key_settings(struct cfg80211_registered_device *rdev,
 		break;
 	case WLAN_CIPHER_SUITE_SMS4:
 		if (params->key_len != WLAN_KEY_LEN_WAPI_SMS4)
+			return -EINVAL;
+		break;
+	case WLAN_CIPHER_SUITE_BIP_CMAC_256:
+		if (params->key_len != WLAN_KEY_LEN_BIP_CMAC_256)
+			return -EINVAL;
+		break;
+	case WLAN_CIPHER_SUITE_BIP_GMAC_128:
+		if (params->key_len != WLAN_KEY_LEN_BIP_GMAC_128)
+			return -EINVAL;
+		break;
+	case WLAN_CIPHER_SUITE_BIP_GMAC_256:
+		if (params->key_len != WLAN_KEY_LEN_BIP_GMAC_256)
 			return -EINVAL;
 		break;
 	default:
@@ -254,7 +292,13 @@ int cfg80211_validate_key_settings(struct cfg80211_registered_device *rdev,
 			return -EINVAL;
 		case WLAN_CIPHER_SUITE_TKIP:
 		case WLAN_CIPHER_SUITE_CCMP:
+		case WLAN_CIPHER_SUITE_CCMP_256:
+		case WLAN_CIPHER_SUITE_GCMP:
+		case WLAN_CIPHER_SUITE_GCMP_256:
 		case WLAN_CIPHER_SUITE_AES_CMAC:
+		case WLAN_CIPHER_SUITE_BIP_CMAC_256:
+		case WLAN_CIPHER_SUITE_BIP_GMAC_128:
+		case WLAN_CIPHER_SUITE_BIP_GMAC_256:
 			if (params->seq_len != 6)
 				return -EINVAL;
 			break;
@@ -604,6 +648,9 @@ void ieee80211_amsdu_to_8023s(struct sk_buff *skb, struct sk_buff_head *list,
 		/* the last MSDU has no padding */
 		if (subframe_len > remaining)
 			goto purge;
+		/* mitigate A-MSDU aggregation injection attacks */
+		if (ether_addr_equal(eth->h_dest, rfc1042_header))
+			goto purge;
 
 		skb_pull(skb, sizeof(struct ethhdr));
 		/* reuse skb for the last subframe */
@@ -767,15 +814,14 @@ void cfg80211_process_wdev_events(struct wireless_dev *wdev)
 		wdev_lock(wdev);
 		switch (ev->type) {
 		case EVENT_CONNECT_RESULT:
-			if (!is_zero_ether_addr(ev->cr.bssid))
-				bssid = ev->cr.bssid;
+			bssid = ev->cr.bssid;
 			__cfg80211_connect_result(
 				wdev->netdev, bssid,
 				ev->cr.req_ie, ev->cr.req_ie_len,
 				ev->cr.resp_ie, ev->cr.resp_ie_len,
 				ev->cr.status,
 				ev->cr.status == WLAN_STATUS_SUCCESS,
-				NULL);
+				ev->cr.bss);
 			break;
 		case EVENT_ROAMED:
 			__cfg80211_roamed(wdev, ev->rm.bss, ev->rm.req_ie,

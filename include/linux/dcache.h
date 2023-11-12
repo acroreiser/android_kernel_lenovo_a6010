@@ -9,6 +9,7 @@
 #include <linux/seqlock.h>
 #include <linux/cache.h>
 #include <linux/rcupdate.h>
+#include <linux/lockref.h>
 
 struct nameidata;
 struct path;
@@ -91,7 +92,7 @@ extern unsigned int full_name_hash(const unsigned char *, unsigned int);
  * large memory footprint increase).
  */
 #ifdef CONFIG_64BIT
-# define DNAME_INLINE_LEN 32 /* 192 bytes */
+# define DNAME_INLINE_LEN 96 /* 256 bytes */
 #else
 # ifdef CONFIG_SMP
 #  define DNAME_INLINE_LEN 36 /* 128 bytes */
@@ -99,6 +100,8 @@ extern unsigned int full_name_hash(const unsigned char *, unsigned int);
 #  define DNAME_INLINE_LEN 40 /* 128 bytes */
 # endif
 #endif
+
+#define d_lock	d_lockref.lock
 
 struct dentry {
 	/* RCU lookup touched fields */
@@ -112,8 +115,7 @@ struct dentry {
 	unsigned char d_iname[DNAME_INLINE_LEN];	/* small names */
 
 	/* Ref lookup also touches following */
-	unsigned int d_count;		/* protected by d_lock */
-	spinlock_t d_lock;		/* per dentry lock */
+	struct lockref d_lockref;	/* per-dentry lock and refcount */
 	const struct dentry_operations *d_op;
 	struct super_block *d_sb;	/* The root of the dentry tree */
 	unsigned long d_time;		/* used by d_revalidate */
@@ -215,7 +217,7 @@ struct dentry_operations {
 
 extern seqlock_t rename_lock;
 
-static inline int dname_external(struct dentry *dentry)
+static inline int dname_external(const struct dentry *dentry)
 {
 	return dentry->d_name.name != dentry->d_iname;
 }
@@ -308,26 +310,9 @@ extern struct dentry *__d_lookup_rcu(const struct dentry *parent,
 				const struct qstr *name,
 				unsigned *seq, struct inode *inode);
 
-/**
- * __d_rcu_to_refcount - take a refcount on dentry if sequence check is ok
- * @dentry: dentry to take a ref on
- * @seq: seqcount to verify against
- * Returns: 0 on failure, else 1.
- *
- * __d_rcu_to_refcount operates on a dentry,seq pair that was returned
- * by __d_lookup_rcu, to get a reference on an rcu-walk dentry.
- */
-static inline int __d_rcu_to_refcount(struct dentry *dentry, unsigned seq)
+static inline unsigned d_count(const struct dentry *dentry)
 {
-	int ret = 0;
-
-	assert_spin_locked(&dentry->d_lock);
-	if (!read_seqcount_retry(&dentry->d_seq, seq)) {
-		ret = 1;
-		dentry->d_count++;
-	}
-
-	return ret;
+	return dentry->d_lockref.count;
 }
 
 /* validate "insecure" dentry pointer */
@@ -358,17 +343,14 @@ extern char *dentry_path(struct dentry *, char *, int);
 static inline struct dentry *dget_dlock(struct dentry *dentry)
 {
 	if (dentry)
-		dentry->d_count++;
+		dentry->d_lockref.count++;
 	return dentry;
 }
 
 static inline struct dentry *dget(struct dentry *dentry)
 {
-	if (dentry) {
-		spin_lock(&dentry->d_lock);
-		dget_dlock(dentry);
-		spin_unlock(&dentry->d_lock);
-	}
+	if (dentry)
+		lockref_get(&dentry->d_lockref);
 	return dentry;
 }
 
@@ -381,17 +363,17 @@ extern struct dentry *dget_parent(struct dentry *dentry);
  *	Returns true if the dentry passed is not currently hashed.
  */
  
-static inline int d_unhashed(struct dentry *dentry)
+static inline int d_unhashed(const struct dentry *dentry)
 {
 	return hlist_bl_unhashed(&dentry->d_hash);
 }
 
-static inline int d_unlinked(struct dentry *dentry)
+static inline int d_unlinked(const struct dentry *dentry)
 {
 	return d_unhashed(dentry) && !IS_ROOT(dentry);
 }
 
-static inline int cant_mount(struct dentry *dentry)
+static inline int cant_mount(const struct dentry *dentry)
 {
 	return (dentry->d_flags & DCACHE_CANT_MOUNT);
 }
@@ -405,12 +387,12 @@ static inline void dont_mount(struct dentry *dentry)
 
 extern void dput(struct dentry *);
 
-static inline bool d_managed(struct dentry *dentry)
+static inline bool d_managed(const struct dentry *dentry)
 {
 	return dentry->d_flags & DCACHE_MANAGED_DENTRY;
 }
 
-static inline bool d_mountpoint(struct dentry *dentry)
+static inline bool d_mountpoint(const struct dentry *dentry)
 {
 	return dentry->d_flags & DCACHE_MOUNTED;
 }
@@ -422,7 +404,56 @@ static inline bool d_is_su(const struct dentry *dentry)
 	       !memcmp(dentry->d_name.name, "su", 2);
 }
 
+/**
+ * d_inode - Get the actual inode of this dentry
+ * @dentry: The dentry to query
+ *
+ * This is the helper normal filesystems should use to get at their own inodes
+ * in their own dentries and ignore the layering superimposed upon them.
+ */
+static inline struct inode *d_inode(const struct dentry *dentry)
+{
+	return dentry->d_inode;
+}
+
+static inline bool d_is_negative(const struct dentry *dentry)
+{
+	return (dentry->d_inode == NULL);
+}
+
 extern int sysctl_vfs_cache_pressure;
+
+/**
+ * d_backing_inode - Get upper or lower inode we should be using
+ * @upper: The upper layer
+ *
+ * This is the helper that should be used to get at the inode that will be used
+ * if this dentry were to be opened as a file.  The inode may be on the upper
+ * dentry or it may be on a lower dentry pinned by the upper.
+ *
+ * Normal filesystems should not use this to access their own inodes.
+ */
+static inline struct inode *d_backing_inode(const struct dentry *upper)
+{
+	struct inode *inode = upper->d_inode;
+
+	return inode;
+}
+
+/**
+ * d_backing_dentry - Get upper or lower dentry we should be using
+ * @upper: The upper layer
+ *
+ * This is the helper that should be used to get the dentry of the inode that
+ * will be used if this dentry were opened as a file.  It may be the upper
+ * dentry or it may be a lower dentry pinned by the upper.
+ *
+ * Normal filesystems should not use this to access their own dentries.
+ */
+static inline struct dentry *d_backing_dentry(struct dentry *upper)
+{
+	return upper;
+}
 
 struct name_snapshot {
        const char *name;

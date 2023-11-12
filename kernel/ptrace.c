@@ -79,12 +79,11 @@ void __ptrace_unlink(struct task_struct *child)
 {
 	BUG_ON(!child->ptrace);
 
-	child->ptrace = 0;
 	child->parent = child->real_parent;
 	list_del_init(&child->ptrace_entry);
 
 	spin_lock(&child->sighand->siglock);
-
+	child->ptrace = 0;
 	/*
 	 * Clear all pending traps and TRAPPING.  TRAPPING should be
 	 * cleared regardless of JOBCTL_STOP_PENDING.  Do it explicitly.
@@ -670,6 +669,10 @@ static int ptrace_peek_siginfo(struct task_struct *child,
 	if (arg.nr < 0)
 		return -EINVAL;
 
+	/* Ensure arg.off fits in an unsigned long */
+	if (arg.off > ULONG_MAX)
+		return 0;
+
 	if (arg.flags & PTRACE_PEEKSIGINFO_SHARED)
 		pending = &child->signal->shared_pending;
 	else
@@ -677,18 +680,20 @@ static int ptrace_peek_siginfo(struct task_struct *child,
 
 	for (i = 0; i < arg.nr; ) {
 		siginfo_t info;
-		s32 off = arg.off + i;
+		unsigned long off = arg.off + i;
+		bool found = false;
 
 		spin_lock_irq(&child->sighand->siglock);
 		list_for_each_entry(q, &pending->list, list) {
 			if (!off--) {
+				found = true;
 				copy_siginfo(&info, &q->info);
 				break;
 			}
 		}
 		spin_unlock_irq(&child->sighand->siglock);
 
-		if (off >= 0) /* beyond the end of the list */
+		if (!found) /* beyond the end of the list */
 			break;
 
 #ifdef CONFIG_COMPAT
@@ -1016,6 +1021,11 @@ int ptrace_request(struct task_struct *child, long request,
 		break;
 	}
 #endif
+
+	case PTRACE_SECCOMP_GET_FILTER:
+		ret = seccomp_get_filter(child, addr, datavp);
+		break;
+
 	default:
 		break;
 	}

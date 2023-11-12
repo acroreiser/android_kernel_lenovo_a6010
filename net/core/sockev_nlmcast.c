@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, 2018 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -36,6 +36,8 @@ static struct netlink_kernel_cfg nlcfg = {
 
 static void _sockev_event(unsigned long event, __u8 *evstr, int buflen)
 {
+	memset(evstr, 0, buflen);
+
 	switch (event) {
 	case SOCKEV_SOCKET:
 		strlcpy(evstr, "SOCKEV_SOCKET", buflen);
@@ -71,9 +73,11 @@ static int sockev_client_cb(struct notifier_block *nb,
 
 	sock = (struct socket *)data;
 	if (socknlmsgsk == 0)
-		goto done;
+		goto sk_null;
 	if ((socknlmsgsk == NULL) || (sock == NULL) || (sock->sk == NULL))
-		goto done;
+		goto sk_null;
+
+	sock_hold(sk);
 
 	if (sock->sk->sk_family != AF_INET && sock->sk->sk_family != AF_INET6)
 		goto done;
@@ -104,6 +108,8 @@ static int sockev_client_cb(struct notifier_block *nb,
 
 	nlmsg_notify(socknlmsgsk, skb, 0, SKNLGRP_SOCKEV, 0, GFP_KERNEL);
 done:
+	sock_put(sk);
+sk_null:
 	return 0;
 }
 

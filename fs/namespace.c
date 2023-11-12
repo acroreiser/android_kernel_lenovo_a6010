@@ -23,8 +23,12 @@
 #include <linux/uaccess.h>
 #include <linux/proc_ns.h>
 #include <linux/magic.h>
+#include <linux/kmod.h>
 #include "pnode.h"
 #include "internal.h"
+
+/* Maximum number of mounts in a mount namespace */
+unsigned int sysctl_mount_max __read_mostly = 100000;
 
 #define HASH_SHIFT ilog2(PAGE_SIZE / sizeof(struct list_head))
 #define HASH_SIZE (1UL << HASH_SHIFT)
@@ -40,6 +44,10 @@ static struct list_head *mount_hashtable __read_mostly;
 static struct list_head *mountpoint_hashtable __read_mostly;
 static struct kmem_cache *mnt_cache __read_mostly;
 static struct rw_semaphore namespace_sem;
+
+#ifdef CONFIG_ANDROID_TREBLE_MOUNT_LEGACY_LINKERCONFIG
+static unsigned int shot = 0;
+#endif
 
 /* /sys/fs */
 struct kobject *fs_kobj;
@@ -744,6 +752,10 @@ static void commit_tree(struct mount *mnt)
 	list_add_tail(&mnt->mnt_hash, mount_hashtable +
 				hash(&parent->mnt, mnt->mnt_mountpoint));
 	list_add_tail(&mnt->mnt_child, &parent->mnt_mounts);
+
+	n->mounts += n->pending_mounts;
+	n->pending_mounts = 0;
+
 	touch_mnt_namespace(n);
 }
 
@@ -861,6 +873,10 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
 		if (mnt->mnt.mnt_flags & MNT_NOEXEC)
 			mnt->mnt.mnt_flags |= MNT_LOCK_NOEXEC;
 	}
+
+	/* Don't allow unprivileged users to reveal what is under a mount */
+	if ((flag & CL_UNPRIVILEGED) && list_empty(&old->mnt_expire))
+		mnt->mnt.mnt_flags |= MNT_LOCKED;
 
 	atomic_inc(&sb->s_active);
 	mnt->mnt.mnt_sb = sb;
@@ -1212,9 +1228,14 @@ void umount_tree(struct mount *mnt, int propagate)
 		propagate_umount(&tmp_list);
 
 	list_for_each_entry(p, &tmp_list, mnt_hash) {
+		struct mnt_namespace *ns;
 		list_del_init(&p->mnt_expire);
 		list_del_init(&p->mnt_list);
-		__touch_mnt_namespace(p->mnt_ns);
+		ns = p->mnt_ns;
+		if (ns) {
+			ns->mounts--;
+			__touch_mnt_namespace(ns);
+		}
 		p->mnt_ns = NULL;
 		list_del_init(&p->mnt_child);
 		if (mnt_has_parent(p)) {
@@ -1351,7 +1372,7 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 	if (!(flags & UMOUNT_NOFOLLOW))
 		lookup_flags |= LOOKUP_FOLLOW;
 
-	retval = user_path_at(AT_FDCWD, name, lookup_flags, &path);
+	retval = user_path_umountat(AT_FDCWD, name, lookup_flags, &path);
 	if (retval)
 		goto out;
 	mnt = real_mount(path.mnt);
@@ -1362,6 +1383,8 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 		goto dput_and_out;
 	retval = -EPERM;
 	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
+		goto dput_and_out;
+	if (mnt->mnt.mnt_flags & MNT_LOCKED)
 		goto dput_and_out;
 
 	retval = do_umount(mnt, flags);
@@ -1385,23 +1408,28 @@ SYSCALL_DEFINE1(oldumount, char __user *, name)
 
 #endif
 
-static bool mnt_ns_loop(struct path *path)
+static bool is_mnt_ns_file(struct dentry *dentry)
+{
+	/* Is this a proxy for a mount namespace? */
+	struct inode *inode = dentry->d_inode;
+	return proc_ns_inode(inode) && dentry->d_fsdata == &mntns_operations;
+}
+
+struct mnt_namespace *to_mnt_ns(struct ns_common *ns)
+{
+	return container_of(ns, struct mnt_namespace, ns);
+}
+
+static bool mnt_ns_loop(struct dentry *dentry)
 {
 	/* Could bind mounting the mount namespace inode cause a
 	 * mount namespace loop?
 	 */
-	struct inode *inode = path->dentry->d_inode;
-	struct proc_ns *ei;
 	struct mnt_namespace *mnt_ns;
-
-	if (!proc_ns_inode(inode))
+	if (!is_mnt_ns_file(dentry))
 		return false;
 
-	ei = get_proc_ns(inode);
-	if (ei->ns_ops != &mntns_operations)
-		return false;
-
-	mnt_ns = ei->ns;
+	mnt_ns = to_mnt_ns(get_proc_ns(dentry->d_inode));
 	return current->nsproxy->mnt_ns->seq >= mnt_ns->seq;
 }
 
@@ -1410,13 +1438,17 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
 {
 	struct mount *res, *p, *q, *r, *parent;
 
-	if (!(flag & CL_COPY_ALL) && IS_MNT_UNBINDABLE(mnt))
+	if (!(flag & CL_COPY_UNBINDABLE) && IS_MNT_UNBINDABLE(mnt))
+		return ERR_PTR(-EINVAL);
+
+	if (!(flag & CL_COPY_MNT_NS_FILE) && is_mnt_ns_file(dentry))
 		return ERR_PTR(-EINVAL);
 
 	res = q = clone_mnt(mnt, dentry, flag);
 	if (IS_ERR(q))
 		return q;
 
+	q->mnt.mnt_flags &= ~MNT_LOCKED;
 	q->mnt_mountpoint = mnt->mnt_mountpoint;
 
 	p = mnt;
@@ -1426,7 +1458,13 @@ struct mount *copy_tree(struct mount *mnt, struct dentry *dentry,
 			continue;
 
 		for (s = r; s; s = next_mnt(s, r)) {
-			if (!(flag & CL_COPY_ALL) && IS_MNT_UNBINDABLE(s)) {
+			if (!(flag & CL_COPY_UNBINDABLE) &&
+			    IS_MNT_UNBINDABLE(s)) {
+				s = skip_mnt_tree(s);
+				continue;
+			}
+			if (!(flag & CL_COPY_MNT_NS_FILE) &&
+			    is_mnt_ns_file(s->mnt.mnt_root)) {
 				s = skip_mnt_tree(s);
 				continue;
 			}
@@ -1523,6 +1561,28 @@ static int invent_group_ids(struct mount *mnt, bool recurse)
 	return 0;
 }
 
+int count_mounts(struct mnt_namespace *ns, struct mount *mnt)
+{
+	unsigned int max = READ_ONCE(sysctl_mount_max);
+	unsigned int mounts = 0, old, pending, sum;
+	struct mount *p;
+
+	for (p = mnt; p; p = next_mnt(p, mnt))
+		mounts++;
+
+	old = ns->mounts;
+	pending = ns->pending_mounts;
+	sum = old + pending;
+	if ((old > sum) ||
+	    (pending > sum) ||
+	    (max < sum) ||
+	    (mounts > (max - sum)))
+		return -ENOSPC;
+
+	ns->pending_mounts = pending + mounts;
+	return 0;
+}
+
 /*
  *  @source_mnt : mount tree to be attached
  *  @nd         : place the mount tree @source_mnt is attached
@@ -1592,8 +1652,16 @@ static int attach_recursive_mnt(struct mount *source_mnt,
 			struct path *parent_path)
 {
 	LIST_HEAD(tree_list);
+	struct mnt_namespace *ns = dest_mnt->mnt_ns;
 	struct mount *child, *p;
 	int err;
+
+	/* Is there space to add these mounts to the mount namespace? */
+	if (!parent_path) {
+		err = count_mounts(ns, source_mnt);
+		if (err)
+			goto out;
+	}
 
 	if (IS_MNT_SHARED(dest_mnt)) {
 		err = invent_group_ids(source_mnt, true);
@@ -1628,11 +1696,13 @@ static int attach_recursive_mnt(struct mount *source_mnt,
  out_cleanup_ids:
 	while (!list_empty(&tree_list)) {
 		child = list_first_entry(&tree_list, struct mount, mnt_hash);
+		child->mnt_parent->mnt_ns->pending_mounts = 0;
 		umount_tree(child, 0);
 	}
 	br_write_unlock(&vfsmount_lock);
 	cleanup_group_ids(source_mnt, NULL);
  out:
+	ns->pending_mounts = 0;
 	return err;
 }
 
@@ -1737,6 +1807,19 @@ static int do_change_type(struct path *path, int flag)
 	return err;
 }
 
+static bool has_locked_children(struct mount *mnt, struct dentry *dentry)
+{
+	struct mount *child;
+	list_for_each_entry(child, &mnt->mnt_mounts, mnt_child) {
+		if (!is_subdir(child->mnt_mountpoint, dentry))
+			continue;
+
+		if (child->mnt.mnt_flags & MNT_LOCKED)
+			return true;
+	}
+	return false;
+}
+
 /*
  * do loopback mount.
  */
@@ -1754,7 +1837,7 @@ static int do_loopback(struct path *path, const char *old_name,
 		return err;
 
 	err = -EINVAL;
-	if (mnt_ns_loop(&old_path))
+	if (mnt_ns_loop(old_path.dentry))
 		goto out; 
 
 	mp = lock_mount(path);
@@ -1772,8 +1855,11 @@ static int do_loopback(struct path *path, const char *old_name,
 	if (!check_mnt(parent) || !check_mnt(old))
 		goto out2;
 
+	if (!recurse && has_locked_children(old, old_path.dentry))
+		goto out2;
+
 	if (recurse)
-		mnt = copy_tree(old, old_path.dentry, 0);
+		mnt = copy_tree(old, old_path.dentry, CL_COPY_MNT_NS_FILE);
 	else
 		mnt = clone_mnt(old, old_path.dentry, 0);
 
@@ -1781,6 +1867,8 @@ static int do_loopback(struct path *path, const char *old_name,
 		err = PTR_ERR(mnt);
 		goto out2;
 	}
+
+	mnt->mnt.mnt_flags &= ~MNT_LOCKED;
 
 	err = graft_tree(mnt, parent, mp);
 	if (err) {
@@ -1928,6 +2016,9 @@ static int do_move_mount(struct path *path, const char *old_name)
 
 	err = -EINVAL;
 	if (!check_mnt(p) || !check_mnt(old))
+		goto out1;
+
+	if (old->mnt.mnt_flags & MNT_LOCKED)
 		goto out1;
 
 	err = -EINVAL;
@@ -2327,6 +2418,10 @@ long do_mount(const char *dev_name, const char *dir_name,
 		const char *type_page, unsigned long flags, void *data_page)
 {
 	struct path path;
+#ifdef CONFIG_ANDROID_TREBLE_MOUNT_LEGACY_LINKERCONFIG
+	struct path path2;
+	unsigned long flags2;
+#endif
 	int retval = 0;
 	int mnt_flags = 0;
 
@@ -2402,8 +2497,21 @@ long do_mount(const char *dev_name, const char *dir_name,
 	else if (flags & MS_MOVE)
 		retval = do_move_mount(&path, dev_name);
 	else
+	{
+#ifdef CONFIG_ANDROID_TREBLE_MOUNT_LEGACY_LINKERCONFIG
+		if((!strncmp("/apex", dir_name, 5)) && shot == 0)
+		{
+			flags2 |= MS_BIND;
+			kern_path("/system/bin/linkerconfig", LOOKUP_FOLLOW, &path2);
+			do_loopback(&path2, "/vendor/bin/linkerconfig-legacy", flags2 & MS_REC);
+			path_put(&path2);
+			shot = 1;
+		}
+#endif
+
 		retval = do_new_mount(&path, type_page, flags, mnt_flags,
 				      dev_name, data_page);
+	}
 dput_out:
 	path_put(&path);
 	return retval;
@@ -2411,7 +2519,7 @@ dput_out:
 
 static void free_mnt_ns(struct mnt_namespace *ns)
 {
-	proc_free_inum(ns->proc_inum);
+	ns_free_inum(&ns->ns);
 	put_user_ns(ns->user_ns);
 	kfree(ns);
 }
@@ -2433,11 +2541,12 @@ static struct mnt_namespace *alloc_mnt_ns(struct user_namespace *user_ns)
 	new_ns = kmalloc(sizeof(struct mnt_namespace), GFP_KERNEL);
 	if (!new_ns)
 		return ERR_PTR(-ENOMEM);
-	ret = proc_alloc_inum(&new_ns->proc_inum);
+	ret = ns_alloc_inum(&new_ns->ns);
 	if (ret) {
 		kfree(new_ns);
 		return ERR_PTR(ret);
 	}
+	new_ns->ns.ops = &mntns_operations;
 	new_ns->seq = atomic64_add_return(1, &mnt_ns_seq);
 	atomic_set(&new_ns->count, 1);
 	new_ns->root = NULL;
@@ -2445,6 +2554,8 @@ static struct mnt_namespace *alloc_mnt_ns(struct user_namespace *user_ns)
 	init_waitqueue_head(&new_ns->poll);
 	new_ns->event = 0;
 	new_ns->user_ns = get_user_ns(user_ns);
+	new_ns->mounts = 0;
+	new_ns->pending_mounts = 0;
 	return new_ns;
 }
 
@@ -2468,7 +2579,7 @@ static struct mnt_namespace *dup_mnt_ns(struct mnt_namespace *mnt_ns,
 
 	namespace_lock();
 	/* First pass: copy the tree topology */
-	copy_flags = CL_COPY_ALL | CL_EXPIRE;
+	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
 	if (user_ns != mnt_ns->user_ns)
 		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
 	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
@@ -2491,6 +2602,7 @@ static struct mnt_namespace *dup_mnt_ns(struct mnt_namespace *mnt_ns,
 	q = new;
 	while (p) {
 		q->mnt_ns = new_ns;
+		new_ns->mounts++;
 		if (fs) {
 			if (&p->mnt == fs->root.mnt) {
 				fs->root.mnt = mntget(&q->mnt);
@@ -2503,6 +2615,10 @@ static struct mnt_namespace *dup_mnt_ns(struct mnt_namespace *mnt_ns,
 		}
 		p = next_mnt(p, old);
 		q = next_mnt(q, new);
+		if (!q)
+			break;
+		while (p->mnt.mnt_root != q->mnt.mnt_root)
+			p = next_mnt(p, old);
 	}
 	namespace_unlock();
 
@@ -2542,6 +2658,7 @@ static struct mnt_namespace *create_mnt_ns(struct vfsmount *m)
 		struct mount *mnt = real_mount(m);
 		mnt->mnt_ns = new_ns;
 		new_ns->root = mnt;
+		new_ns->mounts++;
 		list_add(&mnt->mnt_list, &new_ns->list);
 	} else {
 		mntput(m);
@@ -2711,6 +2828,8 @@ SYSCALL_DEFINE2(pivot_root, const char __user *, new_root,
 		goto out4;
 	if (!check_mnt(root_mnt) || !check_mnt(new_mnt))
 		goto out4;
+	if (new_mnt->mnt.mnt_flags & MNT_LOCKED)
+		goto out4;
 	error = -ENOENT;
 	if (d_unlinked(new.dentry))
 		goto out4;
@@ -2737,6 +2856,10 @@ SYSCALL_DEFINE2(pivot_root, const char __user *, new_root,
 	br_write_lock(&vfsmount_lock);
 	detach_mnt(new_mnt, &parent_path);
 	detach_mnt(root_mnt, &root_parent);
+	if (root_mnt->mnt.mnt_flags & MNT_LOCKED) {
+		new_mnt->mnt.mnt_flags |= MNT_LOCKED;
+		root_mnt->mnt.mnt_flags &= ~MNT_LOCKED;
+	}
 	/* mount old root on put_old */
 	attach_mnt(root_mnt, old_mnt, old_mp);
 	/* mount new_root on / */
@@ -2815,6 +2938,7 @@ void __init mnt_init(void)
 		INIT_LIST_HEAD(&mountpoint_hashtable[u]);
 
 	br_lock_init(&vfsmount_lock);
+	kernfs_init();
 
 	err = sysfs_init();
 	if (err)
@@ -2895,52 +3019,65 @@ bool current_chrooted(void)
 	return chrooted;
 }
 
-void update_mnt_policy(struct user_namespace *userns)
+bool fs_fully_visible(struct file_system_type *type)
 {
 	struct mnt_namespace *ns = current->nsproxy->mnt_ns;
 	struct mount *mnt;
+	bool visible = false;
 
-	down_read(&namespace_sem);
+	if (unlikely(!ns))
+		return false;
+
+	namespace_lock();
 	list_for_each_entry(mnt, &ns->list, mnt_list) {
-		switch (mnt->mnt.mnt_sb->s_magic) {
-		case SYSFS_MAGIC:
-			userns->may_mount_sysfs = true;
-			break;
-		case PROC_SUPER_MAGIC:
-			userns->may_mount_proc = true;
-			break;
+		struct mount *child;
+		if (mnt->mnt.mnt_sb->s_type != type)
+			continue;
+
+		/* This mount is not fully visible if there are any child mounts
+		 * that cover anything except for empty directories.
+		 */
+		list_for_each_entry(child, &mnt->mnt_mounts, mnt_child) {
+			struct inode *inode = child->mnt_mountpoint->d_inode;
+			if (!S_ISDIR(inode->i_mode))
+				goto next;
+			if (inode->i_nlink != 2)
+				goto next;
 		}
-		if (userns->may_mount_sysfs && userns->may_mount_proc)
-			break;
+		visible = true;
+		goto found;
+	next:	;
 	}
-	up_read(&namespace_sem);
+found:
+	namespace_unlock();
+	return visible;
 }
 
-static void *mntns_get(struct task_struct *task)
+static struct ns_common *mntns_get(struct task_struct *task)
 {
-	struct mnt_namespace *ns = NULL;
+	struct ns_common *ns = NULL;
 	struct nsproxy *nsproxy;
 
 	rcu_read_lock();
 	nsproxy = task_nsproxy(task);
 	if (nsproxy) {
-		ns = nsproxy->mnt_ns;
-		get_mnt_ns(ns);
+		ns = &nsproxy->mnt_ns->ns;
+		get_mnt_ns(to_mnt_ns(ns));
 	}
 	rcu_read_unlock();
 
 	return ns;
 }
 
-static void mntns_put(void *ns)
+static void mntns_put(struct ns_common *ns)
 {
-	put_mnt_ns(ns);
+	put_mnt_ns(to_mnt_ns(ns));
 }
 
-static int mntns_install(struct nsproxy *nsproxy, void *ns)
+static int mntns_install(struct nsproxy *nsproxy, struct ns_common *ns)
 {
 	struct fs_struct *fs = current->fs;
-	struct mnt_namespace *mnt_ns = ns;
+	struct mnt_namespace *mnt_ns = to_mnt_ns(ns);
 	struct path root;
 
 	if (!ns_capable(mnt_ns->user_ns, CAP_SYS_ADMIN) ||
@@ -2970,10 +3107,9 @@ static int mntns_install(struct nsproxy *nsproxy, void *ns)
 	return 0;
 }
 
-static unsigned int mntns_inum(void *ns)
+static struct user_namespace *mntns_owner(struct ns_common *ns)
 {
-	struct mnt_namespace *mnt_ns = ns;
-	return mnt_ns->proc_inum;
+	return to_mnt_ns(ns)->user_ns;
 }
 
 const struct proc_ns_operations mntns_operations = {
@@ -2982,5 +3118,5 @@ const struct proc_ns_operations mntns_operations = {
 	.get		= mntns_get,
 	.put		= mntns_put,
 	.install	= mntns_install,
-	.inum		= mntns_inum,
+	.owner		= mntns_owner,
 };

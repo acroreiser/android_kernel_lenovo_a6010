@@ -573,7 +573,7 @@ int __hdd_softap_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
          goto xmit_done;
       }
    }
-   dev->trans_start = jiffies;
+   netif_trans_update(dev);
 
    VOS_TRACE( VOS_MODULE_ID_HDD_SAP_DATA, VOS_TRACE_LEVEL_INFO_LOW,
               "%s: exit", __func__);
@@ -756,9 +756,7 @@ void __hdd_softap_tx_timeout(struct net_device *dev)
    int status = 0;
    hdd_context_t *pHddCtx;
 
-   VOS_TRACE( VOS_MODULE_ID_HDD_SAP_DATA, VOS_TRACE_LEVEL_ERROR,
-      "%s: Transmission timeout occurred jiffies %lu dev->trans_start %lu",
-        __func__, jiffies, dev->trans_start);
+   TX_TIMEOUT_TRACE(dev, VOS_MODULE_ID_HDD_DATA);
 
    if ( NULL == pAdapter )
    {
@@ -1730,8 +1728,19 @@ VOS_STATUS hdd_softap_rx_packet_cbk( v_VOID_t *vosContext,
          return VOS_STATUS_E_FAILURE;
       }
 
-      if (TRUE == hdd_IsEAPOLPacket(pVosPacket))
+      if (TRUE == hdd_IsEAPOLPacket(pVosPacket)) {
           wlan_hdd_log_eapol(skb, WIFI_EVENT_DRIVER_EAPOL_FRAME_RECEIVED);
+
+          if (vos_mem_compare2(skb->data,
+                               pAdapter->macAddressCurrent.bytes, 6) != 0) {
+              VOS_TRACE(VOS_MODULE_ID_HDD_SAP_DATA, VOS_TRACE_LEVEL_ERROR,
+                        "Packet is not destined to this address, dropping");
+	      pVosPacket->pSkb = NULL;
+              kfree_skb(skb);
+              pVosPacket = pNextVosPacket;
+              continue;
+          }
+      }
 
       pVosPacket->pSkb = NULL;
       //hdd_softap_dump_sk_buff(skb);
@@ -1771,9 +1780,10 @@ VOS_STATUS hdd_softap_rx_packet_cbk( v_VOID_t *vosContext,
 
       if (pHddCtx->rx_wow_dump) {
          if (!(VOS_PKT_PROTO_TYPE_ARP & proto_type) &&
-             !(VOS_PKT_PROTO_TYPE_EAPOL & proto_type))
+             !(VOS_PKT_PROTO_TYPE_EAPOL & proto_type)) {
             hdd_log_ip_addr(skb);
             pHddCtx->rx_wow_dump = false;
+         }
       }
 
       if (WLAN_RX_BCMC_STA_ID == pRxMetaInfo->ucDesSTAId)
@@ -1855,7 +1865,7 @@ VOS_STATUS hdd_softap_rx_packet_cbk( v_VOID_t *vosContext,
                  "%s: Failure returning vos pkt", __func__);
    }
    
-   pAdapter->dev->last_rx = jiffies;
+   hdd_fill_last_rx(pAdapter);
 
    return status;   
 }
@@ -2033,7 +2043,10 @@ VOS_STATUS hdd_softap_RegisterSTA( hdd_adapter_t *pAdapter,
   
       pSapCtx->aStaInfo[staId].tlSTAState = WLANTL_STA_AUTHENTICATED;
       pAdapter->sessionCtx.ap.uIsAuthenticated = VOS_TRUE;
-   }                                            
+      if (!vos_is_macaddr_broadcast(pPeerMacAddress))
+          vosStatus = wlan_hdd_send_sta_authorized_event(pAdapter, pHddCtx,
+                                                         pPeerMacAddress);
+   }
    else
    {
 
@@ -2129,8 +2142,12 @@ VOS_STATUS hdd_softap_stop_bss( hdd_adapter_t *pAdapter)
        }
     }
 
+    if (pAdapter->device_mode == WLAN_HDD_SOFTAP)
+        wlan_hdd_restore_channels(pHddCtx);
+
     /* Mark the indoor channel (passive) to enable */
-    if (pHddCtx->cfg_ini->disable_indoor_channel) {
+    if (pHddCtx->cfg_ini->disable_indoor_channel &&
+                      pAdapter->device_mode == WLAN_HDD_SOFTAP) {
         hdd_update_indoor_channel(pHddCtx, false);
         sme_update_channel_list((tpAniSirGlobal)pHddCtx->hHal);
     }

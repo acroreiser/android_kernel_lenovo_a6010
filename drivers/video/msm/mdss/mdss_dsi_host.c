@@ -1039,7 +1039,7 @@ int mdss_dsi_reg_status_check(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 				value = (value << 8) | ctrl_pdata->status_buf.data[j];
 			}
 			
-			pr_err("%s: Read back value from panel is: %x\n", __func__, value);
+			pr_debug("%s: Read back value from panel is: %x\n", __func__, value);
 			
 			if(value != ctrl_pdata->status_value[i][1])
 			{
@@ -2127,7 +2127,7 @@ static int mdss_dsi_mdp_busy_tout_check(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	isr = MIPI_INP(ctrl->ctrl_base + 0x0110);
 	if (isr & DSI_INTR_CMD_MDP_DONE) {
-		WARN(1, "INTR_CMD_MDP_DONE set but isr not fired\n");
+		pr_warn("INTR_CMD_MDP_DONE set but isr not fired\n");
 		isr &= DSI_INTR_MASK_ALL;
 		isr |= DSI_INTR_CMD_MDP_DONE; /* clear this isr only */
 		MIPI_OUTP(ctrl->ctrl_base + 0x0110, isr);
@@ -2411,7 +2411,7 @@ static int dsi_event_thread(void *data)
 	spin_lock_init(&ev->event_lock);
 
 	while (1) {
-		wait_event(ev->event_q, (ev->event_pndx != ev->event_gndx));
+		wait_event_interruptible(ev->event_q, (ev->event_pndx != ev->event_gndx));
 		spin_lock_irqsave(&ev->event_lock, flag);
 		evq = &ev->todo_list[ev->event_gndx++];
 		todo = evq->todo;

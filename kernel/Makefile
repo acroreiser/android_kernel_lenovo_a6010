@@ -3,26 +3,23 @@
 #
 
 obj-y     = fork.o exec_domain.o panic.o printk.o \
-	    cpu.o exit.o itimer.o time.o softirq.o resource.o \
-	    sysctl.o sysctl_binary.o capability.o ptrace.o timer.o user.o \
+	    cpu.o exit.o softirq.o resource.o \
+	    sysctl.o sysctl_binary.o capability.o ptrace.o user.o \
 	    signal.o sys.o kmod.o workqueue.o pid.o task_work.o \
-	    extable.o params.o posix-timers.o \
-	    kthread.o wait.o sys_ni.o posix-cpu-timers.o mutex.o \
-	    hrtimer.o rwsem.o nsproxy.o semaphore.o \
-	    notifier.o ksysfs.o cred.o \
-	    async.o range.o groups.o lglock.o smpboot.o
+	    extable.o params.o \
+	    kthread.o sys_ni.o \
+	    nsproxy.o notifier.o \
+	    ksysfs.o cred.o reboot.o \
+	    async.o range.o groups.o smpboot.o
 
 ifdef CONFIG_FUNCTION_TRACER
 # Do not trace debug files and internal ftrace files
-CFLAGS_REMOVE_lockdep.o = -pg
-CFLAGS_REMOVE_lockdep_proc.o = -pg
-CFLAGS_REMOVE_mutex-debug.o = -pg
-CFLAGS_REMOVE_rtmutex-debug.o = -pg
 CFLAGS_REMOVE_cgroup-debug.o = -pg
 CFLAGS_REMOVE_irq_work.o = -pg
 endif
 
 obj-y += sched/
+obj-y += locking/
 obj-y += power/
 obj-y += cpu/
 obj-y += irq/
@@ -33,26 +30,15 @@ obj-$(CONFIG_FREEZER) += freezer.o
 obj-$(CONFIG_PROFILING) += profile.o
 obj-$(CONFIG_STACKTRACE) += stacktrace.o
 obj-y += time/
-obj-$(CONFIG_DEBUG_MUTEXES) += mutex-debug.o
-obj-$(CONFIG_LOCKDEP) += lockdep.o
-ifeq ($(CONFIG_PROC_FS),y)
-obj-$(CONFIG_LOCKDEP) += lockdep_proc.o
-endif
 obj-$(CONFIG_FUTEX) += futex.o
 ifeq ($(CONFIG_COMPAT),y)
 obj-$(CONFIG_FUTEX) += futex_compat.o
 endif
-obj-$(CONFIG_RT_MUTEXES) += rtmutex.o
-obj-$(CONFIG_DEBUG_RT_MUTEXES) += rtmutex-debug.o
-obj-$(CONFIG_RT_MUTEX_TESTER) += rtmutex-tester.o
 obj-$(CONFIG_GENERIC_ISA_DMA) += dma.o
 obj-$(CONFIG_SMP) += smp.o
 ifneq ($(CONFIG_SMP),y)
 obj-y += up.o
 endif
-obj-$(CONFIG_SMP) += spinlock.o
-obj-$(CONFIG_DEBUG_SPINLOCK) += spinlock.o
-obj-$(CONFIG_PROVE_LOCKING) += spinlock.o
 obj-$(CONFIG_UID16) += uid16.o
 obj-$(CONFIG_MODULES) += module.o
 obj-$(CONFIG_MODULE_SIG) += module_signing.o modsign_pubkey.o modsign_certificate.o
@@ -63,6 +49,7 @@ obj-$(CONFIG_BACKTRACE_SELF_TEST) += backtracetest.o
 obj-$(CONFIG_COMPAT) += compat.o
 obj-$(CONFIG_CGROUPS) += cgroup.o
 obj-$(CONFIG_CGROUP_FREEZER) += cgroup_freezer.o
+obj-$(CONFIG_CGROUP_PIDS) += cgroup_pids.o
 obj-$(CONFIG_CPUSETS) += cpuset.o
 obj-$(CONFIG_UTS_NS) += utsname.o
 obj-$(CONFIG_USER_NS) += user_namespace.o
@@ -97,6 +84,7 @@ obj-$(CONFIG_RING_BUFFER) += trace/
 obj-$(CONFIG_TRACEPOINTS) += trace/
 obj-$(CONFIG_IRQ_WORK) += irq_work.o
 obj-$(CONFIG_CPU_PM) += cpu_pm.o
+obj-$(CONFIG_BPF) += bpf/
 
 obj-$(CONFIG_PERF_EVENTS) += events/
 
@@ -118,22 +106,6 @@ $(obj)/config_data.gz: $(KCONFIG_CONFIG) FORCE
 targets += config_data.h
 $(obj)/config_data.h: $(obj)/config_data.gz FORCE
 	$(call filechk,ikconfiggz)
-
-$(obj)/time.o: $(obj)/timeconst.h
-
-quiet_cmd_hzfile = HZFILE  $@
-      cmd_hzfile = echo "hz=$(CONFIG_HZ)" > $@
-
-targets += hz.bc
-$(obj)/hz.bc: $(objtree)/include/config/hz.h FORCE
-	$(call if_changed,hzfile)
-
-quiet_cmd_bc  = BC      $@
-      cmd_bc  = bc -q $(filter-out FORCE,$^) > $@
-
-targets += timeconst.h
-$(obj)/timeconst.h: $(obj)/hz.bc $(src)/timeconst.bc FORCE
-	$(call if_changed,bc)
 
 ifeq ($(CONFIG_MODULE_SIG),y)
 #

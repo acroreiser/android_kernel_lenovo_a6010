@@ -18,6 +18,7 @@
 #include <linux/pm_qos.h>
 #include <linux/sched.h>
 #include <linux/workqueue.h>
+#include <trace/events/gpu_mem.h>
 
 #include "kgsl.h"
 #include "kgsl_mmu.h"
@@ -68,8 +69,6 @@ enum kgsl_event_results {
 	KGSL_EVENT_RETIRED = 1,
 	KGSL_EVENT_CANCELLED = 2,
 };
-
-#define KGSL_FLAG_WAKE_ON_TOUCH BIT(0)
 
 /*
  * "list" of event types for ftrace symbolic magic
@@ -356,6 +355,8 @@ struct kgsl_device {
 	uint32_t requested_state;
 
 	atomic_t active_cnt;
+	/** @total_mapped: To trace overall gpu memory usage */
+	atomic64_t total_mapped;
 
 	wait_queue_head_t wait_queue;
 	wait_queue_head_t active_cnt_wq;
@@ -479,7 +480,7 @@ struct kgsl_context {
  * struct kgsl_process_private -  Private structure for a KGSL process (across
  * all devices)
  * @priv: Internal flags, use KGSL_PROCESS_* values
- * @pid: ID for the task owner of the process
+ * @pid: Identification structure for the task owner of the process
  * @comm: task name of the process
  * @mem_lock: Spinlock to protect the process memory lists
  * @refcount: kref object for reference counting the process
@@ -492,10 +493,11 @@ struct kgsl_context {
  * @syncsource_idr: sync sources created by this process
  * @syncsource_lock: Spinlock to protect the syncsource idr
  * @fd_count: Counter for the number of FDs for this process
+ * @ctxt_count: Count for the number of contexts for this process
  */
 struct kgsl_process_private {
 	unsigned long priv;
-	pid_t pid;
+	struct pid *pid;
 	char comm[TASK_COMM_LEN];
 	spinlock_t mem_lock;
 	struct kref refcount;
@@ -512,6 +514,7 @@ struct kgsl_process_private {
 	struct idr syncsource_idr;
 	spinlock_t syncsource_lock;
 	int fd_count;
+	atomic_t ctxt_count;
 };
 
 /**
@@ -990,4 +993,23 @@ void kgsl_snapshot_add_section(struct kgsl_device *device, u16 id,
 	size_t (*func)(struct kgsl_device *, u8 *, size_t, void *),
 	void *priv);
 
+/**
+ * kgsl_trace_gpu_mem_total - Overall gpu memory usage tracking which includes
+ * process allocations, imported dmabufs and kgsl globals
+ * @device: A KGSL device handle
+ * @delta: delta of total mapped memory size
+ */
+#ifdef CONFIG_TRACE_GPU_MEM
+static inline void kgsl_trace_gpu_mem_total(struct kgsl_device *device,
+						s64 delta)
+{
+	u64 total_size;
+
+	total_size = atomic64_add_return(delta, &device->total_mapped);
+	trace_gpu_mem_total(0, 0, total_size);
+}
+#else
+static inline void kgsl_trace_gpu_mem_total(struct kgsl_device *device,
+						s64 delta) {}
+#endif
 #endif  /* __KGSL_DEVICE_H */

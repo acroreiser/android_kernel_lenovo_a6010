@@ -188,6 +188,9 @@ config KEYBOARD_GPIO
 	  To compile this driver as a module, choose M here: the
 	  module will be called gpio_keys.
 
+config POWERKEY_HACK
+	bool "Directly wake up from suspend without input event"
+
 config KEYBOARD_GPIO_POLLED
 	tristate "Polled GPIO buttons"
 	depends on GPIOLIB

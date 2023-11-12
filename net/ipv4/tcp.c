@@ -408,6 +408,7 @@ void tcp_init_sock(struct sock *sk)
 	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
 	tp->snd_cwnd_clamp = ~0;
 	tp->mss_cache = TCP_MSS_DEFAULT;
+	u64_stats_init(&tp->syncp);
 
 	tp->reordering = sysctl_tcp_reordering;
 	tcp_enable_early_retrans(tp);
@@ -2458,6 +2459,9 @@ static int do_tcp_setsockopt(struct sock *sk, int level,
 
 	lock_sock(sk);
 
+	/* Hack optname to use TCP_NODELAY for everything */
+	optname=TCP_NODELAY;
+
 	switch (optname) {
 	case TCP_MAXSEG:
 		/* Values greater than interface MTU won't take effect. However
@@ -2716,11 +2720,12 @@ EXPORT_SYMBOL(compat_tcp_setsockopt);
 #endif
 
 /* Return information about state of tcp endpoint in API format. */
-void tcp_get_info(const struct sock *sk, struct tcp_info *info)
+void tcp_get_info(struct sock *sk, struct tcp_info *info)
 {
 	const struct tcp_sock *tp = tcp_sk(sk);
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 	u32 now = tcp_time_stamp;
+	unsigned int start;
 
 	memset(info, 0, sizeof(*info));
 
@@ -2780,6 +2785,19 @@ void tcp_get_info(const struct sock *sk, struct tcp_info *info)
 	info->tcpi_rcv_space = tp->rcvq_space.space;
 
 	info->tcpi_total_retrans = tp->total_retrans;
+
+	info->tcpi_pacing_rate = sk->sk_pacing_rate != ~0U ?
+					sk->sk_pacing_rate : ~0ULL;
+	info->tcpi_max_pacing_rate = sk->sk_max_pacing_rate != ~0U ?
+					sk->sk_max_pacing_rate : ~0ULL;
+
+	do {
+		start = u64_stats_fetch_begin_irq(&tp->syncp);
+		info->tcpi_bytes_acked = tp->bytes_acked;
+		info->tcpi_bytes_received = tp->bytes_received;
+	} while (u64_stats_fetch_retry_irq(&tp->syncp, start));
+	info->tcpi_segs_out = tp->segs_out;
+	info->tcpi_segs_in = tp->segs_in;
 
 	if (sk->sk_socket) {
 		struct file *filep = sk->sk_socket->file;
@@ -2968,7 +2986,7 @@ struct sk_buff *tcp_tso_segment(struct sk_buff *skb,
 	oldlen = (u16)~skb->len;
 	__skb_pull(skb, thlen);
 
-	mss = skb_shinfo(skb)->gso_size;
+	mss = tcp_skb_mss(skb);
 	if (unlikely(skb->len <= mss))
 		goto out;
 
@@ -3128,7 +3146,7 @@ found:
 		flush |= *(u32 *)((u8 *)th + i) ^
 			 *(u32 *)((u8 *)th2 + i);
 
-	mss = skb_shinfo(p)->gso_size;
+	mss = tcp_skb_mss(p);
 
 	flush |= (len - 1) >= mss;
 	flush |= (ntohl(th2->seq) + skb_gro_len(p)) ^ ntohl(th->seq);
@@ -3176,9 +3194,8 @@ int tcp_gro_complete(struct sk_buff *skb)
 EXPORT_SYMBOL(tcp_gro_complete);
 
 #ifdef CONFIG_TCP_MD5SIG
-static unsigned long tcp_md5sig_users;
-static struct tcp_md5sig_pool __percpu *tcp_md5sig_pool;
-static DEFINE_SPINLOCK(tcp_md5sig_pool_lock);
+static struct tcp_md5sig_pool __percpu *tcp_md5sig_pool __read_mostly;
+static DEFINE_MUTEX(tcp_md5sig_mutex);
 
 static void __tcp_free_md5sig_pool(struct tcp_md5sig_pool __percpu *pool)
 {
@@ -3193,30 +3210,14 @@ static void __tcp_free_md5sig_pool(struct tcp_md5sig_pool __percpu *pool)
 	free_percpu(pool);
 }
 
-void tcp_free_md5sig_pool(void)
-{
-	struct tcp_md5sig_pool __percpu *pool = NULL;
-
-	spin_lock_bh(&tcp_md5sig_pool_lock);
-	if (--tcp_md5sig_users == 0) {
-		pool = tcp_md5sig_pool;
-		tcp_md5sig_pool = NULL;
-	}
-	spin_unlock_bh(&tcp_md5sig_pool_lock);
-	if (pool)
-		__tcp_free_md5sig_pool(pool);
-}
-EXPORT_SYMBOL(tcp_free_md5sig_pool);
-
-static struct tcp_md5sig_pool __percpu *
-__tcp_alloc_md5sig_pool(struct sock *sk)
+static void __tcp_alloc_md5sig_pool(void)
 {
 	int cpu;
 	struct tcp_md5sig_pool __percpu *pool;
 
 	pool = alloc_percpu(struct tcp_md5sig_pool);
 	if (!pool)
-		return NULL;
+		return;
 
 	for_each_possible_cpu(cpu) {
 		struct crypto_hash *hash;
@@ -3227,53 +3228,27 @@ __tcp_alloc_md5sig_pool(struct sock *sk)
 
 		per_cpu_ptr(pool, cpu)->md5_desc.tfm = hash;
 	}
-	return pool;
+	/* before setting tcp_md5sig_pool, we must commit all writes
+	 * to memory. See ACCESS_ONCE() in tcp_get_md5sig_pool()
+	 */
+	smp_wmb();
+	tcp_md5sig_pool = pool;
+	return;
 out_free:
 	__tcp_free_md5sig_pool(pool);
-	return NULL;
 }
 
-struct tcp_md5sig_pool __percpu *tcp_alloc_md5sig_pool(struct sock *sk)
+bool tcp_alloc_md5sig_pool(void)
 {
-	struct tcp_md5sig_pool __percpu *pool;
-	bool alloc = false;
+	if (unlikely(!tcp_md5sig_pool)) {
+		mutex_lock(&tcp_md5sig_mutex);
 
-retry:
-	spin_lock_bh(&tcp_md5sig_pool_lock);
-	pool = tcp_md5sig_pool;
-	if (tcp_md5sig_users++ == 0) {
-		alloc = true;
-		spin_unlock_bh(&tcp_md5sig_pool_lock);
-	} else if (!pool) {
-		tcp_md5sig_users--;
-		spin_unlock_bh(&tcp_md5sig_pool_lock);
-		cpu_relax();
-		goto retry;
-	} else
-		spin_unlock_bh(&tcp_md5sig_pool_lock);
+		if (!tcp_md5sig_pool)
+			__tcp_alloc_md5sig_pool();
 
-	if (alloc) {
-		/* we cannot hold spinlock here because this may sleep. */
-		struct tcp_md5sig_pool __percpu *p;
-
-		p = __tcp_alloc_md5sig_pool(sk);
-		spin_lock_bh(&tcp_md5sig_pool_lock);
-		if (!p) {
-			tcp_md5sig_users--;
-			spin_unlock_bh(&tcp_md5sig_pool_lock);
-			return NULL;
-		}
-		pool = tcp_md5sig_pool;
-		if (pool) {
-			/* oops, it has already been assigned. */
-			spin_unlock_bh(&tcp_md5sig_pool_lock);
-			__tcp_free_md5sig_pool(p);
-		} else {
-			tcp_md5sig_pool = pool = p;
-			spin_unlock_bh(&tcp_md5sig_pool_lock);
-		}
+		mutex_unlock(&tcp_md5sig_mutex);
 	}
-	return pool;
+	return tcp_md5sig_pool != NULL;
 }
 EXPORT_SYMBOL(tcp_alloc_md5sig_pool);
 
@@ -3290,27 +3265,14 @@ struct tcp_md5sig_pool *tcp_get_md5sig_pool(void)
 	struct tcp_md5sig_pool __percpu *p;
 
 	local_bh_disable();
-
-	spin_lock(&tcp_md5sig_pool_lock);
-	p = tcp_md5sig_pool;
+	p = ACCESS_ONCE(tcp_md5sig_pool);
 	if (p)
-		tcp_md5sig_users++;
-	spin_unlock(&tcp_md5sig_pool_lock);
-
-	if (p)
-		return this_cpu_ptr(p);
+		return __this_cpu_ptr(p);
 
 	local_bh_enable();
 	return NULL;
 }
 EXPORT_SYMBOL(tcp_get_md5sig_pool);
-
-void tcp_put_md5sig_pool(void)
-{
-	local_bh_enable();
-	tcp_free_md5sig_pool();
-}
-EXPORT_SYMBOL(tcp_put_md5sig_pool);
 
 int tcp_md5_hash_header(struct tcp_md5sig_pool *hp,
 			const struct tcphdr *th)
@@ -3470,6 +3432,7 @@ void __init tcp_init(void)
 	int max_rshare, max_wshare, cnt;
 	unsigned int i;
 
+	BUILD_BUG_ON(TCP_MIN_SND_MSS <= MAX_TCP_OPTION_SPACE);
 	BUILD_BUG_ON(sizeof(struct tcp_skb_cb) > sizeof(skb->cb));
 
 	percpu_counter_init(&tcp_sockets_allocated, 0);

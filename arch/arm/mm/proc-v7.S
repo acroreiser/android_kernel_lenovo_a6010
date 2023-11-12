@@ -26,7 +26,7 @@
 #endif
 
 ENTRY(cpu_v7_proc_init)
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_v7_proc_init)
 
 ENTRY(cpu_v7_proc_fin)
@@ -34,7 +34,7 @@ ENTRY(cpu_v7_proc_fin)
 	bic	r0, r0, #0x1000			@ ...i............
 	bic	r0, r0, #0x0006			@ .............ca.
 	mcr	p15, 0, r0, c1, c0, 0		@ disable caches
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_v7_proc_fin)
 
 /*
@@ -71,21 +71,27 @@ ENDPROC(cpu_v7_reset)
 ENTRY(cpu_v7_do_idle)
 	dsb					@ WFI may enter a low-power mode
 	wfi
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_v7_do_idle)
 
 ENTRY(cpu_v7_dcache_clean_area)
 	ALT_SMP(W(nop))			@ MP extensions imply L1 PTW
 	ALT_UP_B(1f)
-	mov	pc, lr
+	ret	lr
 1:	dcache_line_size r2, r3
 2:	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 	add	r0, r0, r2
 	subs	r1, r1, r2
 	bhi	2b
 	dsb
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_v7_dcache_clean_area)
+
+ENTRY(cpu_v7_bpiall_switch_mm)
+	mov	r3, #0
+	mcr	p15, 0, r3, c7, c5, 6		@ flush BTAC/BTB
+	b	cpu_v7_switch_mm
+ENDPROC(cpu_v7_bpiall_switch_mm)
 
 	string	cpu_v7_name, "ARMv7 Processor"
 	.align
@@ -159,7 +165,7 @@ ENTRY(cpu_pj4b_do_idle)
 	dsb					@ WFI may enter a low-power mode
 	wfi
 	dsb					@barrier
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_pj4b_do_idle)
 #else
 	globl_equ	cpu_pj4b_do_idle,  	cpu_v7_do_idle
@@ -189,6 +195,7 @@ __v7_ca9mp_setup:
 	mov	r10, #(1 << 0)			@ TLB ops broadcasting
 	b	1f
 __v7_ca7mp_setup:
+__v7_ca12mp_setup:
 __v7_ca15mp_setup:
 __v7_ca53mp_setup:
 	mov	r10, #0
@@ -394,7 +401,7 @@ __v7_setup:
 	bic	r0, r0, r5			@ clear bits them
 	orr	r0, r0, r6			@ set them
  THUMB(	orr	r0, r0, #1 << 30	)	@ Thumb exceptions
-	mov	pc, lr				@ return to head.S:__ret
+	ret	lr				@ return to head.S:__ret
 ENDPROC(__v7_setup)
 
 	.align	2
@@ -405,6 +412,27 @@ __v7_setup_stack:
 
 	@ define struct processor (see <asm/proc-fns.h> and proc-macros.S)
 	define_processor_functions v7, dabort=v7_early_abort, pabort=v7_pabort, suspend=1
+
+#ifdef CONFIG_HARDEN_BRANCH_PREDICTOR
+	@ generic v7 bpiall on context switch
+	globl_equ	cpu_v7_bpiall_proc_init,	cpu_v7_proc_init
+	globl_equ	cpu_v7_bpiall_proc_fin,		cpu_v7_proc_fin
+	globl_equ	cpu_v7_bpiall_reset,		cpu_v7_reset
+	globl_equ	cpu_v7_bpiall_do_idle,		cpu_v7_do_idle
+	globl_equ	cpu_v7_bpiall_dcache_clean_area, cpu_v7_dcache_clean_area
+	globl_equ	cpu_v7_bpiall_set_pte_ext,	cpu_v7_set_pte_ext
+	globl_equ	cpu_v7_bpiall_suspend_size,	cpu_v7_suspend_size
+#ifdef CONFIG_ARM_CPU_SUSPEND
+	globl_equ	cpu_v7_bpiall_do_suspend,	cpu_v7_do_suspend
+	globl_equ	cpu_v7_bpiall_do_resume,	cpu_v7_do_resume
+#endif
+	define_processor_functions v7_bpiall, dabort=v7_early_abort, pabort=v7_pabort, suspend=1
+
+#define HARDENED_BPIALL_PROCESSOR_FUNCTIONS v7_bpiall_processor_functions
+#else
+#define HARDENED_BPIALL_PROCESSOR_FUNCTIONS v7_processor_functions
+#endif
+
 #ifdef CONFIG_CPU_PJ4B
 	define_processor_functions pj4b, dabort=v7_early_abort, pabort=v7_pabort, suspend=1
 #endif
@@ -485,6 +513,16 @@ __v7_ca7mp_proc_info:
 	.size	__v7_ca7mp_proc_info, . - __v7_ca7mp_proc_info
 
 	/*
+	 * ARM Ltd. Cortex A12 processor.
+	 */
+	.type	__v7_ca12mp_proc_info, #object
+__v7_ca12mp_proc_info:
+	.long	0x410fc0d0
+	.long	0xff0ffff0
+	__v7_proc __v7_ca12mp_setup
+	.size	__v7_ca12mp_proc_info, . - __v7_ca12mp_proc_info
+
+	/*
 	 * ARM Ltd. Cortex A15 processor.
 	 */
 	.type	__v7_ca15mp_proc_info, #object
@@ -504,9 +542,10 @@ __krait_proc_info:
 	/*
 	 * Some Krait processors don't indicate support for SDIV and UDIV
 	 * instructions in the ARM instruction set, even though they actually
-	 * do support them.
+	 * do support them. They also don't indicate support for fused multiply
+	 * instructions even though they actually do support them.
 	 */
-	__v7_proc __v7_setup, hwcaps = HWCAP_IDIV
+	__v7_proc __v7_setup, hwcaps = HWCAP_IDIV | HWCAP_VFPv4
 	.size	__krait_proc_info, . - __krait_proc_info
 
 	/*

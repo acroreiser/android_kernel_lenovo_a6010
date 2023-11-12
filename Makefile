@@ -117,9 +117,10 @@ ifneq ($(KBUILD_OUTPUT),)
 # Invoke a second make in the output directory, passing relevant variables
 # check that the output directory actually exists
 saved-output := $(KBUILD_OUTPUT)
-KBUILD_OUTPUT := $(shell cd $(KBUILD_OUTPUT) && /bin/pwd)
+KBUILD_OUTPUT := $(shell mkdir -p $(KBUILD_OUTPUT) && cd $(KBUILD_OUTPUT) \
+								&& /bin/pwd)
 $(if $(KBUILD_OUTPUT),, \
-     $(error output directory "$(saved-output)" does not exist))
+     $(error failed to create output directory "$(saved-output)"))
 
 PHONY += $(MAKECMDGOALS) sub-make
 
@@ -579,13 +580,26 @@ all: vmlinux
 
 KBUILD_CFLAGS	+= $(call cc-disable-warning,maybe-uninitialized,)
 
+# Needed to unbreak GCC 7.x and above
+KBUILD_CFLAGS   += $(call cc-option,-fno-store-merging,)
+
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
-KBUILD_CFLAGS	+= -Os
+KBUILD_CFLAGS	+= -Os -mcpu=cortex-a53 --param l2-cache-size=512 --param l1-cache-size=32 --param l1-cache-line-size=64 -Wno-misleading-indentation
 else
-KBUILD_CFLAGS	+= -O2
+KBUILD_CFLAGS	+= -O2 -mcpu=cortex-a53 --param l2-cache-size=512 --param l1-cache-size=32 --param l1-cache-line-size=64 -Wno-misleading-indentation
+endif
+
+# Fix gcc10 performance regression
+#KBUILD_CFLAGS += --param=max-inline-insns-auto=1000
+
+ifdef CONFIG_GCC_GRAPHITE
+KBUILD_CFLAGS	+= -fgraphite-identity -floop-nest-optimize
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
+
+# Tell gcc to never replace conditional load with a non-conditional one
+KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
 
 # Tell gcc to never replace conditional load with a non-conditional one
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
@@ -628,9 +642,14 @@ KBUILD_CFLAGS += $(stackp-flag)
 # This warning generated too much noise in a regular build.
 # Use make W=1 to enable this warning (see scripts/Makefile.build)
 KBUILD_CFLAGS   += $(call cc-disable-warning, unused-but-set-variable)
+KBUILD_CFLAGS   += $(call cc-disable-warning, unused-const-variable)
+KBUILD_CFLAGS   += $(call cc-disable-warning, unused-variable)
+KBUILD_CFLAGS   += $(call cc-disable-warning, unused-function)
+KBUILD_CFLAGS   += $(call cc-disable-warning, zero-length-bounds)
 KBUILD_CFLAGS	+= $(call cc-disable-warning, format-truncation)
 KBUILD_CFLAGS	+= $(call cc-disable-warning, format-overflow)
 KBUILD_CFLAGS	+= $(call cc-disable-warning, int-in-bool-context)
+KBUILD_CFLAGS	+= $(call cc-disable-warning, address-of-packed-member)
 KBUILD_CFLAGS	+= $(call cc-disable-warning, attribute-alias)
 KBUILD_CFLAGS   += $(call cc-disable-warning, stringop-truncation)
 KBUILD_CFLAGS   += $(call cc-disable-warning, sizeof-pointer-memaccess)
@@ -694,15 +713,13 @@ KBUILD_CFLAGS += $(call cc-disable-warning, pointer-sign)
 # disable invalid "can't wrap" optimizations for signed / pointers
 KBUILD_CFLAGS	+= $(call cc-option,-fno-strict-overflow)
 
-# conserve stack if available
-KBUILD_CFLAGS   += $(call cc-option,-fconserve-stack)
-
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
 
 # check for 'asm goto'
 ifeq ($(shell $(CONFIG_SHELL) $(srctree)/scripts/gcc-goto.sh $(CC)), y)
 	KBUILD_CFLAGS += -DCC_HAVE_ASM_GOTO
+	KBUILD_AFLAGS += -DCC_HAVE_ASM_GOTO
 endif
 
 # Add user supplied CPPFLAGS, AFLAGS and CFLAGS as the last assignments

@@ -5,6 +5,7 @@
 #include <linux/sched.h>
 #include <linux/kref.h>
 #include <linux/nsproxy.h>
+#include <linux/ns_common.h>
 #include <linux/err.h>
 #include <uapi/linux/utsname.h>
 
@@ -23,7 +24,7 @@ struct uts_namespace {
 	struct kref kref;
 	struct new_utsname name;
 	struct user_namespace *user_ns;
-	unsigned int proc_inum;
+	struct ns_common ns;
 };
 extern struct uts_namespace init_uts_ns;
 
@@ -68,9 +69,24 @@ static inline void uts_proc_notify(enum uts_proc proc)
 }
 #endif
 
+#ifdef CONFIG_ANDROID_TREBLE_SPOOF_KERNEL_VERSION
+static struct new_utsname utsname_spoofed;
+#endif
 static inline struct new_utsname *utsname(void)
 {
+#ifdef CONFIG_ANDROID_TREBLE_SPOOF_KERNEL_VERSION
+	char fake_release_prepended[64];
+
+	strcpy(fake_release_prepended, CONFIG_ANDROID_TREBLE_SPOOF_KERNEL_VERSION);
+        strcat(fake_release_prepended, "-");
+	strcat(fake_release_prepended, current->nsproxy->uts_ns->name.release);
+	utsname_spoofed = current->nsproxy->uts_ns->name;
+	strcpy(utsname_spoofed.release, fake_release_prepended);
+
+	return &utsname_spoofed;
+#else
 	return &current->nsproxy->uts_ns->name;
+#endif
 }
 
 static inline struct new_utsname *init_utsname(void)

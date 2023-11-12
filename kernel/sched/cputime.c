@@ -128,7 +128,7 @@ static inline void task_group_account_field(struct task_struct *p, int index,
 	 * is the only cgroup, then nothing else should be necessary.
 	 *
 	 */
-	__get_cpu_var(kernel_cpustat).cpustat[index] += tmp;
+	__this_cpu_add(kernel_cpustat.cpustat[index], tmp);
 
 	cpuacct_account_field(p, index, tmp);
 }
@@ -734,6 +734,7 @@ void vtime_guest_enter(struct task_struct *tsk)
 	current->flags |= PF_VCPU;
 	write_sequnlock(&tsk->vtime_seqlock);
 }
+EXPORT_SYMBOL_GPL(vtime_guest_enter);
 
 void vtime_guest_exit(struct task_struct *tsk)
 {
@@ -742,6 +743,7 @@ void vtime_guest_exit(struct task_struct *tsk)
 	current->flags &= ~PF_VCPU;
 	write_sequnlock(&tsk->vtime_seqlock);
 }
+EXPORT_SYMBOL_GPL(vtime_guest_exit);
 
 void vtime_account_idle(struct task_struct *tsk)
 {
@@ -781,6 +783,9 @@ cputime_t task_gtime(struct task_struct *t)
 {
 	unsigned int seq;
 	cputime_t gtime;
+
+	if (!context_tracking_is_enabled())
+		return t->gtime;
 
 	do {
 		seq = read_seqbegin(&t->vtime_seqlock);

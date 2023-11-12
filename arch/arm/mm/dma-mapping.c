@@ -151,6 +151,7 @@ static void arm_dma_unremap(struct device *dev, void *remapped_addr,
 	unsigned int flags = VM_ARM_DMA_CONSISTENT | VM_USERMAP;
 	struct vm_struct *area;
 
+	size = PAGE_ALIGN(size);
 	remapped_addr = (void *)((unsigned long)remapped_addr & PAGE_MASK);
 
 	area = find_vm_area(remapped_addr);
@@ -160,6 +161,8 @@ static void arm_dma_unremap(struct device *dev, void *remapped_addr,
 		return;
 	}
 	vunmap(remapped_addr);
+	flush_tlb_kernel_range((unsigned long)remapped_addr,
+				(unsigned long)(remapped_addr + size));
 }
 
 struct dma_map_ops arm_dma_ops = {
@@ -327,7 +330,7 @@ static void __dma_free_buffer(struct page *page, size_t size)
 
 #ifdef CONFIG_MMU
 #ifdef CONFIG_HUGETLB_PAGE
-#error ARM Coherent DMA allocator does not (yet) support huge TLB
+#warning ARM Coherent DMA allocator does not (yet) support huge TLB
 #endif
 
 static void *__alloc_from_contiguous(struct device *dev, size_t size,
@@ -919,12 +922,30 @@ static void arm_coherent_dma_free(struct device *dev, size_t size, void *cpu_add
 	__arm_dma_free(dev, size, cpu_addr, handle, attrs, true);
 }
 
+/*
+ * The whole dma_get_sgtable() idea is fundamentally unsafe - it seems
+ * that the intention is to allow exporting memory allocated via the
+ * coherent DMA APIs through the dma_buf API, which only accepts a
+ * scattertable.  This presents a couple of problems:
+ * 1. Not all memory allocated via the coherent DMA APIs is backed by
+ *    a struct page
+ * 2. Passing coherent DMA memory into the streaming APIs is not allowed
+ *    as we will try to flush the memory through a different alias to that
+ *    actually being used (and the flushes are redundant.)
+ */
 int arm_dma_get_sgtable(struct device *dev, struct sg_table *sgt,
 		 void *cpu_addr, dma_addr_t handle, size_t size,
 		 struct dma_attrs *attrs)
 {
-	struct page *page = pfn_to_page(dma_to_pfn(dev, handle));
+	unsigned long pfn = dma_to_pfn(dev, handle);
+	struct page *page;
 	int ret;
+
+	/* If the PFN is not valid, we do not have a struct page */
+	if (!pfn_valid(pfn))
+		return -ENXIO;
+
+	page = pfn_to_page(pfn);
 
 	ret = sg_alloc_table(sgt, 1, GFP_KERNEL);
 	if (unlikely(ret))
@@ -1016,10 +1037,24 @@ static void __dma_page_dev_to_cpu(struct page *page, unsigned long off,
 	dma_cache_maint_page(page, off, size, dir, dmac_unmap_area);
 
 	/*
-	 * Mark the D-cache clean for this page to avoid extra flushing.
+	 * Mark the D-cache clean for these pages to avoid extra flushing.
 	 */
-	if (dir != DMA_TO_DEVICE && off == 0 && size >= PAGE_SIZE)
-		set_bit(PG_dcache_clean, &page->flags);
+	if (dir != DMA_TO_DEVICE && size >= PAGE_SIZE) {
+		unsigned long pfn;
+		size_t left = size;
+
+		pfn = page_to_pfn(page) + off / PAGE_SIZE;
+		off %= PAGE_SIZE;
+		if (off) {
+			pfn++;
+			left -= PAGE_SIZE - off;
+		}
+		while (left >= PAGE_SIZE) {
+			page = pfn_to_page(pfn++);
+			set_bit(PG_dcache_clean, &page->flags);
+			left -= PAGE_SIZE;
+		}
+	}
 }
 
 /**
@@ -1245,9 +1280,13 @@ static struct page **__iommu_alloc_buffer(struct device *dev, size_t size,
 	while (count) {
 		int j, order = __fls(count);
 
-		pages[i] = alloc_pages(gfp, order);
-		while (!pages[i] && order)
-			pages[i] = alloc_pages(gfp, --order);
+		pages[i] = alloc_pages(order ? gfp | __GFP_NORETRY :
+						gfp, order);
+		while (!pages[i] && order) {
+			order--;
+			pages[i] = alloc_pages(order ? gfp | __GFP_NORETRY :
+							gfp, order);
+		}
 		if (!pages[i])
 			goto error;
 
@@ -1445,6 +1484,13 @@ static void *arm_iommu_alloc_attrs(struct device *dev, size_t size,
 	pgprot_t prot = __get_dma_pgprot(attrs, PAGE_KERNEL);
 	struct page **pages;
 	void *addr = NULL;
+
+	/* Following is a work-around (a.k.a. hack) to prevent pages
+	 * with __GFP_COMP being passed to split_page() which cannot
+	 * handle them.  The real problem is that this flag probably
+	 * should be 0 on ARM as it is not supported on this
+	 * platform--see CONFIG_HUGETLB_PAGE. */
+	gfp &= ~(__GFP_COMP);
 
 	*handle = DMA_ERROR_CODE;
 	size = PAGE_ALIGN(size);

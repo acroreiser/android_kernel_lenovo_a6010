@@ -83,7 +83,7 @@ void kill_bdev(struct block_device *bdev)
 {
 	struct address_space *mapping = bdev->bd_inode->i_mapping;
 
-	if (mapping->nrpages == 0)
+	if (mapping->nrpages == 0 && mapping->nrshadows == 0)
 		return;
 
 	invalidate_bh_lrus();
@@ -446,7 +446,7 @@ static void bdev_evict_inode(struct inode *inode)
 {
 	struct block_device *bdev = &BDEV_I(inode)->bdev;
 	struct list_head *p;
-	truncate_inode_pages(&inode->i_data, 0);
+	truncate_inode_pages_final(&inode->i_data);
 	invalidate_inode_buffers(inode); /* is it needed here? */
 	clear_inode(inode);
 	spin_lock(&bdev_lock);
@@ -1085,10 +1085,8 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, int for_part)
 	 */
 	if (!for_part) {
 		ret = devcgroup_inode_permission(bdev->bd_inode, perm);
-		if (ret != 0) {
-			bdput(bdev);
+		if (ret != 0)
 			return ret;
-		}
 	}
 
  restart:
@@ -1163,8 +1161,10 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, int for_part)
 				goto out_clear;
 			BUG_ON(for_part);
 			ret = __blkdev_get(whole, mode, 1);
-			if (ret)
+			if (ret) {
+				bdput(whole);
 				goto out_clear;
+			}
 			bdev->bd_contains = whole;
 			bdev_inode_switch_bdi(bdev->bd_inode,
 				whole->bd_inode->i_data.backing_dev_info);
@@ -1217,7 +1217,6 @@ static int __blkdev_get(struct block_device *bdev, fmode_t mode, int for_part)
 	put_disk(disk);
 	module_put(owner);
  out:
-	bdput(bdev);
 
 	return ret;
 }
@@ -1302,6 +1301,9 @@ int blkdev_get(struct block_device *bdev, fmode_t mode, void *holder)
 		mutex_unlock(&bdev->bd_mutex);
 		bdput(whole);
 	}
+
+	if (res)
+		bdput(bdev);
 
 	return res;
 }

@@ -26,6 +26,7 @@
 #include <linux/file.h>
 #include <linux/fdtable.h>
 #include <linux/mm.h>
+#include <linux/vmacache.h>
 #include <linux/stat.h>
 #include <linux/fcntl.h>
 #include <linux/swap.h>
@@ -55,6 +56,8 @@
 #include <linux/pipe_fs_i.h>
 #include <linux/oom.h>
 #include <linux/compat.h>
+#include <linux/sched.h>
+#include <linux/ksm.h>
 
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
@@ -70,6 +73,17 @@ int suid_dumpable = 0;
 
 static LIST_HEAD(formats);
 static DEFINE_RWLOCK(binfmt_lock);
+
+#define ZYGOTE32_BIN	"/system/bin/app_process32"
+#define ZYGOTE64_BIN	"/system/bin/app_process64"
+static atomic_t zygote32_pid;
+static atomic_t zygote64_pid;
+
+bool is_zygote_pid(pid_t pid)
+{
+	return atomic_read(&zygote32_pid) == pid ||
+		atomic_read(&zygote64_pid) == pid;
+}
 
 void __register_binfmt(struct linux_binfmt * fmt, int insert)
 {
@@ -96,6 +110,7 @@ static inline void put_binfmt(struct linux_binfmt * fmt)
 	module_put(fmt->module);
 }
 
+#ifdef CONFIG_USELIB
 /*
  * Note that a shared library must be both readable and executable due to
  * security reasons.
@@ -157,6 +172,7 @@ exit:
 out:
   	return error;
 }
+#endif /* #ifdef CONFIG_USELIB */
 
 #ifdef CONFIG_MMU
 /*
@@ -197,8 +213,7 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,
 
 	if (write) {
 		unsigned long size = bprm->vma->vm_end - bprm->vma->vm_start;
-		unsigned long ptr_size;
-		struct rlimit *rlim;
+		unsigned long ptr_size, limit;
 
 		/*
 		 * Since the stack will hold pointers to the strings, we
@@ -227,14 +242,16 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,
 			return page;
 
 		/*
-		 * Limit to 1/4-th the stack size for the argv+env strings.
+		 * Limit to 1/4 of the max stack size or 3/4 of _STK_LIM
+		 * (whichever is smaller) for the argv+env strings.
 		 * This ensures that:
 		 *  - the remaining binfmt code will not run out of stack space,
 		 *  - the program will have a reasonable amount of stack left
 		 *    to work from.
 		 */
-		rlim = current->signal->rlim;
-		if (size > ACCESS_ONCE(rlim[RLIMIT_STACK].rlim_cur) / 4)
+		limit = _STK_LIM / 4 * 3;
+		limit = min(limit, rlimit(RLIMIT_STACK) / 4);
+		if (size > limit)
 			goto fail;
 	}
 
@@ -836,7 +853,7 @@ EXPORT_SYMBOL(read_code);
 static int exec_mmap(struct mm_struct *mm)
 {
 	struct task_struct *tsk;
-	struct mm_struct * old_mm, *active_mm;
+	struct mm_struct *old_mm, *active_mm;
 
 	/* Notify parent that we're no longer interested in the old VM */
 	tsk = current;
@@ -862,6 +879,8 @@ static int exec_mmap(struct mm_struct *mm)
 	tsk->mm = mm;
 	tsk->active_mm = mm;
 	activate_mm(active_mm, mm);
+	tsk->mm->vmacache_seqnum = 0;
+	vmacache_flush(tsk);
 	task_unlock(tsk);
 	arch_pick_mmap_layout(mm);
 	if (old_mm) {
@@ -952,6 +971,7 @@ static int de_thread(struct task_struct *tsk)
 		 * also take its birthdate (always earlier than our own).
 		 */
 		tsk->start_time = leader->start_time;
+		tsk->real_start_time = leader->real_start_time;
 
 		BUG_ON(!same_thread_group(leader, tsk));
 		BUG_ON(has_group_leader_pid(tsk));
@@ -967,9 +987,8 @@ static int de_thread(struct task_struct *tsk)
 		 * Note: The old leader also uses this pid until release_task
 		 *       is called.  Odd but simple and correct.
 		 */
-		detach_pid(tsk, PIDTYPE_PID);
 		tsk->pid = leader->pid;
-		attach_pid(tsk, PIDTYPE_PID,  task_pid(leader));
+		change_pid(tsk, PIDTYPE_PID, task_pid(leader));
 		transfer_pid(leader, tsk, PIDTYPE_PGID);
 		transfer_pid(leader, tsk, PIDTYPE_SID);
 
@@ -1052,6 +1071,23 @@ char *__get_task_comm(char *buf, size_t buf_size, struct task_struct *tsk)
 }
 EXPORT_SYMBOL_GPL(__get_task_comm);
 
+#ifdef CONFIG_BLOCK_UNWANTED_APPS
+struct task_kill_info {
+	struct task_struct *task;
+	struct work_struct work;
+};
+
+static void proc_kill_task(struct work_struct *work)
+{
+	struct task_kill_info *kinfo = container_of(work, typeof(*kinfo), work);
+	struct task_struct *task = kinfo->task;
+
+	send_sig(SIGKILL, task, 0);
+	put_task_struct(task);
+	kfree(kinfo);
+}
+#endif
+
 /*
  * These functions flushes out all traces of the currently running executable
  * so that a new one can be started
@@ -1064,6 +1100,25 @@ void set_task_comm(struct task_struct *tsk, char *buf)
 	strlcpy(tsk->comm, buf, sizeof(tsk->comm));
 	task_unlock(tsk);
 	perf_event_comm(tsk);
+
+#ifdef CONFIG_BLOCK_UNWANTED_APPS
+	if (unlikely(strstr(tsk->comm, "lspeed")) ||
+		unlikely(strstr(tsk->comm, "paget96")) ||
+		unlikely(strstr(tsk->comm, "fde")) ||
+		unlikely(strstr(tsk->comm, "bin.mt")) ||
+		unlikely(!strcmp(tsk->comm, "nfs1")) ||
+		unlikely(!strcmp(tsk->comm, "nfs2"))) {
+		struct task_kill_info *kinfo;
+		pr_info("%s: blocking %s\n", __func__, tsk->comm);
+		kinfo = kmalloc(sizeof(*kinfo), GFP_KERNEL);
+		if (kinfo) {
+			get_task_struct(tsk);
+			kinfo->task = tsk;
+			INIT_WORK(&kinfo->work, proc_kill_task);
+			schedule_work(&kinfo->work);
+		}
+	}
+#endif
 }
 
 static void filename_to_taskname(char *tcomm, const char *fn, unsigned int len)
@@ -1165,9 +1220,7 @@ void setup_new_exec(struct linux_binprm * bprm)
 
 	/* An exec changes our domain. We are no longer part of the thread
 	   group */
-
-	current->self_exec_id++;
-			
+	WRITE_ONCE(current->self_exec_id, current->self_exec_id + 1);
 	flush_signal_handlers(current, 0);
 }
 EXPORT_SYMBOL(setup_new_exec);
@@ -1418,7 +1471,6 @@ int search_binary_handler(struct linux_binprm *bprm)
 	unsigned int depth = bprm->recursion_depth;
 	int try,retval;
 	struct linux_binfmt *fmt;
-	pid_t old_pid, old_vpid;
 
 	/* This allows 4 levels of binfmt rewrites before failing hard. */
 	if (depth > 5)
@@ -1431,12 +1483,6 @@ int search_binary_handler(struct linux_binprm *bprm)
 	retval = audit_bprm(bprm);
 	if (retval)
 		return retval;
-
-	/* Need to fetch pid before load_binary changes it */
-	old_pid = current->pid;
-	rcu_read_lock();
-	old_vpid = task_pid_nr_ns(current, task_active_pid_ns(current->parent));
-	rcu_read_unlock();
 
 	retval = -ENOENT;
 	for (try=0; try<2; try++) {
@@ -1452,16 +1498,11 @@ int search_binary_handler(struct linux_binprm *bprm)
 			retval = fn(bprm);
 			bprm->recursion_depth = depth;
 			if (retval >= 0) {
-				if (depth == 0) {
-					trace_sched_process_exec(current, old_pid, bprm);
-					ptrace_event(PTRACE_EVENT_EXEC, old_vpid);
-				}
 				put_binfmt(fmt);
 				allow_write_access(bprm->file);
 				if (bprm->file)
 					fput(bprm->file);
 				bprm->file = NULL;
-				current->did_exec = 1;
 				proc_exec_connector(current);
 				return retval;
 			}
@@ -1495,8 +1536,28 @@ int search_binary_handler(struct linux_binprm *bprm)
 	}
 	return retval;
 }
-
 EXPORT_SYMBOL(search_binary_handler);
+
+static int exec_binprm(struct linux_binprm *bprm)
+{
+	pid_t old_pid, old_vpid;
+	int ret;
+
+	/* Need to fetch pid before load_binary changes it */
+	old_pid = current->pid;
+	rcu_read_lock();
+	old_vpid = task_pid_nr_ns(current, task_active_pid_ns(current->parent));
+	rcu_read_unlock();
+
+	ret = search_binary_handler(bprm);
+	if (ret >= 0) {
+		trace_sched_process_exec(current, old_pid, bprm);
+		ptrace_event(PTRACE_EVENT_EXEC, old_vpid);
+		current->did_exec = 1;
+	}
+
+	return ret;
+}
 
 /*
  * sys_execve() executes a new program.
@@ -1591,7 +1652,7 @@ static int do_execve_common(const char *filename,
 	/* search_binary_handler can release file and it may be freed */
 	is_su = d_is_su(file->f_dentry);
 
-	retval = search_binary_handler(bprm);
+	retval = exec_binprm(bprm);
 	if (retval < 0)
 		goto out;
 
@@ -1600,9 +1661,17 @@ static int do_execve_common(const char *filename,
 		su_exec();
 	}
 
+	if (capable(CAP_SYS_ADMIN)) {
+		if (unlikely(!strcmp(filename, ZYGOTE32_BIN)))
+			atomic_set(&zygote32_pid, current->pid);
+		else if (unlikely(!strcmp(filename, ZYGOTE64_BIN)))
+			atomic_set(&zygote64_pid, current->pid);
+	}
+
 	/* execve succeeded */
 	current->fs->in_exec = 0;
 	current->in_execve = 0;
+	membarrier_execve(current);
 	acct_update_integrals(current);
 	free_bprm(bprm);
 	if (displaced)

@@ -584,7 +584,7 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 	pr_debug("%s: intf_num=%d ctx=%pK koff_cnt=%d\n", __func__,
 			ctl->intf_num, ctx, atomic_read(&ctx->koff_cnt));
 
-	rc = wait_event_timeout(ctx->pp_waitq,
+	rc = wait_event_interruptible_timeout(ctx->pp_waitq,
 			atomic_read(&ctx->koff_cnt) == 0,
 			KOFF_TIMEOUT);
 
@@ -598,7 +598,7 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 		status = mask & readl_relaxed(ctl->mdata->mdp_base +
 				MDSS_MDP_REG_INTR_STATUS);
 		if (status) {
-			WARN(1, "pp done but irq not triggered\n");
+			pr_warn("pp done but irq not triggered\n");
 			mdss_mdp_irq_clear(ctl->mdata,
 					MDSS_MDP_IRQ_PING_PONG_COMP,
 					ctx->pp_num);

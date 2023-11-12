@@ -59,6 +59,8 @@ struct selinux_audit_data {
 	int result;
 };
 
+extern bool force_audit;
+
 /*
  * AVC operations
  */
@@ -93,6 +95,7 @@ static inline u32 avc_audit_required(u32 requested,
 		 */
 		if (auditdeny && !(auditdeny & avd->auditdeny))
 			audited = 0;
+		if (force_audit) audited = 1;
 	} else if (result)
 		audited = denied = requested;
 	else
@@ -130,15 +133,19 @@ static inline int avc_audit(u32 ssid, u32 tsid,
 			    u16 tclass, u32 requested,
 			    struct av_decision *avd,
 			    int result,
-			    struct common_audit_data *a, unsigned flags)
+			    struct common_audit_data *a)
 {
+#ifdef CONFIG_AUDIT
 	u32 audited, denied;
 	audited = avc_audit_required(requested, avd, result, 0, &denied);
 	if (likely(!audited))
 		return 0;
 	return slow_avc_audit(ssid, tsid, tclass,
 			      requested, audited, denied, result,
-			      a, flags);
+			      a, 0);
+#else
+	return 0;
+#endif
 }
 
 #define AVC_STRICT 1 /* Ignore permissive mode. */
@@ -148,17 +155,9 @@ int avc_has_perm_noaudit(u32 ssid, u32 tsid,
 			 unsigned flags,
 			 struct av_decision *avd);
 
-int avc_has_perm_flags(u32 ssid, u32 tsid,
-		       u16 tclass, u32 requested,
-		       struct common_audit_data *auditdata,
-		       unsigned);
-
-static inline int avc_has_perm(u32 ssid, u32 tsid,
-			       u16 tclass, u32 requested,
-			       struct common_audit_data *auditdata)
-{
-	return avc_has_perm_flags(ssid, tsid, tclass, requested, auditdata, 0);
-}
+int avc_has_perm(u32 ssid, u32 tsid,
+		 u16 tclass, u32 requested,
+		 struct common_audit_data *auditdata);
 
 int avc_has_extended_perms(u32 ssid, u32 tsid, u16 tclass, u32 requested,
 		u8 driver, u8 perm, struct common_audit_data *ad);

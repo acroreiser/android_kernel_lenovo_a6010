@@ -458,7 +458,7 @@ const struct kernel_symbol *find_symbol(const char *name,
 EXPORT_SYMBOL_GPL(find_symbol);
 
 /* Search for module by name: must hold module_mutex. */
-static struct module *find_module_all(const char *name,
+static struct module *find_module_all(const char *name, size_t len,
 				      bool even_unformed)
 {
 	struct module *mod;
@@ -466,7 +466,7 @@ static struct module *find_module_all(const char *name,
 	list_for_each_entry(mod, &modules, list) {
 		if (!even_unformed && mod->state == MODULE_STATE_UNFORMED)
 			continue;
-		if (strcmp(mod->name, name) == 0)
+		if (strlen(mod->name) == len && !memcmp(mod->name, name, len))
 			return mod;
 	}
 	return NULL;
@@ -474,7 +474,7 @@ static struct module *find_module_all(const char *name,
 
 struct module *find_module(const char *name)
 {
-	return find_module_all(name, false);
+	return find_module_all(name, strlen(name), false);
 }
 EXPORT_SYMBOL_GPL(find_module);
 
@@ -1611,6 +1611,14 @@ static void module_remove_modinfo_attrs(struct module *mod)
 	kfree(mod->modinfo_attrs);
 }
 
+static void mod_kobject_put(struct module *mod)
+{
+	DECLARE_COMPLETION_ONSTACK(c);
+	mod->mkobj.kobj_completion = &c;
+	kobject_put(&mod->mkobj.kobj);
+	wait_for_completion(&c);
+}
+
 static int mod_sysfs_init(struct module *mod)
 {
 	int err;
@@ -1638,7 +1646,7 @@ static int mod_sysfs_init(struct module *mod)
 	err = kobject_init_and_add(&mod->mkobj.kobj, &module_ktype, NULL,
 				   "%s", mod->name);
 	if (err)
-		kobject_put(&mod->mkobj.kobj);
+		mod_kobject_put(mod);
 
 	/* delay uevent until full sysfs population */
 out:
@@ -1682,7 +1690,7 @@ out_unreg_param:
 out_unreg_holders:
 	kobject_put(mod->holders_dir);
 out_unreg:
-	kobject_put(&mod->mkobj.kobj);
+	mod_kobject_put(mod);
 out:
 	return err;
 }
@@ -1691,7 +1699,7 @@ static void mod_sysfs_fini(struct module *mod)
 {
 	remove_notes_attrs(mod);
 	remove_sect_attrs(mod);
-	kobject_put(&mod->mkobj.kobj);
+	mod_kobject_put(mod);
 }
 
 #else /* !CONFIG_SYSFS */
@@ -1864,6 +1872,10 @@ void __weak module_arch_cleanup(struct module *mod)
 {
 }
 
+void __weak module_arch_freeing_init(struct module *mod)
+{
+}
+
 /* Free a module, remove from lists, etc. */
 static void free_module(struct module *mod)
 {
@@ -1896,6 +1908,7 @@ static void free_module(struct module *mod)
 
 	/* This may be NULL, but that's OK */
 	unset_module_init_ro_nx(mod);
+	module_arch_freeing_init(mod);
 	module_memfree(mod->module_init);
 	kfree(mod->args);
 	percpu_modfree(mod);
@@ -2570,21 +2583,20 @@ static int copy_module_from_user(const void __user *umod, unsigned long len,
 /* Sets info->hdr and info->len. */
 static int copy_module_from_fd(int fd, struct load_info *info)
 {
-	struct file *file;
+	struct fd f = fdget(fd);
 	int err;
 	struct kstat stat;
 	loff_t pos;
 	ssize_t bytes = 0;
 
-	file = fget(fd);
-	if (!file)
+	if (!f.file)
 		return -ENOEXEC;
 
-	err = security_kernel_module_from_file(file);
+	err = security_kernel_module_from_file(f.file);
 	if (err)
 		goto out;
 
-	err = vfs_getattr(&file->f_path, &stat);
+	err = vfs_getattr(&f.file->f_path, &stat);
 	if (err)
 		goto out;
 
@@ -2607,7 +2619,7 @@ static int copy_module_from_fd(int fd, struct load_info *info)
 
 	pos = 0;
 	while (pos < stat.size) {
-		bytes = kernel_read(file, pos, (char *)(info->hdr) + pos,
+		bytes = kernel_read(f.file, pos, (char *)(info->hdr) + pos,
 				    stat.size - pos);
 		if (bytes < 0) {
 			vfree(info->hdr);
@@ -2621,7 +2633,7 @@ static int copy_module_from_fd(int fd, struct load_info *info)
 	info->len = pos;
 
 out:
-	fput(file);
+	fdput(f);
 	return err;
 }
 
@@ -3014,6 +3026,7 @@ static int alloc_module_percpu(struct module *mod, struct load_info *info)
 static void module_deallocate(struct module *mod, struct load_info *info)
 {
 	percpu_modfree(mod);
+	module_arch_freeing_init(mod);
 	module_memfree(mod->module_init);
 	module_memfree(mod->module_core);
 }
@@ -3048,7 +3061,7 @@ static bool finished_loading(const char *name)
 	bool ret;
 
 	mutex_lock(&module_mutex);
-	mod = find_module_all(name, true);
+	mod = find_module_all(name, strlen(name), true);
 	ret = !mod || mod->state == MODULE_STATE_LIVE
 		|| mod->state == MODULE_STATE_GOING;
 	mutex_unlock(&module_mutex);
@@ -3164,6 +3177,7 @@ static int do_init_module(struct module *mod)
 	rcu_assign_pointer(mod->kallsyms, &mod->core_kallsyms);
 #endif
 	unset_module_init_ro_nx(mod);
+	module_arch_freeing_init(mod);
 	mod->module_init = NULL;
 	mod->init_size = 0;
 	mod->init_ro_size = 0;
@@ -3215,7 +3229,8 @@ static int add_unformed_module(struct module *mod)
 
 again:
 	mutex_lock(&module_mutex);
-	if ((old = find_module_all(mod->name, true)) != NULL) {
+	old = find_module_all(mod->name, strlen(mod->name), true);
+	if (old != NULL) {
 		if (old->state == MODULE_STATE_COMING
 		    || old->state == MODULE_STATE_UNFORMED) {
 			/* Wait in case it fails to load. */
@@ -3259,6 +3274,17 @@ static int complete_formation(struct module *mod, struct load_info *info)
 out:
 	mutex_unlock(&module_mutex);
 	return err;
+}
+
+static int unknown_module_param_cb(char *param, char *val, const char *modname)
+{
+	/* Check for magic 'dyndbg' arg */ 
+	int ret = ddebug_dyndbg_module_param_cb(param, val, modname);
+	if (ret != 0) {
+		printk(KERN_WARNING "%s: unknown parameter '%s' ignored\n",
+		       modname, param);
+	}
+	return 0;
 }
 
 /* Allocate and load the module: note that size of section 0 is always
@@ -3355,7 +3381,7 @@ static int load_module(struct load_info *info, const char __user *uargs,
 
 	/* Module is ready to execute: parsing args may do that. */
 	err = parse_args(mod->name, mod->args, mod->kp, mod->num_kp,
-			 -32768, 32767, &ddebug_dyndbg_module_param_cb);
+			 -32768, 32767, unknown_module_param_cb);
 	if (err < 0)
 		goto bug_cleanup;
 
@@ -3523,8 +3549,7 @@ const char *module_address_lookup(unsigned long addr,
 	list_for_each_entry_rcu(mod, &modules, list) {
 		if (mod->state == MODULE_STATE_UNFORMED)
 			continue;
-		if (within_module_init(addr, mod) ||
-		    within_module_core(addr, mod)) {
+		if (within_module(addr, mod)) {
 			if (modname)
 				*modname = mod->name;
 			ret = get_ksymbol(mod, addr, size, offset);
@@ -3548,8 +3573,7 @@ int lookup_module_symbol_name(unsigned long addr, char *symname)
 	list_for_each_entry_rcu(mod, &modules, list) {
 		if (mod->state == MODULE_STATE_UNFORMED)
 			continue;
-		if (within_module_init(addr, mod) ||
-		    within_module_core(addr, mod)) {
+		if (within_module(addr, mod)) {
 			const char *sym;
 
 			sym = get_ksymbol(mod, addr, NULL, NULL);
@@ -3574,8 +3598,7 @@ int lookup_module_symbol_attrs(unsigned long addr, unsigned long *size,
 	list_for_each_entry_rcu(mod, &modules, list) {
 		if (mod->state == MODULE_STATE_UNFORMED)
 			continue;
-		if (within_module_init(addr, mod) ||
-		    within_module_core(addr, mod)) {
+		if (within_module(addr, mod)) {
 			const char *sym;
 
 			sym = get_ksymbol(mod, addr, size, offset);
@@ -3643,10 +3666,8 @@ unsigned long module_kallsyms_lookup_name(const char *name)
 	/* Don't lock: we're in enough trouble already. */
 	preempt_disable();
 	if ((colon = strchr(name, ':')) != NULL) {
-		*colon = '\0';
-		if ((mod = find_module(name)) != NULL)
+		if ((mod = find_module_all(name, colon - name, false)) != NULL)
 			ret = mod_find_symname(mod, colon+1);
-		*colon = ':';
 	} else {
 		list_for_each_entry_rcu(mod, &modules, list) {
 			if (mod->state == MODULE_STATE_UNFORMED)
@@ -3847,8 +3868,7 @@ struct module *__module_address(unsigned long addr)
 	list_for_each_entry_rcu(mod, &modules, list) {
 		if (mod->state == MODULE_STATE_UNFORMED)
 			continue;
-		if (within_module_core(addr, mod)
-		    || within_module_init(addr, mod))
+		if (within_module(addr, mod))
 			return mod;
 	}
 	return NULL;

@@ -284,7 +284,7 @@ cifs_destroy_inode(struct inode *inode)
 static void
 cifs_evict_inode(struct inode *inode)
 {
-	truncate_inode_pages(&inode->i_data, 0);
+	truncate_inode_pages_final(&inode->i_data);
 	clear_inode(inode);
 	cifs_fscache_release_inode_cookie(inode);
 }
@@ -355,6 +355,18 @@ cifs_show_cache_flavor(struct seq_file *s, struct cifs_sb_info *cifs_sb)
 		seq_printf(s, "loose");
 }
 
+static void
+cifs_show_nls(struct seq_file *s, struct nls_table *cur)
+{
+	struct nls_table *def;
+
+	/* Display iocharset= option if it's not default charset */
+	def = load_nls_default();
+	if (def != cur)
+		seq_printf(s, ",iocharset=%s", cur->charset);
+	unload_nls(def);
+}
+
 /*
  * cifs_show_options() is for displaying mount options in /proc/mounts.
  * Not all settable options are displayed but most of the important
@@ -416,6 +428,9 @@ cifs_show_options(struct seq_file *s, struct dentry *root)
 		seq_printf(s, ",file_mode=0%ho,dir_mode=0%ho",
 					   cifs_sb->mnt_file_mode,
 					   cifs_sb->mnt_dir_mode);
+
+	cifs_show_nls(s, cifs_sb->local_nls);
+
 	if (tcon->seal)
 		seq_printf(s, ",seal");
 	if (tcon->nocase)
@@ -1179,7 +1194,7 @@ init_cifs(void)
 			 CIFS_MAX_REQ);
 	}
 
-	cifsiod_wq = alloc_workqueue("cifsiod", WQ_FREEZABLE|WQ_MEM_RECLAIM, 0);
+	cifsiod_wq = alloc_workqueue("cifsiod", WQ_FREEZABLE|WQ_POWER_EFFICIENT|WQ_MEM_RECLAIM, 0);
 	if (!cifsiod_wq) {
 		rc = -ENOMEM;
 		goto out_clean_proc;

@@ -40,6 +40,13 @@ config MSM_IPC_ROUTER_SMD_XPRT
 	  this layer registers a transport with IPC Router and enable
 	  message exchange.
 
+config MSM_LIMITER
+	bool "MSM Frequency Limiter Driver"
+	default y
+	help
+	  The MSM Frequency Limiter Driver controls max frequency limit for each CPU
+	  to desired value on suspend/resume
+
 config MSM_IPC_ROUTER_HSIC_XPRT
 	depends on USB_QCOM_IPC_BRIDGE
 	depends on IPC_ROUTER
@@ -579,6 +586,20 @@ config MSM_PERFORMANCE_HOTPLUG_ON
           compile out the nodes needed for core-control functionality through
           msm_performance.
 
+config AUTOSMP
+	bool "Multi-core automatic hotplug support"
+	depends on SMP && HOTPLUG_CPU
+	help
+	  Automatically hotplugs the multiple cpu cores on and off
+	  based on cpu load and suspend state
+
 source "drivers/soc/qcom/memshare/Kconfig"
+
+config FORCE_FAST_CHARGE
+	bool "Force faster charge rate for AC/USB"
+	default n
+ 	help
+	  This allows users to override default charge rate for both USB and AC
+	  charger input current
 
 endif # ARCH_MSM

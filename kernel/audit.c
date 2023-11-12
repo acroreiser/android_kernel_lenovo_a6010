@@ -65,6 +65,8 @@
 #include <linux/tty.h>
 #include <linux/pid_namespace.h>
 
+#include <linux/sched.h>
+
 #include "audit.h"
 
 /* No auditing will take place until audit_initialized == AUDIT_INITIALIZED.
@@ -440,6 +442,12 @@ static void flush_hold_queue(void)
 
 static int kauditd_thread(void *dummy)
 {
+
+	struct sched_param scheduler_params = {0};
+
+	scheduler_params.sched_priority = 0;
+	sched_setscheduler(current, SCHED_IDLE, &scheduler_params);
+
 	set_freezable();
 	while (!kthread_should_stop()) {
 		struct sk_buff *skb;
@@ -574,9 +582,19 @@ static int audit_netlink_ok(struct sk_buff *skb, u16 msg_type)
 	int err = 0;
 
 	/* Only support the initial namespaces for now. */
+	/*
+	 * We return ECONNREFUSED because it tricks userspace into thinking
+	 * that audit was not configured into the kernel.  Lots of users
+	 * configure their PAM stack (because that's what the distro does)
+	 * to reject login if unable to send messages to audit.  If we return
+	 * ECONNREFUSED the PAM stack thinks the kernel does not have audit
+	 * configured in and will let login proceed.  If we return EPERM
+	 * userspace will reject all logins.  This should be removed when we
+	 * support non init namespaces!!
+	 */
 	if ((current_user_ns() != &init_user_ns) ||
 	    (task_active_pid_ns(current) != &init_pid_ns))
-		return -EPERM;
+		return -ECONNREFUSED;
 
 	switch (msg_type) {
 	case AUDIT_LIST:
@@ -1095,6 +1113,7 @@ struct audit_buffer *audit_log_start(struct audit_context *ctx, gfp_t gfp_mask,
 				     int type)
 {
 	struct audit_buffer	*ab	= NULL;
+#ifndef CONFIG_AUDIT_SILENCE
 	struct timespec		t;
 	unsigned int		uninitialized_var(serial);
 	int reserve;
@@ -1148,6 +1167,7 @@ struct audit_buffer *audit_log_start(struct audit_context *ctx, gfp_t gfp_mask,
 
 	audit_log_format(ab, "audit(%lu.%03lu:%u): ",
 			 t.tv_sec, t.tv_nsec/1000000, serial);
+#endif
 	return ab;
 }
 
@@ -1720,6 +1740,7 @@ void audit_log_end(struct audit_buffer *ab)
 void audit_log(struct audit_context *ctx, gfp_t gfp_mask, int type,
 	       const char *fmt, ...)
 {
+#ifndef CONFIG_AUDIT_SILENCE
 	struct audit_buffer *ab;
 	va_list args;
 
@@ -1730,7 +1751,9 @@ void audit_log(struct audit_context *ctx, gfp_t gfp_mask, int type,
 		va_end(args);
 		audit_log_end(ab);
 	}
+#endif
 }
+
 
 #ifdef CONFIG_SECURITY
 /**
@@ -1745,6 +1768,7 @@ void audit_log(struct audit_context *ctx, gfp_t gfp_mask, int type,
  */
 void audit_log_secctx(struct audit_buffer *ab, u32 secid)
 {
+#ifndef CONFIG_AUDIT_SILENCE
 	u32 len;
 	char *secctx;
 
@@ -1754,6 +1778,7 @@ void audit_log_secctx(struct audit_buffer *ab, u32 secid)
 		audit_log_format(ab, " obj=%s", secctx);
 		security_release_secctx(secctx, len);
 	}
+#endif
 }
 EXPORT_SYMBOL(audit_log_secctx);
 #endif

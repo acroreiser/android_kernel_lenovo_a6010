@@ -32,6 +32,9 @@
 #include <linux/input.h>
 #include <linux/hrtimer.h>
 #include <asm-generic/cputime.h>
+#include <linux/wakelock.h>
+
+static struct wake_lock wg_wakelock;
 
 /* Tuneables */
 #define WG_DEBUG		0
@@ -54,7 +57,7 @@
 #define SWEEP_X_FINAL           180
 #define SWEEP_Y_NEXT            150
 #define DT2W_FEATHER		150
-#define DT2W_TIME 		579
+#define DT2W_TIME 		750
 
 /* Wake Gestures */
 #define SWEEP_TIMEOUT		300
@@ -102,9 +105,12 @@ static struct work_struct s2w_input_work;
 static struct work_struct dt2w_input_work;
 static int vib_strength = BASE_STRENGTH;
 
+extern unsigned int elan_epl_ls_get_lux_for_doubletap(void);
+extern bool is_touch_screen_suspended(void);
+
 static bool is_suspended(void)
 {
-	return scr_suspended_ft();
+	return is_touch_screen_suspended();
 }
 
 /* dev-harsh1998 Call check implementation */
@@ -199,6 +205,8 @@ static void detect_doubletap2wake(int x, int y, bool st)
 	if (y < SWEEP_EDGE || y > sweep_y_limit)
 		return;
 
+	wake_lock(&wg_wakelock);
+
 	if ((single_touch) && (dt2w_switch) && (exec_count) && (touch_cnt)) {
 		touch_cnt = false;
 		if (touch_nr == 0) {
@@ -216,7 +224,8 @@ static void detect_doubletap2wake(int x, int y, bool st)
 			doubletap2wake_reset();
 			new_touch(x, y);
 		}
-		if ((touch_nr > 1)) {
+		if ((touch_nr > 1) &&
+		 (elan_epl_ls_get_lux_for_doubletap() > 0)) {
 			exec_count = false;
 #if (WAKE_GESTURES_ENABLED)
 			if (gestures_switch) {
@@ -230,6 +239,8 @@ static void detect_doubletap2wake(int x, int y, bool st)
 			doubletap2wake_reset();
 		}
 	}
+
+	wake_unlock(&wg_wakelock);
 }
 
 
@@ -758,6 +769,8 @@ static int __init wake_gestures_init(void)
 		pr_warn("%s: sysfs_create_file failed for wake_gestures\n", __func__);
 	}
 
+	wake_lock_init(&wg_wakelock, WAKE_LOCK_SUSPEND, "wake_gestures_wakelock");
+
 	return 0;
 
 err_gesture_dev:
@@ -780,6 +793,8 @@ static void __exit wake_gestures_exit(void)
 	input_unregister_device(gesture_dev);
 	input_free_device(gesture_dev);
 #endif
+
+	wake_lock_destroy(&wg_wakelock);
 
 	return;
 }

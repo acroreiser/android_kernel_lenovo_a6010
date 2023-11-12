@@ -10,6 +10,7 @@
 #include <linux/syscalls.h>
 #include <linux/mempolicy.h>
 #include <linux/page-isolation.h>
+#include <linux/userfaultfd_k.h>
 #include <linux/hugetlb.h>
 #include <linux/falloc.h>
 #include <linux/sched.h>
@@ -103,7 +104,7 @@ static long madvise_behavior(struct vm_area_struct * vma,
 	pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
 	*prev = vma_merge(mm, *prev, start, end, new_flags, vma->anon_vma,
 				vma->vm_file, pgoff, vma_policy(vma),
-				vma_get_anon_name(vma));
+				vma->vm_userfaultfd_ctx, vma_get_anon_name(vma));
 	if (*prev) {
 		vma = *prev;
 		goto success;
@@ -278,6 +279,8 @@ static long madvise_dontneed(struct vm_area_struct * vma,
 	if (vma->vm_flags & (VM_LOCKED|VM_HUGETLB|VM_PFNMAP))
 		return -EINVAL;
 
+	madvise_userfault_dontneed(vma, prev, start, end);
+
 	if (unlikely(vma->vm_flags & VM_NONLINEAR)) {
 		struct zap_details details = {
 			.nonlinear_vma = vma,
@@ -286,6 +289,7 @@ static long madvise_dontneed(struct vm_area_struct * vma,
 		zap_page_range(vma, start, end - start, &details);
 	} else
 		zap_page_range(vma, start, end - start, NULL);
+
 	return 0;
 }
 

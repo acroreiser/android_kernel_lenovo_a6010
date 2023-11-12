@@ -50,6 +50,22 @@ extern void __chk_io_ptr(const volatile void __iomem *);
 
 #ifdef __KERNEL__
 
+/*
+ * Minimal backport of compiler_attributes.h to add support for __copy
+ * to v4.9.y so that we can use it in init/exit_module to avoid
+ * -Werror=missing-attributes errors on GCC 9.
+ */
+#ifndef __has_attribute
+# define __has_attribute(x) __GCC4_has_attribute_##x
+# define __GCC4_has_attribute___copy__                0
+#endif
+
+#if __has_attribute(__copy__)
+# define __copy(symbol)                 __attribute__((__copy__(symbol)))
+#else
+# define __copy(symbol)
+#endif
+
 #ifdef __GNUC__
 #include <linux/compiler-gcc.h>
 #endif
@@ -195,7 +211,7 @@ static __always_inline void data_access_exceeds_word_size(void)
 {
 }
 
-static __always_inline void __read_once_size(volatile void *p, void *res, int size)
+static __always_inline void __read_once_size(const volatile void *p, void *res, int size)
 {
 	switch (size) {
 	case 1: *(__u8 *)res = *(volatile __u8 *)p; break;
@@ -252,10 +268,10 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
  */
 
 #define READ_ONCE(x) \
-	({ typeof(x) __val; __read_once_size(&x, &__val, sizeof(__val)); __val; })
+	({ union { typeof(x) __val; char __c[1]; } __u; __read_once_size(&(x), __u.__c, sizeof(x)); __u.__val; })
 
 #define WRITE_ONCE(x, val) \
-	({ typeof(x) __val; __val = val; __write_once_size(&x, &__val, sizeof(__val)); __val; })
+	({ typeof(x) __val = (val); __write_once_size(&(x), &__val, sizeof(__val)); __val; })
 
 #endif /* __KERNEL__ */
 

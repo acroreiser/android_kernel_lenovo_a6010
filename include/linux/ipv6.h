@@ -35,6 +35,7 @@ struct ipv6_devconf {
 	__s32		accept_ra_rtr_pref;
 	__s32		rtr_probe_interval;
 #ifdef CONFIG_IPV6_ROUTE_INFO
+	__s32		accept_ra_rt_info_min_plen;
 	__s32		accept_ra_rt_info_max_plen;
 #endif
 #endif
@@ -49,12 +50,14 @@ struct ipv6_devconf {
 	__s32		mc_forwarding;
 #endif
 	__s32		disable_ipv6;
+	__s32		drop_unicast_in_l2_multicast;
 	__s32		accept_dad;
 	__s32		force_tllao;
 	__s32           ndisc_notify;
 	__s32		accept_ra_prefix_route;
 	__s32		accept_ra_mtu;
 	__s32		use_oif_addrs_only;
+	__s32		drop_unsolicited_na;
 	void		*sysctl;
 };
 

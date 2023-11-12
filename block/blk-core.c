@@ -640,6 +640,9 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 
 	kobject_init(&q->kobj, &blk_queue_ktype);
 
+#ifdef CONFIG_BLK_DEV_IO_TRACE
+	mutex_init(&q->blk_trace_mutex);
+#endif
 	mutex_init(&q->sysfs_lock);
 	spin_lock_init(&q->__queue_lock);
 
@@ -1118,7 +1121,11 @@ retry:
 	trace_block_sleeprq(q, bio, rw_flags & 1);
 
 	spin_unlock_irq(q->queue_lock);
-	io_schedule();
+	/*
+	 * FIXME: this should be io_schedule().  The timeout is there as a
+	 * workaround for some io timeout problems.
+	 */
+	io_schedule_timeout(5*HZ);
 
 	/*
 	 * After sleeping, we become a "batching" process and will be able
@@ -1661,7 +1668,9 @@ get_rq:
 		if (list_empty(&plug->list))
 			trace_block_plug(q);
 		else {
-			if (request_count >= BLK_MAX_REQUEST_COUNT) {
+			struct request *last = list_entry_rq(plug->list.prev);
+			if (request_count >= BLK_MAX_REQUEST_COUNT ||
+			    blk_rq_bytes(last) >= BLK_PLUG_FLUSH_SIZE) {
 				blk_flush_plug_list(plug, false);
 				trace_block_plug(q);
 			}
@@ -3321,7 +3330,7 @@ int __init blk_dev_init(void)
 
 	/* used for unplugging and affects IO latency/throughput - HIGHPRI */
 	kblockd_workqueue = alloc_workqueue("kblockd",
-					    WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
+					    WQ_MEM_RECLAIM | WQ_POWER_EFFICIENT | WQ_HIGHPRI, 0);
 	if (!kblockd_workqueue)
 		panic("Failed to create kblockd\n");
 

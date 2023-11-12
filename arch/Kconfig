@@ -121,6 +121,7 @@ config HAVE_64BIT_ALIGNED_ACCESS
 
 config HAVE_EFFICIENT_UNALIGNED_ACCESS
 	bool
+        def_bool y
 	help
 	  Some architectures are unable to perform unaligned accesses
 	  without the use of get_unaligned/put_unaligned. Others are
@@ -426,6 +427,11 @@ config HAVE_IRQ_TIME_ACCOUNTING
 	help
 	  Archs need to ensure they use a high enough resolution clock to
 	  support irq time accounting and then call enable_sched_clock_irqtime().
+
+config HAVE_MOVE_PMD
+	bool
+	help
+	  Archs that select this are able to move page tables at the PMD level.
 
 config HAVE_ARCH_TRANSPARENT_HUGEPAGE
 	bool

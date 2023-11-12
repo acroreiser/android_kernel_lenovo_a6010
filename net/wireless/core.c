@@ -111,13 +111,16 @@ cfg80211_get_dev_from_ifindex(struct net *net, int ifindex)
 }
 
 /* requires cfg80211_mutex to be held */
-int cfg80211_dev_rename(struct cfg80211_registered_device *rdev,
-			char *newname)
+static int cfg80211_dev_check_name(struct cfg80211_registered_device *rdev,
+				   const char *newname)
 {
 	struct cfg80211_registered_device *rdev2;
-	int wiphy_idx, taken = -1, result, digits;
+	int wiphy_idx, taken = -1, digits;
 
 	assert_cfg80211_lock();
+
+	if (strlen(newname) > NL80211_WIPHY_NAME_MAXLEN)
+		return -EINVAL;
 
 	/* prohibit calling the thing phy%d when %d is not its number */
 	sscanf(newname, PHY_NAME "%d%n", &wiphy_idx, &taken);
@@ -134,15 +137,28 @@ int cfg80211_dev_rename(struct cfg80211_registered_device *rdev,
 			return -EINVAL;
 	}
 
-
-	/* Ignore nop renames */
-	if (strcmp(newname, dev_name(&rdev->wiphy.dev)) == 0)
-		return 0;
-
 	/* Ensure another device does not already have this name. */
 	list_for_each_entry(rdev2, &cfg80211_rdev_list, list)
-		if (strcmp(newname, dev_name(&rdev2->wiphy.dev)) == 0)
+		if (strcmp(newname, wiphy_name(&rdev2->wiphy)) == 0)
 			return -EINVAL;
+
+	return 0;
+}
+
+int cfg80211_dev_rename(struct cfg80211_registered_device *rdev,
+			char *newname)
+{
+	int result;
+
+	ASSERT_RTNL();
+
+	/* Ignore nop renames */
+	if (strcmp(newname, wiphy_name(&rdev->wiphy)) == 0)
+		return 0;
+
+	result = cfg80211_dev_check_name(rdev, newname);
+	if (result < 0)
+		return result;
 
 	result = device_rename(&rdev->wiphy.dev, newname);
 	if (result)
@@ -305,9 +321,49 @@ static void cfg80211_event_work(struct work_struct *work)
 	rtnl_unlock();
 }
 
+void cfg80211_destroy_ifaces(struct cfg80211_registered_device *rdev)
+{
+	struct cfg80211_iface_destroy *item;
+
+	ASSERT_RTNL();
+
+	spin_lock_irq(&rdev->destroy_list_lock);
+	while ((item = list_first_entry_or_null(&rdev->destroy_list,
+						struct cfg80211_iface_destroy,
+						list))) {
+		struct wireless_dev *wdev, *tmp;
+		u32 nlportid = item->nlportid;
+
+		list_del(&item->list);
+		kfree(item);
+		spin_unlock_irq(&rdev->destroy_list_lock);
+
+		list_for_each_entry_safe(wdev, tmp, &rdev->wdev_list, list) {
+			if (nlportid == wdev->owner_nlportid)
+				rdev_del_virtual_intf(rdev, wdev);
+		}
+
+		spin_lock_irq(&rdev->destroy_list_lock);
+	}
+	spin_unlock_irq(&rdev->destroy_list_lock);
+}
+
+static void cfg80211_destroy_iface_wk(struct work_struct *work)
+{
+	struct cfg80211_registered_device *rdev;
+
+	rdev = container_of(work, struct cfg80211_registered_device,
+			    destroy_work);
+
+	rtnl_lock();
+	cfg80211_destroy_ifaces(rdev);
+	rtnl_unlock();
+}
+
 /* exported functions */
 
-struct wiphy *wiphy_new(const struct cfg80211_ops *ops, int sizeof_priv)
+struct wiphy *wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv,
+			   const char *requested_name)
 {
 	static int wiphy_counter;
 
@@ -347,10 +403,32 @@ struct wiphy *wiphy_new(const struct cfg80211_ops *ops, int sizeof_priv)
 	mutex_unlock(&cfg80211_mutex);
 
 	/* give it a proper name */
-	rv = dev_set_name(&rdev->wiphy.dev, PHY_NAME "%d", rdev->wiphy_idx);
-	if (rv < 0) {
-		kfree(rdev);
-		return NULL;
+	if (requested_name && requested_name[0]) {
+		rtnl_lock();
+		rv = cfg80211_dev_check_name(rdev, requested_name);
+
+		if (rv < 0) {
+			rtnl_unlock();
+			goto use_default_name;
+		}
+
+		rv = dev_set_name(&rdev->wiphy.dev, "%s", requested_name);
+		rtnl_unlock();
+		if (rv)
+			goto use_default_name;
+	} else {
+use_default_name:
+		/* NOTE:  This is *probably* safe w/out holding rtnl because of
+		 * the restrictions on phy names.  Probably this call could
+		 * fail if some other part of the kernel (re)named a device
+		 * phyX.  But, might should add some locking and check return
+		 * value, and use a different name if this one exists?
+		 */
+		rv = dev_set_name(&rdev->wiphy.dev, PHY_NAME "%d", rdev->wiphy_idx);
+		if (rv < 0) {
+			kfree(rdev);
+			return NULL;
+		}
 	}
 
 	mutex_init(&rdev->mtx);
@@ -372,6 +450,10 @@ struct wiphy *wiphy_new(const struct cfg80211_ops *ops, int sizeof_priv)
 	device_initialize(&rdev->wiphy.dev);
 	rdev->wiphy.dev.class = &ieee80211_class;
 	rdev->wiphy.dev.platform_data = rdev;
+
+	INIT_LIST_HEAD(&rdev->destroy_list);
+	spin_lock_init(&rdev->destroy_list_lock);
+	INIT_WORK(&rdev->destroy_work, cfg80211_destroy_iface_wk);
 
 #ifdef CONFIG_CFG80211_DEFAULT_PS
 	rdev->wiphy.flags |= WIPHY_FLAG_PS_ON_BY_DEFAULT;
@@ -410,7 +492,7 @@ struct wiphy *wiphy_new(const struct cfg80211_ops *ops, int sizeof_priv)
 
 	return &rdev->wiphy;
 }
-EXPORT_SYMBOL(wiphy_new);
+EXPORT_SYMBOL(wiphy_new_nm);
 
 static int wiphy_verify_combinations(struct wiphy *wiphy)
 {
@@ -741,6 +823,7 @@ void wiphy_unregister(struct wiphy *wiphy)
 	cancel_work_sync(&rdev->conn_work);
 	flush_work(&rdev->event_work);
 	cancel_delayed_work_sync(&rdev->dfs_update_channels_wk);
+	flush_work(&rdev->destroy_work);
 
 	if (rdev->wowlan && rdev->ops->set_wakeup)
 		rdev_set_wakeup(rdev, false);
@@ -917,6 +1000,7 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
 		     wdev->iftype == NL80211_IFTYPE_P2P_CLIENT ||
 		     wdev->iftype == NL80211_IFTYPE_ADHOC) && !wdev->use_4addr)
 			dev->priv_flags |= IFF_DONT_BRIDGE;
+		INIT_WORK(&wdev->disconnect_wk, cfg80211_autodisconnect_wk);
 		break;
 	case NETDEV_GOING_DOWN:
 		switch (wdev->iftype) {
@@ -1047,6 +1131,7 @@ static int cfg80211_netdev_notifier_call(struct notifier_block *nb,
 #ifdef CONFIG_CFG80211_WEXT
 			kfree(wdev->wext.keys);
 #endif
+			flush_work(&wdev->disconnect_wk);
 		}
 		mutex_unlock(&rdev->devlist_mtx);
 		/*

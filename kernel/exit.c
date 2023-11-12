@@ -53,6 +53,7 @@
 #include <linux/oom.h>
 #include <linux/writeback.h>
 #include <linux/shm.h>
+#include <linux/cpufreq.h>
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
@@ -234,6 +235,82 @@ struct pid *session_of_pgrp(struct pid *pgrp)
 }
 
 /*
+ * Note that if this function returns a valid task_struct pointer (!NULL)
+ * task->usage must remain >0 for the duration of the RCU critical section.
+ */
+struct task_struct *task_rcu_dereference(struct task_struct **ptask)
+{
+	struct sighand_struct *sighand;
+	struct task_struct *task;
+
+	/*
+	 * We need to verify that release_task() was not called and thus
+	 * delayed_put_task_struct() can't run and drop the last reference
+	 * before rcu_read_unlock(). We check task->sighand != NULL,
+	 * but we can read the already freed and reused memory.
+	 */
+retry:
+	task = rcu_dereference(*ptask);
+	if (!task)
+		return NULL;
+
+	probe_kernel_address(&task->sighand, sighand);
+
+	/*
+	 * Pairs with atomic_dec_and_test() in put_task_struct(). If this task
+	 * was already freed we can not miss the preceding update of this
+	 * pointer.
+	 */
+	smp_rmb();
+	if (unlikely(task != READ_ONCE(*ptask)))
+		goto retry;
+
+	/*
+	 * We've re-checked that "task == *ptask", now we have two different
+	 * cases:
+	 *
+	 * 1. This is actually the same task/task_struct. In this case
+	 *    sighand != NULL tells us it is still alive.
+	 *
+	 * 2. This is another task which got the same memory for task_struct.
+	 *    We can't know this of course, and we can not trust
+	 *    sighand != NULL.
+	 *
+	 *    In this case we actually return a random value, but this is
+	 *    correct.
+	 *
+	 *    If we return NULL - we can pretend that we actually noticed that
+	 *    *ptask was updated when the previous task has exited. Or pretend
+	 *    that probe_slab_address(&sighand) reads NULL.
+	 *
+	 *    If we return the new task (because sighand is not NULL for any
+	 *    reason) - this is fine too. This (new) task can't go away before
+	 *    another gp pass.
+	 *
+	 *    And note: We could even eliminate the false positive if re-read
+	 *    task->sighand once again to avoid the falsely NULL. But this case
+	 *    is very unlikely so we don't care.
+	 */
+	if (!sighand)
+		return NULL;
+
+	return task;
+}
+
+struct task_struct *try_get_task_struct(struct task_struct **ptask)
+{
+	struct task_struct *task;
+
+	rcu_read_lock();
+	task = task_rcu_dereference(ptask);
+	if (task)
+		get_task_struct(task);
+	rcu_read_unlock();
+
+	return task;
+}
+
+/*
  * Determine if a process group is "orphaned", according to the POSIX
  * definition in 2.2.2.52.  Orphaned process groups are not to be affected
  * by terminal-generated stop signals.  Newly orphaned process groups are
@@ -311,17 +388,6 @@ kill_orphaned_pgrp(struct task_struct *tsk, struct task_struct *parent)
 		__kill_pgrp_info(SIGHUP, SEND_SIG_PRIV, pgrp);
 		__kill_pgrp_info(SIGCONT, SEND_SIG_PRIV, pgrp);
 	}
-}
-
-void __set_special_pids(struct pid *pid)
-{
-	struct task_struct *curr = current->group_leader;
-
-	if (task_session(curr) != pid)
-		change_pid(curr, PIDTYPE_SID, pid);
-
-	if (task_pgrp(curr) != pid)
-		change_pid(curr, PIDTYPE_PGID, pid);
 }
 
 /*
@@ -666,6 +732,7 @@ static void exit_notify(struct task_struct *tsk, int group_dead)
 	if (group_dead)
 		kill_orphaned_pgrp(tsk->group_leader, NULL);
 
+	tsk->exit_state = EXIT_ZOMBIE;
 	if (unlikely(tsk->ptrace)) {
 		int sig = thread_group_leader(tsk) &&
 				thread_group_empty(tsk) &&
@@ -837,7 +904,7 @@ void do_exit(long code)
 	 */
 	perf_event_exit_task(tsk);
 
-	cgroup_exit(tsk, 1);
+	cgroup_exit(tsk);
 
 	module_put(task_thread_info(tsk)->exec_domain->module);
 
@@ -1597,6 +1664,7 @@ SYSCALL_DEFINE5(waitid, int, which, pid_t, upid, struct siginfo __user *,
 	struct pid *pid = NULL;
 	enum pid_type type;
 	long ret;
+	unsigned int f_flags = 0;
 
 	if (options & ~(WNOHANG|WNOWAIT|WEXITED|WSTOPPED|WCONTINUED))
 		return -EINVAL;
@@ -1611,18 +1679,29 @@ SYSCALL_DEFINE5(waitid, int, which, pid_t, upid, struct siginfo __user *,
 		type = PIDTYPE_PID;
 		if (upid <= 0)
 			return -EINVAL;
+
+		pid = find_get_pid(upid);
 		break;
 	case P_PGID:
 		type = PIDTYPE_PGID;
 		if (upid <= 0)
 			return -EINVAL;
+
+		pid = find_get_pid(upid);
+		break;
+	case P_PIDFD:
+		type = PIDTYPE_PID;
+		if (upid < 0)
+			return -EINVAL;
+
+		pid = pidfd_get_pid(upid, &f_flags);
+		if (IS_ERR(pid))
+			return PTR_ERR(pid);
+
 		break;
 	default:
 		return -EINVAL;
 	}
-
-	if (type < PIDTYPE_MAX)
-		pid = find_get_pid(upid);
 
 	wo.wo_type	= type;
 	wo.wo_pid	= pid;
@@ -1630,7 +1709,12 @@ SYSCALL_DEFINE5(waitid, int, which, pid_t, upid, struct siginfo __user *,
 	wo.wo_info	= infop;
 	wo.wo_stat	= NULL;
 	wo.wo_rusage	= ru;
+	if (f_flags & O_NONBLOCK)
+		wo.wo_flags |= WNOHANG;
+
 	ret = do_wait(&wo);
+	if (!ret && !(options & WNOHANG) && (f_flags & O_NONBLOCK))
+		ret = -EAGAIN;
 
 	if (ret > 0) {
 		ret = 0;
@@ -1669,6 +1753,10 @@ SYSCALL_DEFINE4(wait4, pid_t, upid, int __user *, stat_addr,
 	if (options & ~(WNOHANG|WUNTRACED|WCONTINUED|
 			__WNOTHREAD|__WCLONE|__WALL))
 		return -EINVAL;
+
+	/* -INT_MIN is not defined */
+	if (upid == INT_MIN)
+		return -ESRCH;
 
 	if (upid == -1)
 		type = PIDTYPE_MAX;

@@ -26,6 +26,7 @@
 #include <linux/log2.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/nospec.h>
 #include <trace/events/ext4.h>
 
 #ifdef CONFIG_EXT4_DEBUG
@@ -2088,7 +2089,8 @@ ext4_mb_regular_allocator(struct ext4_allocation_context *ac)
 		 * This should tell if fe_len is exactly power of 2
 		 */
 		if ((ac->ac_g_ex.fe_len & (~(1 << (i - 1)))) == 0)
-			ac->ac_2order = i - 1;
+			ac->ac_2order = array_index_nospec(i - 1,
+							   sb->s_blocksize_bits + 2);
 	}
 
 	/* if stream allocation is enabled, use global goal */
@@ -2227,12 +2229,9 @@ static int ext4_mb_seq_groups_show(struct seq_file *seq, void *v)
 
 	group--;
 	if (group == 0)
-		seq_printf(seq, "#%-5s: %-5s %-5s %-5s "
-				"[ %-5s %-5s %-5s %-5s %-5s %-5s %-5s "
-				  "%-5s %-5s %-5s %-5s %-5s %-5s %-5s ]\n",
-			   "group", "free", "frags", "first",
-			   "2^0", "2^1", "2^2", "2^3", "2^4", "2^5", "2^6",
-			   "2^7", "2^8", "2^9", "2^10", "2^11", "2^12", "2^13");
+		seq_puts(seq, "#group: free  frags first ["
+			      " 2^0   2^1   2^2   2^3   2^4   2^5   2^6  "
+			      " 2^7   2^8   2^9   2^10  2^11  2^12  2^13  ]");
 
 	i = (sb->s_blocksize_bits + 2) * sizeof(sg.info.bb_counters[0]) +
 		sizeof(struct ext4_group_info);
@@ -2381,7 +2380,8 @@ int ext4_mb_add_groupinfo(struct super_block *sb, ext4_group_t group,
 	 * initialize bb_free to be able to skip
 	 * empty groups without initialization
 	 */
-	if (desc->bg_flags & cpu_to_le16(EXT4_BG_BLOCK_UNINIT)) {
+	if (ext4_has_group_desc_csum(sb) &&
+	    (desc->bg_flags & cpu_to_le16(EXT4_BG_BLOCK_UNINIT))) {
 		meta_group_info[i]->bb_free =
 			ext4_free_clusters_after_init(sb, group, desc);
 	} else {
@@ -2908,7 +2908,8 @@ ext4_mb_mark_diskspace_used(struct ext4_allocation_context *ac,
 #endif
 	ext4_set_bits(bitmap_bh->b_data, ac->ac_b_ex.fe_start,
 		      ac->ac_b_ex.fe_len);
-	if (gdp->bg_flags & cpu_to_le16(EXT4_BG_BLOCK_UNINIT)) {
+	if (ext4_has_group_desc_csum(sb) &&
+	    (gdp->bg_flags & cpu_to_le16(EXT4_BG_BLOCK_UNINIT))) {
 		gdp->bg_flags &= cpu_to_le16(~EXT4_BG_BLOCK_UNINIT);
 		ext4_free_group_clusters_set(sb, gdp,
 					     ext4_free_clusters_after_init(sb,
@@ -4452,17 +4453,20 @@ ext4_fsblk_t ext4_mb_new_blocks(handle_t *handle,
 repeat:
 		/* allocate space in core */
 		*errp = ext4_mb_regular_allocator(ac);
+		if (*errp)
+			goto discard_and_exit;
+
+		/* as we've just preallocated more space than
+		 * user requested originally, we store allocated
+		 * space in a special descriptor */
+		if (ac->ac_status == AC_STATUS_FOUND &&
+		    ac->ac_o_ex.fe_len < ac->ac_b_ex.fe_len)
+			*errp = ext4_mb_new_preallocation(ac);
 		if (*errp) {
+		discard_and_exit:
 			ext4_discard_allocated_blocks(ac);
 			goto errout;
 		}
-
-		/* as we've just preallocated more space than
-		 * user requested orinally, we store allocated
-		 * space in a special descriptor */
-		if (ac->ac_status == AC_STATUS_FOUND &&
-				ac->ac_o_ex.fe_len < ac->ac_b_ex.fe_len)
-			ext4_mb_new_preallocation(ac);
 	}
 	if (likely(ac->ac_status == AC_STATUS_FOUND)) {
 		*errp = ext4_mb_mark_diskspace_used(ac, handle, reserv_clstrs);

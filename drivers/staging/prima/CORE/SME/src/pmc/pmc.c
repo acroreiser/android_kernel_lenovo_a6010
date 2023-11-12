@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2012-2014, 2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, 2016, 2018 The Linux Foundation. All rights
+ * reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1603,7 +1604,7 @@ eHalStatus pmcRequestEnterWowlState(tHalHandle hHal, tpSirSmeWowlEnterParams wow
     pmcLog(pMac, LOG1, FL("Enter. PMC State is %d"),pMac->pmc.pmcState);
 
    /* Incase of SAP send command directly */
-   if ((pSessionEntry->operMode == BSS_OPERATIONAL_MODE_AP))
+   if (pSessionEntry->operMode == BSS_OPERATIONAL_MODE_AP)
    {
        if (pmcIssueCommand(hHal, eSmeCommandEnterWowl, wowlEnterParams,
             sizeof(tSirSmeWowlEnterParams), FALSE) != eHAL_STATUS_SUCCESS)
@@ -2518,6 +2519,11 @@ eHalStatus pmcEnterBmpsCheck( tpAniSirGlobal pMac )
         }
      }
 
+   if (pMac->btc.agg_disabled) {
+       pmcLog(pMac, LOG1, FL("Aggregation disabled. BMPS can't be started"));
+       return eHAL_STATUS_FAILURE;
+   }
+
    return ( eHAL_STATUS_SUCCESS );
 }
 
@@ -2558,6 +2564,12 @@ tANI_BOOLEAN pmcShouldBmpsTimerRun( tpAniSirGlobal pMac )
         pmcLog(pMac, LOG1, FL("No Infra Session. BMPS can't be started"));
         return eANI_BOOLEAN_FALSE;
     }
+
+    if (pMac->btc.agg_disabled) {
+        pmcLog(pMac, LOG1, FL("Aggregation disabled. BMPS can't be started"));
+        return eANI_BOOLEAN_FALSE;
+    }
+
     return eANI_BOOLEAN_TRUE;
 }
 

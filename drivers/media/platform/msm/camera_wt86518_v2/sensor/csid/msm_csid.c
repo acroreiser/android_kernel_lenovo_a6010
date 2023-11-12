@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -324,8 +324,10 @@ static int msm_csid_init(struct csid_device *csid_dev, uint32_t *csid_version)
 	csid_dev->reg_ptr = regulator_get(&(csid_dev->pdev->dev),
 					 "qcom,gdscr-vdd");
 	if (IS_ERR_OR_NULL(csid_dev->reg_ptr)) {
+#ifndef CONFIG_ARCH_MSM8916
 		pr_err(" %s: Failed in getting TOP gdscr regulator handle",
 			__func__);
+#endif
 	} else {
 		rc = regulator_enable(csid_dev->reg_ptr);
 		if (rc) {
@@ -518,7 +520,7 @@ static int32_t msm_csid_cmd(struct csid_device *csid_dev, void __user *arg)
 			break;
 		}
 		if (csid_params.lut_params.num_cid < 1 ||
-			csid_params.lut_params.num_cid > 16) {
+			csid_params.lut_params.num_cid > MAX_CID) {
 			pr_err("%s: %d num_cid outside range\n",
 				 __func__, __LINE__);
 			rc = -EINVAL;
@@ -547,6 +549,10 @@ static int32_t msm_csid_cmd(struct csid_device *csid_dev, void __user *arg)
 			csid_params.lut_params.vc_cfg[i] = vc_cfg;
 		}
 		csid_dev->csid_sof_debug = 0;
+		if (rc < 0) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			break;
+		}
 		rc = msm_csid_config(csid_dev, &csid_params);
 		for (i--; i >= 0; i--)
 			kfree(csid_params.lut_params.vc_cfg[i]);
@@ -658,7 +664,7 @@ static int32_t msm_csid_cmd32(struct csid_device *csid_dev, void __user *arg)
 		csid_params.lut_params.num_cid = lut_par32.num_cid;
 
 		if (csid_params.lut_params.num_cid < 1 ||
-			csid_params.lut_params.num_cid > 16) {
+			csid_params.lut_params.num_cid > MAX_CID) {
 			pr_err("%s: %d num_cid outside range\n",
 				 __func__, __LINE__);
 			rc = -EINVAL;
@@ -682,8 +688,12 @@ static int32_t msm_csid_cmd32(struct csid_device *csid_dev, void __user *arg)
 				(void *)compat_ptr(lut_par32.vc_cfg[i]),
 				sizeof(vc_cfg32))) {
 				pr_err("%s: %d failed\n", __func__, __LINE__);
-				for (; i >= 0; i--)
+				for (i--; i >= 0; i--) {
 					kfree(csid_params.lut_params.vc_cfg[i]);
+					csid_params.lut_params.vc_cfg[i] = NULL;
+				}
+				kfree(vc_cfg);
+				vc_cfg = NULL;
 				rc = -EFAULT;
 				break;
 			}

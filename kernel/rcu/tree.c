@@ -135,22 +135,13 @@ EXPORT_SYMBOL_GPL(rcu_scheduler_active);
  */
 static int rcu_scheduler_fully_active __read_mostly;
 
-#ifdef CONFIG_RCU_BOOST
-
-/*
- * Control variables for per-CPU and per-rcu_node kthreads.  These
- * handle all flavors of RCU.
- */
-static DEFINE_PER_CPU(struct task_struct *, rcu_cpu_kthread_task);
-DEFINE_PER_CPU(unsigned int, rcu_cpu_kthread_status);
-DEFINE_PER_CPU(unsigned int, rcu_cpu_kthread_loops);
-DEFINE_PER_CPU(char, rcu_cpu_has_work);
-
-#endif /* #ifdef CONFIG_RCU_BOOST */
-
 static void rcu_boost_kthread_setaffinity(struct rcu_node *rnp, int outgoingcpu);
 static void invoke_rcu_core(void);
 static void invoke_rcu_callbacks(struct rcu_state *rsp, struct rcu_data *rdp);
+
+/* rcuc/rcub kthread realtime priority */
+static int kthread_prio = CONFIG_RCU_KTHREAD_PRIO;
+module_param(kthread_prio, int, 0644);
 
 /*
  * Track the rcutorture test sequence number and the update version
@@ -215,6 +206,10 @@ EXPORT_SYMBOL_GPL(rcu_note_context_switch);
 DEFINE_PER_CPU(struct rcu_dynticks, rcu_dynticks) = {
 	.dynticks_nesting = DYNTICK_TASK_EXIT_IDLE,
 	.dynticks = ATOMIC_INIT(1),
+#ifdef CONFIG_NO_HZ_FULL_SYSIDLE
+	.dynticks_idle_nesting = DYNTICK_TASK_NEST_VALUE,
+	.dynticks_idle = ATOMIC_INIT(1),
+#endif /* #ifdef CONFIG_NO_HZ_FULL_SYSIDLE */
 };
 
 static long blimit = 10;	/* Maximum callbacks per rcu_do_batch. */
@@ -233,7 +228,10 @@ module_param(jiffies_till_next_fqs, ulong, 0644);
 
 static bool rcu_start_gp_advanced(struct rcu_state *rsp, struct rcu_node *rnp,
 				  struct rcu_data *rdp);
-static void force_qs_rnp(struct rcu_state *rsp, int (*f)(struct rcu_data *));
+static void force_qs_rnp(struct rcu_state *rsp,
+			 int (*f)(struct rcu_data *rsp, bool *isidle,
+				  unsigned long *maxj),
+			 bool *isidle, unsigned long *maxj);
 static void force_quiescent_state(struct rcu_state *rsp);
 static int rcu_pending(int cpu);
 
@@ -432,6 +430,7 @@ void rcu_idle_enter(void)
 
 	local_irq_save(flags);
 	rcu_eqs_enter(false);
+	rcu_sysidle_enter(&__get_cpu_var(rcu_dynticks), 0);
 	local_irq_restore(flags);
 }
 EXPORT_SYMBOL_GPL(rcu_idle_enter);
@@ -503,6 +502,7 @@ void rcu_irq_exit(void)
 		trace_rcu_dyntick("--=", oldval, rdtp->dynticks_nesting);
 	else
 		rcu_eqs_enter_common(rdtp, oldval, true);
+	rcu_sysidle_enter(rdtp, 1);
 	local_irq_restore(flags);
 }
 
@@ -571,6 +571,7 @@ void rcu_idle_exit(void)
 
 	local_irq_save(flags);
 	rcu_eqs_exit(false);
+	rcu_sysidle_exit(&__get_cpu_var(rcu_dynticks), 0);
 	local_irq_restore(flags);
 }
 EXPORT_SYMBOL_GPL(rcu_idle_exit);
@@ -644,6 +645,7 @@ void rcu_irq_enter(void)
 		trace_rcu_dyntick("++=", oldval, rdtp->dynticks_nesting);
 	else
 		rcu_eqs_exit_common(rdtp, oldval, true);
+	rcu_sysidle_exit(rdtp, 1);
 	local_irq_restore(flags);
 }
 
@@ -767,9 +769,11 @@ static int rcu_is_cpu_rrupt_from_idle(void)
  * credit them with an implicit quiescent state.  Return 1 if this CPU
  * is in dynticks idle mode, which is an extended quiescent state.
  */
-static int dyntick_save_progress_counter(struct rcu_data *rdp)
+static int dyntick_save_progress_counter(struct rcu_data *rdp,
+					 bool *isidle, unsigned long *maxj)
 {
 	rdp->dynticks_snap = atomic_add_return(0, &rdp->dynticks->dynticks);
+	rcu_sysidle_check_cpu(rdp, isidle, maxj);
 	return (rdp->dynticks_snap & 0x1) == 0;
 }
 
@@ -779,7 +783,8 @@ static int dyntick_save_progress_counter(struct rcu_data *rdp)
  * idle state since the last call to dyntick_save_progress_counter()
  * for this same CPU, or by virtue of having been offline.
  */
-static int rcu_implicit_dynticks_qs(struct rcu_data *rdp)
+static int rcu_implicit_dynticks_qs(struct rcu_data *rdp,
+				    bool *isidle, unsigned long *maxj)
 {
 	unsigned int curr;
 	unsigned int snap;
@@ -1480,17 +1485,26 @@ static int rcu_gp_init(struct rcu_state *rsp)
 int rcu_gp_fqs(struct rcu_state *rsp, int fqs_state_in)
 {
 	int fqs_state = fqs_state_in;
+	bool isidle = false;
+	unsigned long maxj;
 	struct rcu_node *rnp = rcu_get_root(rsp);
 
 	ACCESS_ONCE(rsp->gp_activity) = jiffies;
 	rsp->n_force_qs++;
 	if (fqs_state == RCU_SAVE_DYNTICK) {
 		/* Collect dyntick-idle snapshots. */
-		force_qs_rnp(rsp, dyntick_save_progress_counter);
+		if (is_sysidle_rcu_state(rsp)) {
+			isidle = 1;
+			maxj = jiffies - ULONG_MAX / 4;
+		}
+		force_qs_rnp(rsp, dyntick_save_progress_counter,
+			     &isidle, &maxj);
+		rcu_sysidle_report_gp(rsp, isidle, maxj);
 		fqs_state = RCU_FORCE_QS;
 	} else {
 		/* Handle dyntick-idle and offline CPUs. */
-		force_qs_rnp(rsp, rcu_implicit_dynticks_qs);
+		isidle = 0;
+		force_qs_rnp(rsp, rcu_implicit_dynticks_qs, &isidle, &maxj);
 	}
 	/* Clear flag to prevent immediate re-entry. */
 	if (ACCESS_ONCE(rsp->gp_flags) & RCU_GP_FLAG_FQS) {
@@ -2200,7 +2214,10 @@ void rcu_check_callbacks(int cpu, int user)
  *
  * The caller must have suppressed start of new grace periods.
  */
-static void force_qs_rnp(struct rcu_state *rsp, int (*f)(struct rcu_data *))
+static void force_qs_rnp(struct rcu_state *rsp,
+			 int (*f)(struct rcu_data *rsp, bool *isidle,
+				  unsigned long *maxj),
+			 bool *isidle, unsigned long *maxj)
 {
 	unsigned long bit;
 	int cpu;
@@ -2223,9 +2240,12 @@ static void force_qs_rnp(struct rcu_state *rsp, int (*f)(struct rcu_data *))
 		cpu = rnp->grplo;
 		bit = 1;
 		for (; cpu <= rnp->grphi; cpu++, bit <<= 1) {
-			if ((rnp->qsmask & bit) != 0 &&
-			    f(per_cpu_ptr(rsp->rda, cpu)))
-				mask |= bit;
+			if ((rnp->qsmask & bit) != 0) {
+				if ((rnp->qsmaskinit & bit) != 0)
+					*isidle = 0;
+				if (f(per_cpu_ptr(rsp->rda, cpu), isidle, maxj))
+					mask |= bit;
+			}
 		}
 		if (mask != 0) {
 
@@ -3050,6 +3070,7 @@ rcu_init_percpu_data(int cpu, struct rcu_state *rsp, int preemptible)
 	rdp->blimit = blimit;
 	init_callback_list(rdp);  /* Re-enable callbacks on this CPU. */
 	rdp->dynticks->dynticks_nesting = DYNTICK_TASK_EXIT_IDLE;
+	rcu_sysidle_init_percpu_data(rdp->dynticks);
 	atomic_set(&rdp->dynticks->dynticks,
 		   (atomic_read(&rdp->dynticks->dynticks) & ~0x1) + 1);
 	raw_spin_unlock(&rnp->lock);		/* irqs remain disabled. */
@@ -3141,16 +3162,34 @@ static int __cpuinit rcu_cpu_notify(struct notifier_block *self,
 static int __init rcu_spawn_gp_kthread(void)
 {
 	unsigned long flags;
+	int kthread_prio_in = kthread_prio;
 	struct rcu_node *rnp;
 	struct rcu_state *rsp;
+	struct sched_param sp;
 	struct task_struct *t;
 
+	/* Force priority into range. */
+	if (IS_ENABLED(CONFIG_RCU_BOOST) && kthread_prio < 1)
+		kthread_prio = 1;
+	else if (kthread_prio < 0)
+		kthread_prio = 0;
+	else if (kthread_prio > 99)
+		kthread_prio = 99;
+	if (kthread_prio != kthread_prio_in)
+		pr_alert("rcu_spawn_gp_kthread(): Limited prio to %d from %d\n",
+				 kthread_prio, kthread_prio_in);
+
 	for_each_rcu_flavor(rsp) {
-		t = kthread_run(rcu_gp_kthread, rsp, rsp->name);
+		t = kthread_create(rcu_gp_kthread, rsp, "%s", rsp->name);
 		BUG_ON(IS_ERR(t));
 		rnp = rcu_get_root(rsp);
 		raw_spin_lock_irqsave(&rnp->lock, flags);
 		rsp->gp_kthread = t;
+		if (kthread_prio) {
+			sp.sched_priority = kthread_prio;
+			sched_setscheduler_nocheck(t, SCHED_FIFO, &sp);
+		}
+		wake_up_process(t);
 		raw_spin_unlock_irqrestore(&rnp->lock, flags);
 		rcu_spawn_nocb_kthreads(rsp);
 	}

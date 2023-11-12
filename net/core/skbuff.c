@@ -72,6 +72,7 @@
 #include <asm/uaccess.h>
 #include <trace/events/skb.h>
 #include <linux/highmem.h>
+#include <linux/if_vlan.h>
 
 struct kmem_cache *skbuff_head_cache __read_mostly;
 static struct kmem_cache *skbuff_fclone_cache __read_mostly;
@@ -686,7 +687,7 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
 #endif
 	memcpy(new->cb, old->cb, sizeof(old->cb));
 	new->csum		= old->csum;
-	new->local_df		= old->local_df;
+	new->ignore_df		= old->ignore_df;
 	new->pkt_type		= old->pkt_type;
 	new->ip_summed		= old->ip_summed;
 	skb_copy_queue_mapping(new, old);
@@ -794,7 +795,7 @@ int skb_copy_ubufs(struct sk_buff *skb, gfp_t gfp_mask)
 		page = alloc_page(gfp_mask);
 		if (!page) {
 			while (head) {
-				struct page *next = (struct page *)head->private;
+				struct page *next = (struct page *)page_private(head);
 				put_page(head);
 				head = next;
 			}
@@ -804,7 +805,7 @@ int skb_copy_ubufs(struct sk_buff *skb, gfp_t gfp_mask)
 		memcpy(page_address(page),
 		       vaddr + f->page_offset, skb_frag_size(f));
 		kunmap_atomic(vaddr);
-		page->private = (unsigned long)head;
+		set_page_private(page, (unsigned long)head);
 		head = page;
 	}
 
@@ -818,7 +819,7 @@ int skb_copy_ubufs(struct sk_buff *skb, gfp_t gfp_mask)
 	for (i = num_frags - 1; i >= 0; i--) {
 		__skb_fill_page_desc(skb, i, head, 0,
 				     skb_shinfo(skb)->frags[i].size);
-		head = (struct page *)head->private;
+		head = (struct page *)page_private(head);
 	}
 
 	skb_shinfo(skb)->tx_flags &= ~SKBTX_DEV_ZEROCOPY;
@@ -3500,3 +3501,94 @@ unsigned int skb_gso_transport_seglen(const struct sk_buff *skb)
 	return shinfo->gso_size;
 }
 EXPORT_SYMBOL_GPL(skb_gso_transport_seglen);
+
+int skb_ensure_writable(struct sk_buff *skb, int write_len)
+{
+	if (!pskb_may_pull(skb, write_len))
+		return -ENOMEM;
+
+	if (!skb_cloned(skb) || skb_clone_writable(skb, write_len))
+		return 0;
+
+	return pskb_expand_head(skb, 0, 0, GFP_ATOMIC);
+}
+
+/* remove VLAN header from packet and update csum accordingly. */
+static int __pop_vlan_tci(struct sk_buff *skb, __be16 *current_tci)
+{
+	struct vlan_hdr *vhdr;
+	int err;
+
+	err = skb_ensure_writable(skb, VLAN_ETH_HLEN);
+	if (unlikely(err))
+		return err;
+
+	if (skb->ip_summed == CHECKSUM_COMPLETE)
+		skb->csum = csum_sub(skb->csum, csum_partial(skb->data
+					+ (2 * ETH_ALEN), VLAN_HLEN, 0));
+
+	vhdr = (struct vlan_hdr *)(skb->data + ETH_HLEN);
+	*current_tci = vhdr->h_vlan_TCI;
+
+	memmove(skb->data + VLAN_HLEN, skb->data, 2 * ETH_ALEN);
+	__skb_pull(skb, VLAN_HLEN);
+
+	vlan_set_encap_proto(skb, vhdr);
+	skb->mac_header += VLAN_HLEN;
+	if (skb_network_offset(skb) < ETH_HLEN)
+		skb_set_network_header(skb, ETH_HLEN);
+	skb_reset_mac_len(skb);
+
+	return 0;
+}
+
+int skb_vlan_pop(struct sk_buff *skb)
+{
+	__be16 tci;
+	int err;
+
+	if (likely(vlan_tx_tag_present(skb))) {
+		skb->vlan_tci = 0;
+	} else {
+		if (unlikely(skb->protocol != htons(ETH_P_8021Q) ||
+			     skb->len < VLAN_ETH_HLEN))
+			return 0;
+
+		err = __pop_vlan_tci(skb, &tci);
+		if (err)
+			return err;
+	}
+	/* move next vlan tag to hw accel tag */
+	if (likely(skb->protocol != htons(ETH_P_8021Q) ||
+		   skb->len < VLAN_ETH_HLEN))
+		return 0;
+
+	err = __pop_vlan_tci(skb, &tci);
+	if (unlikely(err))
+		return err;
+
+	__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), ntohs(tci));
+	return 0;
+}
+EXPORT_SYMBOL(skb_vlan_pop);
+
+int skb_vlan_push(struct sk_buff *skb, __be16 vlan_proto, u16 vlan_tci)
+{
+	if (unlikely(vlan_tx_tag_present(skb))) {
+		u16 current_tag;
+
+		/* push down current VLAN tag */
+		current_tag = vlan_tx_tag_get(skb);
+
+		if (!__vlan_put_tag(skb, skb->vlan_proto, current_tag))
+			return -ENOMEM;
+
+		if (skb->ip_summed == CHECKSUM_COMPLETE)
+			skb->csum = csum_add(skb->csum, csum_partial(skb->data
+					+ (2 * ETH_ALEN), VLAN_HLEN, 0));
+
+	}
+	__vlan_hwaccel_put_tag(skb, vlan_proto, vlan_tci);
+	return 0;
+}
+EXPORT_SYMBOL(skb_vlan_push);

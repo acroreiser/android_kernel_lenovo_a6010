@@ -7,14 +7,20 @@
 #include <linux/timex.h>
 #include <linux/alarmtimer.h>
 
-union cpu_time_count {
-	cputime_t cpu;
-	unsigned long long sched;
-};
+
+static inline unsigned long long cputime_to_expires(cputime_t expires)
+{
+	return (__force unsigned long long)expires;
+}
+
+static inline cputime_t expires_to_cputime(unsigned long long expires)
+{
+	return (__force cputime_t)expires;
+}
 
 struct cpu_timer_list {
 	struct list_head entry;
-	union cpu_time_count expires, incr;
+	unsigned long long expires, incr;
 	struct task_struct *task;
 	int firing;
 };
@@ -59,8 +65,8 @@ struct k_itimer {
 	spinlock_t it_lock;
 	clockid_t it_clock;		/* which timer type */
 	timer_t it_id;			/* timer id */
-	int it_overrun;			/* overrun on pending signal  */
-	int it_overrun_last;		/* overrun on last delivered signal */
+	s64 it_overrun;			/* overrun on pending signal  */
+	s64 it_overrun_last;		/* overrun on last delivered signal */
 	int it_requeue_pending;		/* waiting to requeue this timer */
 #define REQUEUE_PENDING 1
 	int it_sigev_notify;		/* notify word of sigevent struct */

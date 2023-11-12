@@ -64,7 +64,7 @@ int rt2x00usb_vendor_request(struct rt2x00_dev *rt2x00dev,
 		 * -ENODEV: Device has disappeared, no point continuing.
 		 * All other errors: Try again.
 		 */
-		else if (status == -ENODEV) {
+		else if (status == -ENODEV || status == -ENOENT) {
 			clear_bit(DEVICE_STATE_PRESENT, &rt2x00dev->flags);
 			break;
 		}
@@ -112,7 +112,7 @@ EXPORT_SYMBOL_GPL(rt2x00usb_vendor_req_buff_lock);
 int rt2x00usb_vendor_request_buff(struct rt2x00_dev *rt2x00dev,
 				  const u8 request, const u8 requesttype,
 				  const u16 offset, void *buffer,
-				  const u16 buffer_length, const int timeout)
+				  const u16 buffer_length)
 {
 	int status = 0;
 	unsigned char *tb;
@@ -127,7 +127,7 @@ int rt2x00usb_vendor_request_buff(struct rt2x00_dev *rt2x00dev,
 		bsize = min_t(u16, CSR_CACHE_SIZE, len);
 		status = rt2x00usb_vendor_req_buff_lock(rt2x00dev, request,
 							requesttype, off, tb,
-							bsize, timeout);
+							bsize, REGISTER_TIMEOUT);
 
 		tb  += bsize;
 		len -= bsize;
@@ -321,7 +321,7 @@ static bool rt2x00usb_kick_tx_entry(struct queue_entry *entry, void *data)
 
 	status = usb_submit_urb(entry_priv->urb, GFP_ATOMIC);
 	if (status) {
-		if (status == -ENODEV)
+		if (status == -ENODEV || status == -ENOENT)
 			clear_bit(DEVICE_STATE_PRESENT, &rt2x00dev->flags);
 		set_bit(ENTRY_DATA_IO_FAILED, &entry->flags);
 		rt2x00lib_dmadone(entry);
@@ -410,7 +410,7 @@ static bool rt2x00usb_kick_rx_entry(struct queue_entry *entry, void *data)
 
 	status = usb_submit_urb(entry_priv->urb, GFP_ATOMIC);
 	if (status) {
-		if (status == -ENODEV)
+		if (status == -ENODEV || status == -ENOENT)
 			clear_bit(DEVICE_STATE_PRESENT, &rt2x00dev->flags);
 		set_bit(ENTRY_DATA_IO_FAILED, &entry->flags);
 		rt2x00lib_dmadone(entry);

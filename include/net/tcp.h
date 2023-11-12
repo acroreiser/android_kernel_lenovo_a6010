@@ -54,6 +54,8 @@ extern void tcp_time_wait(struct sock *sk, int state, int timeo);
 
 #define MAX_TCP_HEADER	(128 + MAX_HEADER)
 #define MAX_TCP_OPTION_SPACE 40
+#define TCP_MIN_SND_MSS		48
+#define TCP_MIN_GSO_SIZE	(TCP_MIN_SND_MSS - MAX_TCP_OPTION_SPACE)
 
 /* 
  * Never offer a window over 32767 without using window scaling. Some
@@ -62,7 +64,7 @@ extern void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define MAX_TCP_WINDOW		32767U
 
 /* Offer an initial receive window of 10 mss. */
-#define TCP_DEFAULT_INIT_RCVWND	10
+#define TCP_DEFAULT_INIT_RCVWND	16
 
 /* Minimal accepted MSS. It is (60+60+8) - (20+20). */
 #define TCP_MIN_MSS		88U
@@ -225,7 +227,7 @@ extern void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCP_INIT_CWND		10
 
 /* Bit Flags for sysctl_tcp_fastopen */
-#define	TFO_CLIENT_ENABLE	1
+#define	TFO_CLIENT_ENABLE	3
 #define	TFO_SERVER_ENABLE	2
 #define	TFO_CLIENT_NO_COOKIE	4	/* Data in SYN w/o cookie option */
 
@@ -282,6 +284,7 @@ extern int sysctl_tcp_moderate_rcvbuf;
 extern int sysctl_tcp_tso_win_divisor;
 extern int sysctl_tcp_mtu_probing;
 extern int sysctl_tcp_base_mss;
+extern int sysctl_tcp_min_snd_mss;
 extern int sysctl_tcp_workaround_signed_windows;
 extern int sysctl_tcp_slow_start_after_idle;
 extern int sysctl_tcp_max_ssthresh;
@@ -386,8 +389,8 @@ extern void tcp_delack_timer_handler(struct sock *sk);
 extern int tcp_ioctl(struct sock *sk, int cmd, unsigned long arg);
 extern int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 				 const struct tcphdr *th, unsigned int len);
-extern int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
-			       const struct tcphdr *th, unsigned int len);
+extern void tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
+				const struct tcphdr *th, unsigned int len);
 extern void tcp_rcv_space_adjust(struct sock *sk);
 extern void tcp_cleanup_rbuf(struct sock *sk, int copied);
 extern int tcp_twsk_unique(struct sock *sk, struct sock *sktw, void *twp);
@@ -598,7 +601,7 @@ static inline int tcp_bound_to_half_wnd(struct tcp_sock *tp, int pktsize)
 }
 
 /* tcp.c */
-extern void tcp_get_info(const struct sock *, struct tcp_info *);
+void tcp_get_info(struct sock *, struct tcp_info *);
 
 /* Read 'sendfile()'-style from a TCP socket */
 typedef int (*sk_read_actor_t)(read_descriptor_t *, struct sk_buff *,
@@ -1216,7 +1219,6 @@ static inline void tcp_mib_init(struct net *net)
 static inline void tcp_clear_retrans_hints_partial(struct tcp_sock *tp)
 {
 	tp->lost_skb_hint = NULL;
-	tp->scoreboard_skb_hint = NULL;
 }
 
 static inline void tcp_clear_all_retrans_hints(struct tcp_sock *tp)
@@ -1307,11 +1309,13 @@ static inline struct tcp_md5sig_key *tcp_md5_do_lookup(struct sock *sk,
 #define tcp_twsk_md5_key(twsk)	NULL
 #endif
 
-extern struct tcp_md5sig_pool __percpu *tcp_alloc_md5sig_pool(struct sock *);
-extern void tcp_free_md5sig_pool(void);
+extern bool tcp_alloc_md5sig_pool(void);
 
 extern struct tcp_md5sig_pool	*tcp_get_md5sig_pool(void);
-extern void tcp_put_md5sig_pool(void);
+static inline void tcp_put_md5sig_pool(void)
+{
+	local_bh_enable();
+}
 
 extern int tcp_md5_hash_header(struct tcp_md5sig_pool *, const struct tcphdr *);
 extern int tcp_md5_hash_skb_data(struct tcp_md5sig_pool *, const struct sk_buff *,
@@ -1348,6 +1352,8 @@ struct tcp_fastopen_context {
 	struct rcu_head			rcu;
 };
 
+static inline void tcp_init_send_head(struct sock *sk);
+
 /* write queue abstraction */
 static inline void tcp_write_queue_purge(struct sock *sk)
 {
@@ -1355,6 +1361,7 @@ static inline void tcp_write_queue_purge(struct sock *sk)
 
 	while ((skb = __skb_dequeue(&sk->sk_write_queue)) != NULL)
 		sk_wmem_free_skb(sk, skb);
+	tcp_init_send_head(sk);
 	sk_mem_reclaim(sk);
 	tcp_clear_all_retrans_hints(tcp_sk(sk));
 }
@@ -1420,6 +1427,27 @@ static inline void tcp_check_send_head(struct sock *sk, struct sk_buff *skb_unli
 static inline void tcp_init_send_head(struct sock *sk)
 {
 	sk->sk_send_head = NULL;
+}
+
+static inline struct sk_buff *tcp_rtx_queue_head(const struct sock *sk)
+{
+	struct sk_buff *skb = tcp_write_queue_head(sk);
+
+	if (skb == tcp_send_head(sk))
+		skb = NULL;
+
+	return skb;
+}
+
+static inline struct sk_buff *tcp_rtx_queue_tail(const struct sock *sk)
+{
+	struct sk_buff *skb = tcp_send_head(sk);
+
+	/* empty retransmit queue, for example due to zero window */
+	if (skb == tcp_write_queue_head(sk))
+		return NULL;
+
+	return skb ? tcp_write_queue_prev(sk, skb) : tcp_write_queue_tail(sk);
 }
 
 static inline void __tcp_add_write_queue_tail(struct sock *sk, struct sk_buff *skb)

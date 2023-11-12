@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014, 2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, 2016-2017, 2020 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -225,6 +225,7 @@ typedef struct sSirAssocReq
     tDot11fIEOperatingMode    operMode;
 #endif
     tDot11fIEhs20vendor_ie hs20vendor_ie;
+    bool                      is_sae_authenticated;
 } tSirAssocReq, *tpSirAssocReq;
 
 
@@ -376,6 +377,7 @@ struct s_ext_cap {
     uint8_t   ChanAvailQuery: 1;
     uint8_t   fineTimingMeas: 1;
     uint8_t        reserved7: 1;
+    uint8_t  fils_capability: 1;
 };
 
 tANI_U8
@@ -967,7 +969,7 @@ tSirRetStatus PopulateDot11fRRMIe( tpAniSirGlobal pMac,
 
 #if defined WLAN_FEATURE_VOWIFI_11R
 void PopulateMDIE( tpAniSirGlobal        pMac,
-                   tDot11fIEMobilityDomain *pDot11f, tANI_U8 mdie[] );
+                   tDot11fIEMobilityDomain *pDot11f, tANI_U8 mdie[SIR_MDIE_SIZE] );
 void PopulateFTInfo( tpAniSirGlobal      pMac,
                      tDot11fIEFTInfo     *pDot11f );
 #endif

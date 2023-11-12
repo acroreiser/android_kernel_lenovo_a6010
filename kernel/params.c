@@ -787,7 +787,7 @@ static void __init kernel_add_sysfs_param(const char *name,
 }
 
 /*
- * param_sysfs_builtin - add contents in /sys/parameters for built-in modules
+ * param_sysfs_builtin - add sysfs parameters for built-in modules
  *
  * Add module_parameters to sysfs for "modules" built into the kernel.
  *
@@ -912,7 +912,14 @@ static const struct kset_uevent_ops module_uevent_ops = {
 struct kset *module_kset;
 int module_sysfs_initialized;
 
+static void module_kobj_release(struct kobject *kobj)
+{
+	struct module_kobject *mk = to_module_kobject(kobj);
+	complete(mk->kobj_completion);
+}
+
 struct kobj_type module_ktype = {
+	.release   =	module_kobj_release,
 	.sysfs_ops =	&module_sysfs_ops,
 };
 

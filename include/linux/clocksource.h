@@ -161,7 +161,6 @@ extern u64 timecounter_cyc2time(struct timecounter *tc,
  * @archdata:		arch-specific data
  * @suspend:		suspend function for the clocksource, if necessary
  * @resume:		resume function for the clocksource, if necessary
- * @cycle_last:		most recent cycle counter value seen by ::read()
  */
 struct clocksource {
 	/*
@@ -169,7 +168,6 @@ struct clocksource {
 	 * clocksource itself is cacheline aligned.
 	 */
 	cycle_t (*read)(struct clocksource *cs);
-	cycle_t cycle_last;
 	cycle_t mask;
 	u32 mult;
 	u32 shift;
@@ -207,6 +205,7 @@ struct clocksource {
 #define CLOCK_SOURCE_VALID_FOR_HRES		0x20
 #define CLOCK_SOURCE_UNSTABLE			0x40
 #define CLOCK_SOURCE_SUSPEND_NONSTOP		0x80
+#define CLOCK_SOURCE_RESELECT			0x100
 
 /* simplify initialization of mask field */
 #define CLOCKSOURCE_MASK(bits) (cycle_t)((bits) < 64 ? ((1ULL<<(bits))-1) : -1)

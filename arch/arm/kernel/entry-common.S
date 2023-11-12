@@ -8,6 +8,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <asm/assembler.h>
 #include <asm/unistd.h>
 #include <asm/ftrace.h>
 #include <asm/unwind.h>
@@ -90,7 +91,7 @@ ENTRY(ret_from_fork)
 	cmp	r5, #0
 	movne	r0, r4
 	adrne	lr, BSYM(1f)
-	movne	pc, r5
+	retne	r5
 1:	get_thread_info tsk
 	b	ret_slow_syscall
 ENDPROC(ret_from_fork)
@@ -292,7 +293,7 @@ ENDPROC(ftrace_graph_caller_old)
 
 .macro mcount_exit
 	ldmia	sp!, {r0-r3, ip, lr}
-	mov	pc, ip
+	ret	ip
 .endm
 
 ENTRY(__gnu_mcount_nc)
@@ -300,7 +301,7 @@ UNWIND(.fnstart)
 #ifdef CONFIG_DYNAMIC_FTRACE
 	mov	ip, lr
 	ldmia	sp!, {lr}
-	mov	pc, ip
+	ret	ip
 #else
 	__mcount
 #endif
@@ -335,12 +336,12 @@ return_to_handler:
 	bl	ftrace_return_to_handler
 	mov	lr, r0			@ r0 has real ret addr
 	ldmia	sp!, {r0-r3}
-	mov	pc, lr
+	ret	lr
 #endif
 
 ENTRY(ftrace_stub)
 .Lftrace_stub:
-	mov	pc, lr
+	ret	lr
 ENDPROC(ftrace_stub)
 
 #endif /* CONFIG_FUNCTION_TRACER */
@@ -363,13 +364,7 @@ ENTRY(vector_swi)
 	str	r8, [sp, #S_PSR]		@ Save CPSR
 	str	r0, [sp, #S_OLD_R0]		@ Save OLD_R0
 	zero_fp
-
-#ifdef CONFIG_ALIGNMENT_TRAP
-	ldr	ip, __cr_alignment
-	ldr	ip, [ip]
-	mcr	p15, 0, ip, c1, c0		@ update control register
-#endif
-
+	alignment_trap ip, __cr_alignment
 	enable_irq
 	ct_user_exit
 	get_thread_info tsk
@@ -435,9 +430,7 @@ local_restart:
 	tst	r10, #_TIF_SYSCALL_WORK		@ are we tracing syscalls?
 	bne	__sys_trace
 
-	cmp	scno, #NR_syscalls		@ check upper syscall limit
-	adr	lr, BSYM(ret_fast_syscall)	@ return address
-	ldrcc	pc, [tbl, scno, lsl #2]		@ call sys_* routine
+	invoke_syscall tbl, scno, r10, ret_fast_syscall
 
 	add	r1, sp, #S_OFF
 2:	mov	why, #0				@ no longer a real syscall
@@ -470,14 +463,8 @@ __sys_trace:
 	mov	r1, scno
 	add	r0, sp, #S_OFF
 	bl	syscall_trace_enter
-
-	adr	lr, BSYM(__sys_trace_return)	@ return address
-	mov	scno, r0			@ syscall number (possibly new)
-	add	r1, sp, #S_R0 + S_OFF		@ pointer to regs
-	cmp	scno, #NR_syscalls		@ check upper syscall limit
-	ldmccia	r1, {r0 - r6}			@ have to reload r0 - r6
-	stmccia	sp, {r4, r5}			@ and update the stack args
-	ldrcc	pc, [tbl, scno, lsl #2]		@ call sys_* routine
+	mov	scno, r0
+	invoke_syscall tbl, scno, r10, __sys_trace_return, reload=1
 	cmp	scno, #-1			@ skip the syscall?
 	bne	2b
 	add	sp, sp, #S_OFF			@ restore stack
@@ -523,6 +510,10 @@ sys_syscall:
 		bic	scno, r0, #__NR_OABI_SYSCALL_BASE
 		cmp	scno, #__NR_syscall - __NR_SYSCALL_BASE
 		cmpne	scno, #NR_syscalls	@ check range
+#ifdef CONFIG_CPU_SPECTRE
+		movhs	scno, #0
+		csdb
+#endif
 		stmloia	sp, {r5, r6}		@ shuffle args
 		movlo	r0, r1
 		movlo	r1, r2
@@ -567,7 +558,7 @@ sys_mmap2:
 		streq	r5, [sp, #4]
 		beq	sys_mmap_pgoff
 		mov	r0, #-EINVAL
-		mov	pc, lr
+		ret	lr
 #else
 		str	r5, [sp, #4]
 		b	sys_mmap_pgoff

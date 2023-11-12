@@ -61,6 +61,7 @@
 #include <linux/migrate.h>
 #include <linux/string.h>
 #include <linux/bug.h>
+#include <linux/userfaultfd_k.h>
 
 #include <asm/io.h>
 #include <asm/pgalloc.h>
@@ -120,6 +121,27 @@ __setup("norandmaps", disable_randmaps);
 unsigned long zero_pfn __read_mostly;
 unsigned long highest_memmap_pfn __read_mostly;
 
+#ifdef CONFIG_UKSM
+unsigned long uksm_zero_pfn __read_mostly;
+struct page *empty_uksm_zero_page;
+
+static int __init setup_uksm_zero_page(void)
+{
+	unsigned long addr;
+	addr = __get_free_pages(GFP_KERNEL | __GFP_ZERO, 0);
+	if (!addr)
+		panic("Oh boy, that early out of memory?");
+
+	empty_uksm_zero_page = virt_to_page((void *) addr);
+	SetPageReserved(empty_uksm_zero_page);
+
+	uksm_zero_pfn = page_to_pfn(empty_uksm_zero_page);
+
+	return 0;
+}
+core_initcall(setup_uksm_zero_page);
+#endif
+
 /*
  * CONFIG_MMU architectures set up ZERO_PAGE in their paging_init()
  */
@@ -128,7 +150,8 @@ static int __init init_zero_pfn(void)
 	zero_pfn = page_to_pfn(ZERO_PAGE(0));
 	return 0;
 }
-core_initcall(init_zero_pfn);
+early_initcall(init_zero_pfn);
+
 
 
 #if defined(SPLIT_RSS_COUNTING)
@@ -709,7 +732,7 @@ static void print_bad_pte(struct vm_area_struct *vma, unsigned long addr,
 	if (vma->vm_ops)
 		printk(KERN_ALERT "vma->vm_ops->fault: %pSR\n",
 		       vma->vm_ops->fault);
-	if (vma->vm_file && vma->vm_file->f_op)
+	if (vma->vm_file)
 		printk(KERN_ALERT "vma->vm_file->f_op->mmap: %pSR\n",
 		       vma->vm_file->f_op->mmap);
 
@@ -900,6 +923,11 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 			rss[MM_ANONPAGES]++;
 		else
 			rss[MM_FILEPAGES]++;
+
+		/* Should return NULL in vm_normal_page() */
+		uksm_bugon_zeropage(pte);
+	} else {
+		uksm_map_zero_page(pte);
 	}
 
 out_set_pte:
@@ -1142,8 +1170,10 @@ again:
 			ptent = ptep_get_and_clear_full(mm, addr, pte,
 							tlb->fullmm);
 			tlb_remove_tlb_entry(tlb, pte, addr);
-			if (unlikely(!page))
+			if (unlikely(!page)) {
+				uksm_unmap_zero_page(ptent);
 				continue;
+			}
 			if (unlikely(details) && details->nonlinear_vma
 			    && linear_page_index(details->nonlinear_vma,
 						addr) != page->index)
@@ -1155,7 +1185,7 @@ again:
 				if (pte_dirty(ptent))
 					set_page_dirty(page);
 				if (pte_young(ptent) &&
-				    likely(!VM_SequentialReadHint(vma)))
+				    likely(!(vma->vm_flags & VM_SEQ_READ)))
 					mark_page_accessed(page);
 				rss[MM_FILEPAGES]--;
 			}
@@ -1722,7 +1752,7 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 
 	VM_BUG_ON(!!pages != !!(gup_flags & FOLL_GET));
 
-	/* 
+	/*
 	 * Require read or write permissions.
 	 * If FOLL_FORCE is set, we only require the "MAY" flags.
 	 */
@@ -1782,7 +1812,7 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 				page = vm_normal_page(vma, start, *pte);
 				if (!page) {
 					if (!(gup_flags & FOLL_DUMP) &&
-					     is_zero_pfn(pte_pfn(*pte)))
+					    (is_zero_pfn(pte_pfn(*pte))))
 						page = pte_page(*pte);
 					else {
 						pte_unmap(pte);
@@ -2611,8 +2641,10 @@ static inline void cow_user_page(struct page *dst, struct page *src, unsigned lo
 			clear_page(kaddr);
 		kunmap_atomic(kaddr);
 		flush_dcache_page(dst);
-	} else
+	} else {
 		copy_user_highpage(dst, src, va, vma);
+		uksm_cow_page(vma, src);
+	}
 }
 
 /*
@@ -2811,6 +2843,7 @@ gotten:
 		new_page = alloc_zeroed_user_highpage_movable(vma, address);
 		if (!new_page)
 			goto oom;
+		uksm_cow_pte(vma, orig_pte);
 	} else {
 		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma, address);
 		if (!new_page)
@@ -2836,8 +2869,11 @@ gotten:
 				dec_mm_counter_fast(mm, MM_FILEPAGES);
 				inc_mm_counter_fast(mm, MM_ANONPAGES);
 			}
-		} else
+			uksm_bugon_zeropage(orig_pte);
+		} else {
+			uksm_unmap_zero_page(orig_pte);
 			inc_mm_counter_fast(mm, MM_ANONPAGES);
+		}
 		flush_cache_page(vma, address, pte_pfn(orig_pte));
 		entry = mk_pte(new_page, vma->vm_page_prot);
 		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
@@ -3235,6 +3271,12 @@ static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
 		page_table = pte_offset_map_lock(mm, pmd, address, &ptl);
 		if (!pte_none(*page_table))
 			goto unlock;
+		/* Deliver the page fault to userland, check inside PT lock */
+		if (userfaultfd_missing(vma)) {
+			pte_unmap_unlock(page_table, ptl);
+			return handle_userfault(vma, address, flags,
+						VM_UFFD_MISSING);
+		}
 		goto setpte;
 	}
 
@@ -3261,6 +3303,15 @@ static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	page_table = pte_offset_map_lock(mm, pmd, address, &ptl);
 	if (!pte_none(*page_table))
 		goto release;
+
+	/* Deliver the page fault to userland, check inside PT lock */
+	if (userfaultfd_missing(vma)) {
+		pte_unmap_unlock(page_table, ptl);
+		mem_cgroup_uncharge_page(page);
+		page_cache_release(page);
+		return handle_userfault(vma, address, flags,
+					VM_UFFD_MISSING);
+	}
 
 	inc_mm_counter_fast(mm, MM_ANONPAGES);
 	page_add_new_anon_rmap(page, vma, address);

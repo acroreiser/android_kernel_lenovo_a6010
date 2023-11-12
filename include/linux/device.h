@@ -72,6 +72,10 @@ extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
  *		the specific driver's probe to initial the matched device.
  * @remove:	Called when a device removed from this bus.
  * @shutdown:	Called at shut-down time to quiesce the device.
+ *
+ * @online:	Called to put the device back online (after offlining it).
+ * @offline:	Called to put the device offline for hot-removal. May fail.
+ *
  * @suspend:	Called when a device on this bus wants to go to sleep mode.
  * @resume:	Called to bring a device on this bus out of sleep mode.
  * @pm:		Power management operations of this bus, callback the specific
@@ -104,6 +108,9 @@ struct bus_type {
 	int (*probe)(struct device *dev);
 	int (*remove)(struct device *dev);
 	void (*shutdown)(struct device *dev);
+
+	int (*online)(struct device *dev);
+	int (*offline)(struct device *dev);
 
 	int (*suspend)(struct device *dev, pm_message_t state);
 	int (*resume)(struct device *dev);
@@ -403,17 +410,29 @@ struct class_attribute {
 			char *buf);
 	ssize_t (*store)(struct class *class, struct class_attribute *attr,
 			const char *buf, size_t count);
-	const void *(*namespace)(struct class *class,
-				 const struct class_attribute *attr);
 };
 
 #define CLASS_ATTR(_name, _mode, _show, _store)			\
 struct class_attribute class_attr_##_name = __ATTR(_name, _mode, _show, _store)
 
-extern int __must_check class_create_file(struct class *class,
-					  const struct class_attribute *attr);
-extern void class_remove_file(struct class *class,
-			      const struct class_attribute *attr);
+extern int __must_check class_create_file_ns(struct class *class,
+					     const struct class_attribute *attr,
+					     const void *ns);
+extern void class_remove_file_ns(struct class *class,
+				 const struct class_attribute *attr,
+				 const void *ns);
+
+static inline int __must_check class_create_file(struct class *class,
+					const struct class_attribute *attr)
+{
+	return class_create_file_ns(class, attr, NULL);
+}
+
+static inline void class_remove_file(struct class *class,
+				     const struct class_attribute *attr)
+{
+	return class_remove_file_ns(class, attr, NULL);
+}
 
 /* Simple class attribute that is just a static string */
 
@@ -505,12 +524,6 @@ ssize_t device_store_bool(struct device *dev, struct device_attribute *attr,
 
 #define DEVICE_ATTR(_name, _mode, _show, _store) \
 	struct device_attribute dev_attr_##_name = __ATTR(_name, _mode, _show, _store)
-#define DEVICE_ATTR_RW(_name) \
-	struct device_attribute dev_attr_##_name = __ATTR_RW(_name)
-#define DEVICE_ATTR_RO(_name) \
-	struct device_attribute dev_attr_##_name = __ATTR_RO(_name)
-#define DEVICE_ATTR_WO(_name) \
-	struct device_attribute dev_attr_##_name = __ATTR_WO(_name)
 #define DEVICE_ULONG_ATTR(_name, _mode, _var) \
 	struct dev_ext_attribute dev_attr_##_name = \
 		{ __ATTR(_name, _mode, device_show_ulong, device_store_ulong), &(_var) }
@@ -528,6 +541,8 @@ extern int device_create_file(struct device *device,
 			      const struct device_attribute *entry);
 extern void device_remove_file(struct device *dev,
 			       const struct device_attribute *attr);
+extern bool device_remove_file_self(struct device *dev,
+				    const struct device_attribute *attr);
 extern int __must_check device_create_bin_file(struct device *dev,
 					const struct bin_attribute *attr);
 extern void device_remove_bin_file(struct device *dev,
@@ -678,6 +693,8 @@ struct acpi_dev_node {
  * @release:	Callback to free the device after all references have
  * 		gone away. This should be set by the allocator of the
  * 		device (i.e. the bus driver that discovered the device).
+ * @offline_disabled: If set, the device is permanently online.
+ * @offline:	Set after successful invocation of bus type's .offline().
  *
  * At the lowest level, every device in a Linux system is represented by an
  * instance of struct device. The device structure contains the information
@@ -750,6 +767,9 @@ struct device {
 
 	void	(*release)(struct device *dev);
 	struct iommu_group	*iommu_group;
+
+	bool			offline_disabled:1;
+	bool			offline:1;
 };
 
 static inline struct device *kobj_to_dev(struct kobject *kobj)
@@ -886,6 +906,15 @@ extern const char *device_get_devnode(struct device *dev,
 extern void *dev_get_drvdata(const struct device *dev);
 extern int dev_set_drvdata(struct device *dev, void *data);
 
+static inline bool device_supports_offline(struct device *dev)
+{
+	return dev->bus && dev->bus->offline && dev->bus->online;
+}
+
+extern void lock_device_hotplug(void);
+extern void unlock_device_hotplug(void);
+extern int device_offline(struct device *dev);
+extern int device_online(struct device *dev);
 /*
  * Root device objects for grouping under /sys/devices
  */

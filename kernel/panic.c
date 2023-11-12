@@ -84,6 +84,27 @@ void panic(const char *fmt, ...)
 	int state = 0;
 
 	trace_kernel_panic(0);
+
+
+	console_verbose();
+
+	va_start(args, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, args);
+	va_end(args);
+	printk(KERN_EMERG "Kernel panic - not syncing: %s\n",buf);
+#ifdef CONFIG_DEBUG_BUGVERBOSE
+	/*
+	 * Avoid nested stack-dumping if a panic occurs during oops processing
+	 */
+	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
+		dump_stack();
+#endif
+
+	// Attempt to sync and remount fs to save data
+	emergency_sync();
+	emergency_remount();
+
+	bust_spinlocks(1);
 	/*
 	 * Disable local interrupts. This will prevent panic_smp_self_stop
 	 * from deadlocking the first cpu that invokes the panic, since
@@ -104,20 +125,6 @@ void panic(const char *fmt, ...)
 	 */
 	if (!spin_trylock(&panic_lock))
 		panic_smp_self_stop();
-
-	console_verbose();
-	bust_spinlocks(1);
-	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
-	va_end(args);
-	printk(KERN_EMERG "Kernel panic - not syncing: %s\n",buf);
-#ifdef CONFIG_DEBUG_BUGVERBOSE
-	/*
-	 * Avoid nested stack-dumping if a panic occurs during oops processing
-	 */
-	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
-		dump_stack();
-#endif
 
 	/*
 	 * If we have crashed and we have a crash kernel loaded let it handle
@@ -162,6 +169,7 @@ void panic(const char *fmt, ...)
 	}
 
 	trace_kernel_panic_late(0);
+
 
 	if (panic_timeout != 0) {
 		/*
@@ -421,8 +429,9 @@ struct slowpath_args {
 static void warn_slowpath_common(const char *file, int line, void *caller,
 				 unsigned taint, struct slowpath_args *args)
 {
-	printk(KERN_WARNING "------------[ cut here ]------------\n");
-	printk(KERN_WARNING "WARNING: at %s:%d %pS()\n", file, line, caller);
+	pr_warn("------------[ cut here ]------------\n");
+	pr_warn("WARNING: CPU: %d PID: %d at %s:%d %pS()\n",
+		raw_smp_processor_id(), current->pid, file, line, caller);
 
 	if (args)
 		vprintk(args->fmt, args->args);

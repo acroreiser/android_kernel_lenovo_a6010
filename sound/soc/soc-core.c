@@ -882,8 +882,6 @@ static int soc_bind_dai_link(struct snd_soc_card *card, int num)
 		}
 
 		if (!rtd->codec_dai) {
-			dev_err(card->dev, "ASoC: CODEC DAI %s not registered\n",
-				dai_link->codec_dai_name);
 			return -EPROBE_DEFER;
 		}
 	}
@@ -913,8 +911,6 @@ static int soc_bind_dai_link(struct snd_soc_card *card, int num)
 		rtd->platform = platform;
 	}
 	if (!rtd->platform) {
-		dev_err(card->dev, "ASoC: platform %s not registered\n",
-			dai_link->platform_name);
 		return -EPROBE_DEFER;
 	}
 

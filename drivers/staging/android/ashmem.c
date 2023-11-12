@@ -290,8 +290,23 @@ static inline vm_flags_t calc_vm_may_flags(unsigned long prot)
 	       _calc_vm_trans(prot, PROT_EXEC,  VM_MAYEXEC);
 }
 
+static int ashmem_vmfile_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	/* do not allow to mmap ashmem backing shmem file directly */
+	return -EPERM;
+}
+
+static unsigned long
+ashmem_vmfile_get_unmapped_area(struct file *file, unsigned long addr,
+				unsigned long len, unsigned long pgoff,
+				unsigned long flags)
+{
+	return current->mm->get_unmapped_area(file, addr, len, pgoff, flags);
+}
+
 static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
 {
+	static struct file_operations vmfile_fops;
 	struct ashmem_area *asma = file->private_data;
 	int ret = 0;
 
@@ -299,6 +314,12 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
 
 	/* user needs to SET_SIZE before mapping */
 	if (unlikely(!asma->size)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* requested mapping size larger than object size */
+	if (vma->vm_end - vma->vm_start > PAGE_ALIGN(asma->size)) {
 		ret = -EINVAL;
 		goto out;
 	}
@@ -326,6 +347,19 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
 		}
 		vmfile->f_mode |= FMODE_LSEEK;
 		asma->file = vmfile;
+		/*
+		 * override mmap operation of the vmfile so that it can't be
+		 * remapped which would lead to creation of a new vma with no
+		 * asma permission checks. Have to override get_unmapped_area
+		 * as well to prevent VM_BUG_ON check for f_ops modification.
+		 */
+		if (!vmfile_fops.mmap) {
+			vmfile_fops = *vmfile->f_op;
+			vmfile_fops.mmap = ashmem_vmfile_mmap;
+			vmfile_fops.get_unmapped_area =
+					ashmem_vmfile_get_unmapped_area;
+		}
+		vmfile->f_op = &vmfile_fops;
 	}
 	get_file(asma->file);
 
@@ -346,27 +380,28 @@ out:
 /*
  * ashmem_shrink - our cache shrinker, called from mm/vmscan.c :: shrink_slab
  *
- * 'nr_to_scan' is the number of objects (pages) to prune, or 0 to query how
- * many objects (pages) we have in total.
+ * 'nr_to_scan' is the number of objects to scan for freeing.
  *
  * 'gfp_mask' is the mask of the allocation that got us into this mess.
  *
- * Return value is the number of objects (pages) remaining, or -1 if we cannot
+ * Return value is the number of objects freed or -1 if we cannot
  * proceed without risk of deadlock (due to gfp_mask).
  *
  * We approximate LRU via least-recently-unpinned, jettisoning unpinned partial
  * chunks of ashmem regions LRU-wise one-at-a-time until we hit 'nr_to_scan'
  * pages freed.
  */
-static int ashmem_shrink(struct shrinker *s, struct shrink_control *sc)
+static long unsigned
+ashmem_shrink_scan(
+	struct shrinker		*shrink,
+	struct shrink_control	*sc)
 {
 	struct ashmem_range *range, *next;
+	long freed = 0;
 
 	/* We might recurse into filesystem code, so bail out if necessary */
-	if (sc->nr_to_scan && !(sc->gfp_mask & __GFP_FS))
+	if (!(sc->gfp_mask & __GFP_FS))
 		return -1;
-	if (!sc->nr_to_scan)
-		return lru_count;
 
 	if (!mutex_trylock(&ashmem_mutex))
 		return -1;
@@ -375,23 +410,40 @@ static int ashmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		loff_t start = range->pgstart * PAGE_SIZE;
 		loff_t end = (range->pgend + 1) * PAGE_SIZE;
 
-		do_fallocate(range->asma->file,
+		range->asma->file->f_op->fallocate(range->asma->file,
 				FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
 				start, end - start);
 		range->purged = ASHMEM_WAS_PURGED;
 		lru_del(range);
 
-		sc->nr_to_scan -= range_size(range);
-		if (sc->nr_to_scan <= 0)
+		freed += range_size(range);
+		if (--sc->nr_to_scan <= 0)
 			break;
 	}
 	mutex_unlock(&ashmem_mutex);
+	return freed;
+}
 
+static long unsigned
+ashmem_shrink_count(
+	struct shrinker		*shrink,
+	struct shrink_control	*sc)
+{
+	/*
+	 * note that lru_count is count of pages on the lru, not a count of
+	 * objects on the list. This means the scan function needs to return the
+	 * number of pages freed, not the number of objects scanned.
+	 */
 	return lru_count;
 }
 
 static struct shrinker ashmem_shrinker = {
-	.shrink = ashmem_shrink,
+	.count_objects = ashmem_shrink_count,
+	.scan_objects = ashmem_shrink_scan,
+	/*
+	 * XXX (dchinner): I wish people would comment on why they need on
+	 * significant changes to the default value here
+	 */
 	.seeks = DEFAULT_SEEKS * 4,
 };
 
@@ -617,29 +669,31 @@ static int ashmem_pin_unpin(struct ashmem_area *asma, unsigned long cmd,
 	size_t pgstart, pgend;
 	int ret = -EINVAL;
 
-	if (unlikely(!asma->file))
-		return -EINVAL;
+	mutex_lock(&ashmem_mutex);
 
-	if (unlikely(copy_from_user(&pin, p, sizeof(pin))))
-		return -EFAULT;
+	if (unlikely(!asma->file))
+		goto out_unlock;
+
+	if (unlikely(copy_from_user(&pin, p, sizeof(pin)))) {
+		ret = -EFAULT;
+		goto out_unlock;
+	}
 
 	/* per custom, you can pass zero for len to mean "everything onward" */
 	if (!pin.len)
 		pin.len = PAGE_ALIGN(asma->size) - pin.offset;
 
 	if (unlikely((pin.offset | pin.len) & ~PAGE_MASK))
-		return -EINVAL;
+		goto out_unlock;
 
 	if (unlikely(((__u32) -1) - pin.offset < pin.len))
-		return -EINVAL;
+		goto out_unlock;
 
 	if (unlikely(PAGE_ALIGN(asma->size) < pin.offset + pin.len))
-		return -EINVAL;
+		goto out_unlock;
 
 	pgstart = pin.offset / PAGE_SIZE;
 	pgend = pgstart + (pin.len / PAGE_SIZE) - 1;
-
-	mutex_lock(&ashmem_mutex);
 
 	switch (cmd) {
 	case ASHMEM_PIN:
@@ -653,6 +707,7 @@ static int ashmem_pin_unpin(struct ashmem_area *asma, unsigned long cmd,
 		break;
 	}
 
+out_unlock:
 	mutex_unlock(&ashmem_mutex);
 
 	return ret;
@@ -698,11 +753,11 @@ static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (capable(CAP_SYS_ADMIN)) {
 			struct shrink_control sc = {
 				.gfp_mask = GFP_KERNEL,
-				.nr_to_scan = 0,
+				.nr_to_scan = LONG_MAX,
 			};
-			ret = ashmem_shrink(&ashmem_shrinker, &sc);
-			sc.nr_to_scan = ret;
-			ashmem_shrink(&ashmem_shrinker, &sc);
+			ret = ashmem_shrink_count(&ashmem_shrinker, &sc);
+			nodes_setall(sc.nodes_to_scan);
+			ashmem_shrink_scan(&ashmem_shrinker, &sc);
 		}
 		break;
 	}
@@ -712,7 +767,8 @@ static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 /* support of 32bit userspace on 64bit platforms */
 #ifdef CONFIG_COMPAT
-static long compat_ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long compat_ashmem_ioctl(struct file *file, unsigned int cmd,
+				unsigned long arg)
 {
 
 	switch (cmd) {

@@ -2,6 +2,7 @@
 #define _LINUX_PID_H
 
 #include <linux/rcupdate.h>
+#include <linux/wait.h>
 
 enum pid_type
 {
@@ -62,6 +63,8 @@ struct pid
 	unsigned int level;
 	/* lists of tasks that use this pid */
 	struct hlist_head tasks[PIDTYPE_MAX];
+	/* wait queue for pidfd notifications */
+	wait_queue_head_t wait_pidfd;
 	struct rcu_head rcu;
 	struct upid numbers[1];
 };
@@ -73,6 +76,13 @@ struct pid_link
 	struct hlist_node node;
 	struct pid *pid;
 };
+
+extern const struct file_operations pidfd_fops;
+
+struct file;
+
+extern struct pid *pidfd_pid(const struct file *file);
+struct pid *pidfd_get_pid(unsigned int fd, unsigned int *flags);
 
 static inline struct pid *get_pid(struct pid *pid)
 {
@@ -88,11 +98,9 @@ extern struct task_struct *get_pid_task(struct pid *pid, enum pid_type);
 extern struct pid *get_task_pid(struct task_struct *task, enum pid_type type);
 
 /*
- * attach_pid() and detach_pid() must be called with the tasklist_lock
- * write-held.
+ * these helpers must be called with the tasklist_lock write-held.
  */
-extern void attach_pid(struct task_struct *task, enum pid_type type,
-			struct pid *pid);
+extern void attach_pid(struct task_struct *task, enum pid_type);
 extern void detach_pid(struct task_struct *task, enum pid_type);
 extern void change_pid(struct task_struct *task, enum pid_type,
 			struct pid *pid);

@@ -218,7 +218,7 @@ void kzfree(const void *p)
 	if (unlikely(ZERO_OR_NULL_PTR(mem)))
 		return;
 	ks = ksize(mem);
-	memset(mem, 0, ks);
+	memzero_explicit(mem, ks);
 	kfree(mem);
 }
 EXPORT_SYMBOL(kzfree);
@@ -431,6 +431,7 @@ struct address_space *page_mapping(struct page *page)
 		mapping = NULL;
 	return mapping;
 }
+EXPORT_SYMBOL(page_mapping);
 
 /* Tracepoints definitions. */
 EXPORT_TRACEPOINT_SYMBOL(kmalloc);

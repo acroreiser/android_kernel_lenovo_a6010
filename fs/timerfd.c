@@ -43,6 +43,8 @@ struct timerfd_ctx {
 	bool might_cancel;
 };
 
+static atomic_t instance_count = ATOMIC_INIT(0);
+
 static LIST_HEAD(cancel_list);
 static DEFINE_SPINLOCK(cancel_lock);
 
@@ -318,6 +320,9 @@ SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
 {
 	int ufd;
 	struct timerfd_ctx *ctx;
+	char task_comm_buf[TASK_COMM_LEN];
+	char file_name_buf[32];
+	int instance;
 
 	/* Check the TFD_* constants for consistency.  */
 	BUILD_BUG_ON(TFD_CLOEXEC != O_CLOEXEC);
@@ -330,6 +335,11 @@ SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
 	     clockid != CLOCK_BOOTTIME &&
 	     clockid != CLOCK_BOOTTIME_ALARM))
 		return -EINVAL;
+
+	if (!capable(CAP_WAKE_ALARM) &&
+	    (clockid == CLOCK_REALTIME_ALARM ||
+	     clockid == CLOCK_BOOTTIME_ALARM))
+		return -EPERM;
 
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
@@ -349,7 +359,12 @@ SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
 
 	ctx->moffs = ktime_get_monotonic_offset();
 
-	ufd = anon_inode_getfd("[timerfd]", &timerfd_fops, ctx,
+	instance = atomic_inc_return(&instance_count);
+	get_task_comm(task_comm_buf, current);
+	snprintf(file_name_buf, sizeof(file_name_buf), "[timerfd%d_%.*s]",
+		 instance, (int)sizeof(task_comm_buf), task_comm_buf);
+
+	ufd = anon_inode_getfd(file_name_buf, &timerfd_fops, ctx,
 			       O_RDWR | (flags & TFD_SHARED_FCNTL_FLAGS));
 	if (ufd < 0)
 		kfree(ctx);
@@ -374,6 +389,11 @@ static int do_timerfd_settime(int ufd, int flags,
 	if (ret)
 		return ret;
 	ctx = f.file->private_data;
+
+	if (!capable(CAP_WAKE_ALARM) && isalarm(ctx)) {
+		fdput(f);
+		return -EPERM;
+	}
 
 	timerfd_setup_cancel(ctx, flags);
 

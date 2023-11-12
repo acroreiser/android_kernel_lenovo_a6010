@@ -536,7 +536,7 @@ void __init prepare_namespace(void)
 	int is_floppy;
 
 	if (root_delay) {
-		printk(KERN_INFO "Waiting %dsec before mounting root device...\n",
+		printk(KERN_INFO "Waiting %d sec before mounting root device...\n",
 		       root_delay);
 		ssleep(root_delay);
 	}
@@ -573,7 +573,7 @@ void __init prepare_namespace(void)
 			saved_root_name);
 		while (driver_probe_done() != 0 ||
 			(ROOT_DEV = name_to_dev_t(saved_root_name)) == 0)
-			msleep(100);
+			msleep(CONFIG_DEFAULT_ROOTWAIT_POLL);
 		async_synchronize_full();
 	}
 

@@ -336,15 +336,29 @@ static int ecryptfs_i_size_read(struct dentry *dentry, struct inode *inode)
 }
 
 /**
+ * Backported for ecryptfs_lookup_interpose *
+ *
+ * d_inode - Get the actual inode of this dentry
+ * @dentry: The dentry to query
+ *
+ * This is the helper normal filesystems should use to get at their own inodes
+ * in their own dentries and ignore the layering superimposed upon them.
+ */
+static inline struct inode *d_inode(const struct dentry *dentry)
+{
+	return dentry->d_inode;
+}
+
+/**
  * ecryptfs_lookup_interpose - Dentry interposition for a lookup
  */
 static int ecryptfs_lookup_interpose(struct dentry *dentry,
 				     struct dentry *lower_dentry,
 				     struct inode *dir_inode)
 {
-	struct inode *inode, *lower_inode = lower_dentry->d_inode;
+	struct path *path = ecryptfs_dentry_to_lower_path(dentry->d_parent);
+	struct inode *inode, *lower_inode;
 	struct ecryptfs_dentry_info *dentry_info;
-	struct vfsmount *lower_mnt;
 	int rc = 0;
 
 	dentry_info = kmem_cache_alloc(ecryptfs_dentry_info_cache, GFP_KERNEL);
@@ -356,15 +370,22 @@ static int ecryptfs_lookup_interpose(struct dentry *dentry,
 		return -ENOMEM;
 	}
 
-	lower_mnt = mntget(ecryptfs_dentry_to_lower_mnt(dentry->d_parent));
-	fsstack_copy_attr_atime(dir_inode, lower_dentry->d_parent->d_inode);
-	BUG_ON(!lower_dentry->d_count);
+	fsstack_copy_attr_atime(dir_inode, d_inode(path->dentry));
+	BUG_ON(!d_count(lower_dentry));
 
 	ecryptfs_set_dentry_private(dentry, dentry_info);
 	ecryptfs_set_dentry_lower(dentry, lower_dentry);
-	ecryptfs_set_dentry_lower_mnt(dentry, lower_mnt);
+	ecryptfs_set_dentry_lower_mnt(dentry, mntget(path->mnt));
 
-	if (!lower_dentry->d_inode) {
+	/*
+	 * negative dentry can go positive under us here - its parent is not
+	 * locked.  That's OK and that could happen just as we return from
+	 * ecryptfs_lookup() anyway.  Just need to be careful and fetch
+	 * ->d_inode only once - it's not stable here.
+	 */
+	lower_inode = READ_ONCE(lower_dentry->d_inode);
+
+	if (!lower_inode) {
 		/* We want to add because we couldn't find in lower */
 		d_add(dentry, NULL);
 		return 0;

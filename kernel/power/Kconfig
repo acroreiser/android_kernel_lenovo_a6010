@@ -26,6 +26,12 @@ config WAKELOCK
 	bool
 	default y
 
+config POWERSUSPEND
+ 	bool "Power suspend"
+ 	default y
+ 	---help---
+ 	  Call early suspend handlers when the user requested sleep state changes.
+
 config HIBERNATE_CALLBACKS
 	bool
 
@@ -184,7 +190,7 @@ config PM_TEST_SUSPEND
 	linked, ensuring that it's available when this test runs.
 
 config PM_SLEEP_DEBUG
-	def_bool y
+	def_bool n
 	depends on PM_DEBUG && PM_SLEEP
 
 config PM_TRACE

@@ -70,6 +70,8 @@
 #include "ebitmap.h"
 #include "audit.h"
 
+int selinux_android_netlink_route;
+int selinux_android_netlink_getneigh;
 int selinux_policycap_netpeer;
 int selinux_policycap_openperm;
 
@@ -154,7 +156,7 @@ static int selinux_set_mapping(struct policydb *pol,
 		}
 
 		k = 0;
-		while (p_in->perms && p_in->perms[k]) {
+		while (p_in->perms[k]) {
 			/* An empty permission string skips ahead */
 			if (!*p_in->perms[k]) {
 				k++;
@@ -764,7 +766,7 @@ static int security_validtrans_handle_fail(struct context *ocontext,
 	if (context_struct_to_string(tcontext, &t, &tlen))
 		goto out;
 	audit_log(current->audit_context, GFP_ATOMIC, AUDIT_SELINUX_ERR,
-		  "security_validate_transition:  denied for"
+		  "op=security_validate_transition seresult=denied"
 		  " oldcontext=%s newcontext=%s taskcontext=%s tclass=%s",
 		  o, n, t, sym_name(&policydb, SYM_CLASSES, tclass-1));
 out:
@@ -859,6 +861,9 @@ int security_bounded_transition(u32 old_sid, u32 new_sid)
 	int index;
 	int rc;
 
+	if (!ss_initialized)
+		return 0;
+
 	read_lock(&policy_rwlock);
 
 	rc = -EINVAL;
@@ -913,7 +918,7 @@ int security_bounded_transition(u32 old_sid, u32 new_sid)
 			audit_log(current->audit_context,
 				  GFP_ATOMIC, AUDIT_SELINUX_ERR,
 				  "op=security_bounded_transition "
-				  "result=denied "
+				  "seresult=denied "
 				  "oldcontext=%s newcontext=%s",
 				  old_name, new_name);
 		}
@@ -1408,26 +1413,24 @@ static int security_context_to_sid_core(const char *scontext, u32 scontext_len,
 	if (!scontext_len)
 		return -EINVAL;
 
+	/* Copy the string to allow changes and ensure a NUL terminator */
+	scontext2 = kmemdup_nul(scontext, scontext_len, gfp_flags);
+	if (!scontext2)
+		return -ENOMEM;
+
 	if (!ss_initialized) {
 		int i;
 
 		for (i = 1; i < SECINITSID_NUM; i++) {
-			if (!strcmp(initial_sid_to_string[i], scontext)) {
+			if (!strcmp(initial_sid_to_string[i], scontext2)) {
 				*sid = i;
-				return 0;
+				goto out;
 			}
 		}
 		*sid = SECINITSID_KERNEL;
-		return 0;
+		goto out;
 	}
 	*sid = SECSID_NULL;
-
-	/* Copy the string so that we can modify the copy as we parse it. */
-	scontext2 = kmalloc(scontext_len + 1, gfp_flags);
-	if (!scontext2)
-		return -ENOMEM;
-	memcpy(scontext2, scontext, scontext_len);
-	scontext2[scontext_len] = 0;
 
 	if (force) {
 		/* Save another copy for storing in uninterpreted form */
@@ -1442,7 +1445,7 @@ static int security_context_to_sid_core(const char *scontext, u32 scontext_len,
 				      scontext_len, &context, def_sid);
 	if (rc == -EINVAL && force) {
 		context.str = str;
-		context.len = scontext_len;
+		context.len = strlen(str) + 1;
 		str = NULL;
 	} else if (rc)
 		goto out_unlock;
@@ -1461,16 +1464,18 @@ out:
  * @scontext: security context
  * @scontext_len: length in bytes
  * @sid: security identifier, SID
+ * @gfp: context for the allocation
  *
  * Obtains a SID associated with the security context that
  * has the string representation specified by @scontext.
  * Returns -%EINVAL if the context is invalid, -%ENOMEM if insufficient
  * memory is available, or 0 on success.
  */
-int security_context_to_sid(const char *scontext, u32 scontext_len, u32 *sid)
+int security_context_to_sid(const char *scontext, u32 scontext_len, u32 *sid,
+			    gfp_t gfp)
 {
 	return security_context_to_sid_core(scontext, scontext_len,
-					    sid, SECSID_NULL, GFP_KERNEL, 0);
+					    sid, SECSID_NULL, gfp, 0);
 }
 
 /**
@@ -1521,8 +1526,8 @@ static int compute_sid_handle_invalid_context(
 	if (context_struct_to_string(newcontext, &n, &nlen))
 		goto out;
 	audit_log(current->audit_context, GFP_ATOMIC, AUDIT_SELINUX_ERR,
-		  "security_compute_sid:  invalid context %s"
-		  " for scontext=%s"
+		  "op=security_compute_sid invalid_context=%s"
+		  " scontext=%s"
 		  " tcontext=%s"
 		  " tclass=%s",
 		  n, s, t, sym_name(&policydb, SYM_CLASSES, tclass-1));
@@ -1989,6 +1994,9 @@ static void security_load_policycaps(void)
 						  POLICYDB_CAPABILITY_NETPEER);
 	selinux_policycap_openperm = ebitmap_get_bit(&policydb.policycaps,
 						  POLICYDB_CAPABILITY_OPENPERM);
+	selinux_android_netlink_route = policydb.android_netlink_route;
+	selinux_android_netlink_getneigh = policydb.android_netlink_getneigh;
+	selinux_nlmsg_init();
 }
 
 static int security_preserve_bools(struct policydb *p);
@@ -2016,9 +2024,11 @@ int security_load_policy(void *data, size_t len)
 
 	if (!ss_initialized) {
 		avtab_cache_init();
+		ebitmap_cache_init();
 		rc = policydb_read(&policydb, fp);
 		if (rc) {
 			avtab_cache_destroy();
+			ebitmap_cache_destroy();
 			return rc;
 		}
 
@@ -2029,6 +2039,7 @@ int security_load_policy(void *data, size_t len)
 		if (rc) {
 			policydb_destroy(&policydb);
 			avtab_cache_destroy();
+			ebitmap_cache_destroy();
 			return rc;
 		}
 
@@ -2036,6 +2047,7 @@ int security_load_policy(void *data, size_t len)
 		if (rc) {
 			policydb_destroy(&policydb);
 			avtab_cache_destroy();
+			ebitmap_cache_destroy();
 			return rc;
 		}
 
@@ -2435,7 +2447,7 @@ out:
 }
 
 /**
- * security_genfs_sid - Obtain a SID for a file in a filesystem
+ * __security_genfs_sid - Helper to obtain a SID for a file in a filesystem
  * @fstype: filesystem type
  * @path: path from root of mount
  * @sclass: file security class
@@ -2444,11 +2456,13 @@ out:
  * Obtain a SID to use for a file in a filesystem that
  * cannot support xattr or use a fixed labeling behavior like
  * transition SIDs or task SIDs.
+ *
+ * The caller must acquire the policy_rwlock before calling this function.
  */
-int security_genfs_sid(const char *fstype,
-		       char *path,
-		       u16 orig_sclass,
-		       u32 *sid)
+static inline int __security_genfs_sid(const char *fstype,
+				       char *path,
+				       u16 orig_sclass,
+				       u32 *sid)
 {
 	int len;
 	u16 sclass;
@@ -2458,8 +2472,6 @@ int security_genfs_sid(const char *fstype,
 
 	while (path[0] == '/' && path[1] == '/')
 		path++;
-
-	read_lock(&policy_rwlock);
 
 	sclass = unmap_class(orig_sclass);
 	*sid = SECINITSID_UNLABELED;
@@ -2494,8 +2506,30 @@ int security_genfs_sid(const char *fstype,
 	*sid = c->sid[0];
 	rc = 0;
 out:
-	read_unlock(&policy_rwlock);
 	return rc;
+}
+
+/**
+ * security_genfs_sid - Obtain a SID for a file in a filesystem
+ * @fstype: filesystem type
+ * @path: path from root of mount
+ * @sclass: file security class
+ * @sid: SID for path
+ *
+ * Acquire policy_rwlock before calling __security_genfs_sid() and release
+ * it afterward.
+ */
+int security_genfs_sid(const char *fstype,
+		       char *path,
+		       u16 orig_sclass,
+		       u32 *sid)
+{
+	int retval;
+
+	read_lock(&policy_rwlock);
+	retval = __security_genfs_sid(fstype, path, orig_sclass, sid);
+	read_unlock(&policy_rwlock);
+	return retval;
 }
 
 /**
@@ -2531,7 +2565,7 @@ int security_fs_use(
 		}
 		*sid = c->sid[0];
 	} else {
-		rc = security_genfs_sid(fstype, "/", SECCLASS_DIR, sid);
+		rc = __security_genfs_sid(fstype, "/", SECCLASS_DIR, sid);
 		if (rc) {
 			*behavior = SECURITY_FS_USE_NONE;
 			rc = 0;
@@ -2590,8 +2624,12 @@ err:
 	if (*names) {
 		for (i = 0; i < *len; i++)
 			kfree((*names)[i]);
+		kfree(*names);
 	}
 	kfree(*values);
+	*len = 0;
+	*names = NULL;
+	*values = NULL;
 	goto out;
 }
 
@@ -2745,8 +2783,10 @@ int security_sid_mls_copy(u32 sid, u32 mls_sid, u32 *new_sid)
 		rc = convert_context_handle_invalid_context(&newcon);
 		if (rc) {
 			if (!context_struct_to_string(&newcon, &s, &len)) {
-				audit_log(current->audit_context, GFP_ATOMIC, AUDIT_SELINUX_ERR,
-					  "security_sid_mls_copy: invalid context %s", s);
+				audit_log(current->audit_context,
+					  GFP_ATOMIC, AUDIT_SELINUX_ERR,
+					  "op=security_sid_mls_copy "
+					  "invalid_context=%s", s);
 				kfree(s);
 			}
 			goto out_unlock;
@@ -3115,25 +3155,21 @@ int selinux_audit_rule_match(u32 sid, u32 field, u32 op, void *vrule,
 	struct selinux_audit_rule *rule = vrule;
 	int match = 0;
 
-	if (!rule) {
-		audit_log(actx, GFP_ATOMIC, AUDIT_SELINUX_ERR,
-			  "selinux_audit_rule_match: missing rule\n");
+	if (unlikely(!rule)) {
+		WARN_ONCE(1, "selinux_audit_rule_match: missing rule\n");
 		return -ENOENT;
 	}
 
 	read_lock(&policy_rwlock);
 
 	if (rule->au_seqno < latest_granting) {
-		audit_log(actx, GFP_ATOMIC, AUDIT_SELINUX_ERR,
-			  "selinux_audit_rule_match: stale rule\n");
 		match = -ESTALE;
 		goto out;
 	}
 
 	ctxt = sidtab_search(&sidtab, sid);
-	if (!ctxt) {
-		audit_log(actx, GFP_ATOMIC, AUDIT_SELINUX_ERR,
-			  "selinux_audit_rule_match: unrecognized SID %d\n",
+	if (unlikely(!ctxt)) {
+		WARN_ONCE(1, "selinux_audit_rule_match: unrecognized SID %d\n",
 			  sid);
 		match = -ENOENT;
 		goto out;
@@ -3219,6 +3255,7 @@ out:
 	return match;
 }
 
+#ifdef CONFIG_AUDIT
 static int (*aurule_callback)(void) = audit_update_lsm_rules;
 
 static int aurule_avc_callback(u32 event)
@@ -3241,6 +3278,7 @@ static int __init aurule_init(void)
 	return err;
 }
 __initcall(aurule_init);
+#endif
 
 #ifdef CONFIG_NETLABEL
 /**

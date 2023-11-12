@@ -1,6 +1,8 @@
 
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
  *
@@ -627,6 +629,16 @@ typedef enum
    WLAN_HAL_FW_SET_CLEAR_ARP_STATS_RSP       = 355,
    WLAN_HAL_FW_GET_ARP_STATS_REQ             = 356,
    WLAN_HAL_FW_GET_ARP_STATS_RSP             = 357,
+
+   WLAN_HAL_POWER_CONTROL_MODE_CHANGE_REQ    = 358,
+   WLAN_HAL_POWER_CONTROL_MODE_CHANGE_RSP    = 359,
+
+   WLAN_HAL_VOWIFI_IND                       = 360,
+   WLAN_HAL_QPOWER_ENABLE_BY_HOST_IND        = 361,
+   WLAN_HAL_BLACK_LIST_SSID_REQ              = 362,
+   WLAN_HAL_BLACK_LIST_SSID_RSP              = 363,
+   WLAN_HAL_HOST_SW_PTA_COEX_PARAMS_REQ      = 364,
+   WLAN_HAL_HOST_SW_PTA_COEX_PARAMS_RSP      = 365,
 
    WLAN_HAL_MSG_MAX = WLAN_HAL_MSG_TYPE_MAX_ENUM_SIZE
 }tHalHostMsgType;
@@ -6439,6 +6451,8 @@ typedef PACKED_PRE struct PACKED_POST {
   //The MPDU frame length of a beacon or probe rsp. data is the start of the frame
   tANI_U16    frameLength;
 
+  tANI_U32  freq;
+
 } tPrefNetwFoundParams, * tpPrefNetwFoundParams;
 
 /*
@@ -6928,6 +6942,7 @@ typedef enum {
     /* 70 reserved for WIFI_DUAL_BAND_ENABLE */
     PROBE_RSP_TEMPLATE_VER1 = 71,
     STA_MONITOR_SCC         = 72,
+    BSSID_BLACKLIST         = 73,
     MAX_FEATURE_SUPPORTED  = 128,
 } placeHolderInCapBitmap;
 
@@ -8186,6 +8201,35 @@ typedef PACKED_PRE struct PACKED_POST
    tHalMsgHeader header;
    tHalAllowedActionFrames allowedActionFrames;
 }tHalAllowedActionFramesReqInd, *tpHalAllowedActionFramesReqInd;
+
+/*----------------------------------------------------------------
+       WLAN_HAL_VOWIFI_IND
+-----------------------------------------------------------------*/
+typedef PACKED_PRE struct PACKED_POST
+{
+     /* 0 implies VoWifi call ended, 1 implies VoWifi call started */
+     tANI_U8 enable;
+} tHalVoWiFiIndParams, *tpHalVoWiFiIndParams;
+
+typedef PACKED_PRE struct PACKED_POST
+{
+     tHalMsgHeader header;
+     tHalVoWiFiIndParams voWiFiIndParams;
+} tHalVoWiFiInd, * tpHalVoWiFiInd;
+
+/*----------------------------------------------------------------
+       WLAN_HAL_QPOWER
+-----------------------------------------------------------------*/
+typedef PACKED_PRE struct PACKED_POST
+{
+     tANI_U8 enable;
+} tHalQpowerParams, *tpHalQpowerParams;
+
+typedef PACKED_PRE struct PACKED_POST
+{
+     tHalMsgHeader header;
+     tHalQpowerParams qpowerParams;
+} tHalQpower, * tpHalQpower;
 
 /*--------------------------------------------------------------------------
 * WLAN_HAL_LL_SET_STATS_REQ
@@ -9697,10 +9741,57 @@ typedef PACKED_PRE struct PACKED_POST
    tdbugArpStatsgetRspParams   fwArpstatsRspParams;
 } tHalARPfwStatsRspMsg, *tpHalARPfwStatsRspMsg;
 
+/*----------------------------------------------------------------
+ *     WLAN_HAL_POWER_CONTROL_MODE_CHANGE_REQ
+ *-----------------------------------------------------------------*/
+
+typedef PACKED_PRE struct PACKED_POST
+{
+    tANI_U8 enable;
+} tHalPowerControlModeChangeReqParams, *tpHalPowerControlModeChangeReqParams;
+
+typedef PACKED_PRE struct PACKED_POST
+{
+    tHalMsgHeader        header;
+    tHalPowerControlModeChangeReqParams pwrCtrlModeChangeReqParams;
+} tHalPowerControlModeChangeReqMsg, *tpHalPowerControlModeChangeReqMsg;
+
+/*----------------------------------------------------------------
+ *     WLAN_HAL_POWER_CONTROL_MODE_CHANGE_RSP
+ *-----------------------------------------------------------------*/
+
+typedef PACKED_PRE struct PACKED_POST
+{
+    tANI_U32   status;
+} tHalPowerControlModeChangeRspParams, *tpHalPowerControlModeChangeRspParams;
+
+typedef PACKED_PRE struct PACKED_POST
+{
+    tHalMsgHeader        header;
+    tHalPowerControlModeChangeRspParams   pwrCtrlModeChangeRspParams;
+} tHalPowerControlModeChangeRspMsg, *tpHalPowerControlModeChangeRspMsg;
+
 #if defined(__ANI_COMPILER_PRAGMA_PACK_STACK)
 #pragma pack(pop)
 #elif defined(__ANI_COMPILER_PRAGMA_PACK)
 #else
 #endif
 
+#ifdef FEATURE_WLAN_SW_PTA
+/**
+ * hal_sw_pta_req - SW PTA coex params request
+ * @bt_enabled: BT status
+ * @bt_adv: BT advertisement status
+ * @ble_on: BLE status
+ * @bt_a2dp: BT A2DP status
+ * @bt_sco: BT SCO status
+ */
+typedef PACKED_PRE struct PACKED_POST {
+	uint8_t bt_enabled;
+	uint8_t bt_adv;
+	uint8_t ble_enabled;
+	uint8_t bt_a2dp;
+	uint8_t bt_sco;
+} tHalSwPTAReq, *tpHalSwPTAReq;
+#endif
 #endif /* _WLAN_HAL_MSG_H_ */

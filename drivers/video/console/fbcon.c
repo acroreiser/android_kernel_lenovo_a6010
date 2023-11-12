@@ -2178,7 +2178,7 @@ static int fbcon_resize(struct vc_data *vc, unsigned int width,
 			return -EINVAL;
 
 		DPRINTK("resize now %ix%i\n", var.xres, var.yres);
-		if (CON_IS_VISIBLE(vc)) {
+		if (CON_IS_VISIBLE(vc) && vc->vc_mode == KD_TEXT) {
 			var.activate = FB_ACTIVATE_NOW |
 				FB_ACTIVATE_FORCE;
 			fb_set_var(info, &var);
@@ -2619,6 +2619,11 @@ static int fbcon_set_font(struct vc_data *vc, struct console_font *font, unsigne
 	/* Is there a reason why fbconsole couldn't handle any charcount >256?
 	 * If not this check should be changed to charcount < 256 */
 	if (charcount != 256 && charcount != 512)
+		return -EINVAL;
+
+	/* font bigger than screen resolution ? */
+	if (w > FBCON_SWAP(info->var.rotate, info->var.xres, info->var.yres) ||
+	    h > FBCON_SWAP(info->var.rotate, info->var.yres, info->var.xres))
 		return -EINVAL;
 
 	/* Make sure drawing engine can handle the font */

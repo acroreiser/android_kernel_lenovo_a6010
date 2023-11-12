@@ -38,6 +38,10 @@
 #define BASE_DEVICE_NUMBER 32
 #define EARLY_FIRMWARE_LOAD_DELAY 1000
 
+#ifdef CONFIG_MACH_WT86518
+static unsigned int is_pm_rq_added = 0;
+#endif
+
 struct msm_vidc_drv *vidc_driver;
 
 uint32_t msm_vidc_pwr_collapse_delay = 10000;
@@ -68,7 +72,11 @@ static int msm_v4l2_open(struct file *filp)
 	}
 #ifdef CONFIG_MACH_WT86518
 	dprintk(VIDC_ERR, "msm_vidc: pm_qos_add_request, 1000uSec\n");                    
-  pm_qos_add_request(&msm_v4l2_vidc_pm_qos_request, PM_QOS_CPU_DMA_LATENCY, 1000);  
+  	if(is_pm_rq_added == 0)
+  	{
+  		pm_qos_add_request(&msm_v4l2_vidc_pm_qos_request, PM_QOS_CPU_DMA_LATENCY, 1000);  
+  		is_pm_rq_added = 1;
+  	}
 #endif
 	clear_bit(V4L2_FL_USES_V4L2_FH, &vdev->flags);
 	filp->private_data = &(vidc_inst->event_handler);
@@ -90,10 +98,14 @@ static int msm_v4l2_close(struct file *filp)
 			"Failed in %s for release output buffers\n", __func__);
 	rc = msm_vidc_close(vidc_inst);
 #ifdef CONFIG_MACH_WT86518
-	dprintk(VIDC_ERR, "msm_vidc: pm_qos_update_request, PM_QOS_DEFAULT_VALUE\n");
-  pm_qos_update_request(&msm_v4l2_vidc_pm_qos_request, PM_QOS_DEFAULT_VALUE);  
-  dprintk(VIDC_ERR, "msm_vidc: pm_qos_remove_request\n");                      
-  pm_qos_remove_request(&msm_v4l2_vidc_pm_qos_request);                        
+	if(is_pm_rq_added == 1)
+	{
+		dprintk(VIDC_ERR, "msm_vidc: pm_qos_update_request, PM_QOS_DEFAULT_VALUE\n");
+  		pm_qos_update_request(&msm_v4l2_vidc_pm_qos_request, PM_QOS_DEFAULT_VALUE);  
+  		dprintk(VIDC_ERR, "msm_vidc: pm_qos_remove_request\n");                      
+  		pm_qos_remove_request(&msm_v4l2_vidc_pm_qos_request);                        
+  		is_pm_rq_added = 0;
+  	}
 #endif
 	trace_msm_v4l2_vidc_close_end("msm_v4l2_close end");
 	return rc;
@@ -279,6 +291,9 @@ static const struct v4l2_ioctl_ops msm_v4l2_ioctl_ops = {
 	.vidioc_s_parm = msm_v4l2_s_parm,
 	.vidioc_g_parm = msm_v4l2_g_parm,
 	.vidioc_enum_framesizes = msm_v4l2_enum_framesizes,
+};
+
+static const struct v4l2_ioctl_ops msm_v4l2_enc_ioctl_ops = {
 };
 
 static unsigned int msm_v4l2_poll(struct file *filp,
@@ -506,6 +521,11 @@ static int msm_vidc_probe(struct platform_device *pdev)
 	struct msm_vidc_core *core;
 	struct device *dev;
 	int nr = BASE_DEVICE_NUMBER;
+
+	if (!vidc_driver) {
+		dprintk(VIDC_ERR, "Invalid vidc driver\n");
+		return -EINVAL;
+	}
 
 	if (!vidc_driver) {
 		dprintk(VIDC_ERR, "Invalid vidc driver\n");

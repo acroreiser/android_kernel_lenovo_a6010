@@ -28,6 +28,7 @@
 #include <linux/hrtimer.h>
 #include <linux/sched/rt.h>
 #include <linux/freezer.h>
+#include <linux/vmalloc.h>
 
 #include <asm/uaccess.h>
 
@@ -450,7 +451,7 @@ int do_select(int n, fd_set_bits *fds, struct timespec *end_time)
 					const struct file_operations *f_op;
 					f_op = f.file->f_op;
 					mask = DEFAULT_POLLMASK;
-					if (f_op && f_op->poll) {
+					if (f_op->poll) {
 						wait_key_set(wait, in, out, bit);
 						mask = (*f_op->poll)(f.file, wait);
 					}
@@ -522,7 +523,7 @@ int core_sys_select(int n, fd_set __user *inp, fd_set __user *outp,
 	fd_set_bits fds;
 	void *bits;
 	int ret, max_fds;
-	unsigned int size;
+	size_t size, alloc_size;
 	struct fdtable *fdt;
 	/* Allocate small arguments on the stack to save memory and be faster */
 	long stack_fds[SELECT_STACK_ALLOC/sizeof(long)];
@@ -549,7 +550,14 @@ int core_sys_select(int n, fd_set __user *inp, fd_set __user *outp,
 	if (size > sizeof(stack_fds) / 6) {
 		/* Not enough space in on-stack array; must use kmalloc */
 		ret = -ENOMEM;
-		bits = kmalloc(6 * size, GFP_KERNEL);
+		if (size > (SIZE_MAX / 6))
+			goto out_nofds;
+
+		alloc_size = 6 * size;
+		bits = kmalloc(alloc_size, GFP_KERNEL|__GFP_NOWARN);
+		if (!bits && alloc_size > PAGE_SIZE)
+			bits = vmalloc(alloc_size);
+
 		if (!bits)
 			goto out_nofds;
 	}
@@ -586,7 +594,7 @@ int core_sys_select(int n, fd_set __user *inp, fd_set __user *outp,
 
 out:
 	if (bits != stack_fds)
-		kfree(bits);
+		kvfree(bits);
 out_nofds:
 	return ret;
 }
@@ -731,7 +739,7 @@ static inline unsigned int do_pollfd(struct pollfd *pollfd, poll_table *pwait)
 		mask = POLLNVAL;
 		if (f.file) {
 			mask = DEFAULT_POLLMASK;
-			if (f.file->f_op && f.file->f_op->poll) {
+			if (f.file->f_op->poll) {
 				pwait->_key = pollfd->events|POLLERR|POLLHUP;
 				mask = f.file->f_op->poll(f.file, pwait);
 			}
@@ -920,7 +928,7 @@ SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds,
 	if (ret == -EINTR) {
 		struct restart_block *restart_block;
 
-		restart_block = &current_thread_info()->restart_block;
+		restart_block = &current->restart_block;
 		restart_block->fn = do_restart_poll;
 		restart_block->poll.ufds = ufds;
 		restart_block->poll.nfds = nfds;

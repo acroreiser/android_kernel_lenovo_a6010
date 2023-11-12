@@ -228,7 +228,7 @@ void ext3_evict_inode (struct inode *inode)
 		log_wait_commit(journal, commit_tid);
 		filemap_write_and_wait(&inode->i_data);
 	}
-	truncate_inode_pages(&inode->i_data, 0);
+	truncate_inode_pages_final(&inode->i_data);
 
 	ext3_discard_reservation(inode);
 	rsv = ei->i_block_alloc_info;
@@ -3252,7 +3252,12 @@ int ext3_write_inode(struct inode *inode, struct writeback_control *wbc)
 		return -EIO;
 	}
 
-	if (wbc->sync_mode != WB_SYNC_ALL)
+	/*
+	 * No need to force transaction in WB_SYNC_NONE mode. Also
+	 * ext3_sync_fs() will force the commit after everything is
+	 * written.
+	 */
+	if (wbc->sync_mode != WB_SYNC_ALL || wbc->for_sync)
 		return 0;
 
 	return ext3_force_commit(inode->i_sb);

@@ -31,12 +31,23 @@
 /*
  * Final freeing of a group
  */
-void fsnotify_final_destroy_group(struct fsnotify_group *group)
+static void fsnotify_final_destroy_group(struct fsnotify_group *group)
 {
 	if (group->ops->free_group_priv)
 		group->ops->free_group_priv(group);
 
 	kfree(group);
+}
+
+/*
+ * Stop queueing new events for this group. Once this function returns
+ * fsnotify_add_event() will not add any new events to the group's queue.
+ */
+void fsnotify_group_stop_queueing(struct fsnotify_group *group)
+{
+	mutex_lock(&group->notification_mutex);
+	group->shutdown = true;
+	mutex_unlock(&group->notification_mutex);
 }
 
 /*
@@ -47,6 +58,14 @@ void fsnotify_final_destroy_group(struct fsnotify_group *group)
  */
 void fsnotify_destroy_group(struct fsnotify_group *group)
 {
+	/*
+	 * Stop queueing new events. The code below is careful enough to not
+	 * require this but fanotify needs to stop queuing events even before
+	 * fsnotify_destroy_group() is called and this makes the other callers
+	 * of fsnotify_destroy_group() to see the same behavior.
+	 */
+	fsnotify_group_stop_queueing(group);
+
 	/* clear all inode marks for this group */
 	fsnotify_clear_marks_by_group(group);
 
@@ -54,6 +73,13 @@ void fsnotify_destroy_group(struct fsnotify_group *group)
 
 	/* clear the notification queue of all events */
 	fsnotify_flush_notify(group);
+
+	/*
+	 * Destroy overflow event (we cannot use fsnotify_destroy_event() as
+	 * that deliberately ignores overflow events.
+	 */
+	if (group->overflow_event)
+		group->ops->free_event(group->overflow_event);
 
 	fsnotify_put_group(group);
 }

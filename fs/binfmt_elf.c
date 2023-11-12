@@ -46,9 +46,14 @@
 #endif
 
 static int load_elf_binary(struct linux_binprm *bprm);
-static int load_elf_library(struct file *);
 static unsigned long elf_map(struct file *, unsigned long, struct elf_phdr *,
 				int, int, unsigned long);
+
+#ifdef CONFIG_USELIB
+static int load_elf_library(struct file *);
+#else
+#define load_elf_library NULL
+#endif
 
 /*
  * If we don't support core dumping, then supply a NULL so we
@@ -140,6 +145,25 @@ static int padzero(unsigned long elf_bss)
 #define ELF_BASE_PLATFORM NULL
 #endif
 
+/*
+ * Use get_random_int() to implement AT_RANDOM while avoiding depletion
+ * of the entropy pool.
+ */
+static void get_atrandom_bytes(unsigned char *buf, size_t nbytes)
+{
+	unsigned char *p = buf;
+
+	while (nbytes) {
+		unsigned int random_variable;
+		size_t chunk = min(nbytes, sizeof(random_variable));
+
+		random_variable = get_random_int();
+		memcpy(p, &random_variable, chunk);
+		p += chunk;
+		nbytes -= chunk;
+	}
+}
+
 static int
 create_elf_tables(struct linux_binprm *bprm, struct elfhdr *exec,
 		unsigned long load_addr, unsigned long interp_load_addr)
@@ -201,7 +225,7 @@ create_elf_tables(struct linux_binprm *bprm, struct elfhdr *exec,
 	/*
 	 * Generate 16 random bytes for userspace PRNG seeding.
 	 */
-	get_random_bytes(k_rand_bytes, sizeof(k_rand_bytes));
+	get_atrandom_bytes(k_rand_bytes, sizeof(k_rand_bytes));
 	u_rand_bytes = (elf_addr_t __user *)
 		       STACK_ALLOC(p, sizeof(k_rand_bytes));
 	if (__copy_to_user(u_rand_bytes, k_rand_bytes, sizeof(k_rand_bytes)))
@@ -406,7 +430,7 @@ static unsigned long load_elf_interp(struct elfhdr *interp_elf_ex,
 		goto out;
 	if (!elf_check_arch(interp_elf_ex))
 		goto out;
-	if (!interpreter->f_op || !interpreter->f_op->mmap)
+	if (!interpreter->f_op->mmap)
 		goto out;
 
 	/*
@@ -608,7 +632,7 @@ static int load_elf_binary(struct linux_binprm *bprm)
 		goto out;
 	if (!elf_check_arch(&loc->elf_ex))
 		goto out;
-	if (!bprm->file->f_op || !bprm->file->f_op->mmap)
+	if (!bprm->file->f_op->mmap)
 		goto out;
 
 	/* Now read in all of the header information */
@@ -1016,6 +1040,7 @@ out_free_ph:
 	goto out;
 }
 
+#ifdef CONFIG_USELIB
 /* This is really simpleminded and specialized - we are loading an
    a.out library that is given an ELF header. */
 static int load_elf_library(struct file *file)
@@ -1036,7 +1061,7 @@ static int load_elf_library(struct file *file)
 
 	/* First of all, some simple consistency checks */
 	if (elf_ex.e_type != ET_EXEC || elf_ex.e_phnum > 2 ||
-	    !elf_check_arch(&elf_ex) || !file->f_op || !file->f_op->mmap)
+	    !elf_check_arch(&elf_ex) || !file->f_op->mmap)
 		goto out;
 
 	/* Now read in all of the header information */
@@ -1094,6 +1119,7 @@ out_free_ph:
 out:
 	return error;
 }
+#endif /* #ifdef CONFIG_USELIB */
 
 #ifdef CONFIG_ELF_CORE
 /*
@@ -1580,7 +1606,7 @@ static int fill_thread_core_info(struct elf_thread_core_info *t,
 		    (!regset->active || regset->active(t->task, regset))) {
 			int ret;
 			size_t size = regset->n * regset->size;
-			void *data = kmalloc(size, GFP_KERNEL);
+			void *data = kzalloc(size, GFP_KERNEL);
 			if (unlikely(!data))
 				return 0;
 			ret = regset->get(t->task, regset,

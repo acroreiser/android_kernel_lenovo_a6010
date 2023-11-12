@@ -529,6 +529,10 @@ pm_trace_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 	if (sscanf(buf, "%d", &val) == 1) {
 		pm_trace_enabled = !!val;
+		if (pm_trace_enabled) {
+			pr_warn("PM: Enabling pm_trace changes system date and time during resume.\n"
+				"PM: Correct system time has to be restored manually after resume.\n");
+		}
 		return n;
 	}
 	return -EINVAL;
@@ -617,7 +621,7 @@ EXPORT_SYMBOL_GPL(pm_wq);
 
 static int __init pm_start_workqueue(void)
 {
-	pm_wq = alloc_workqueue("pm", WQ_FREEZABLE, 0);
+	pm_wq = alloc_workqueue("pm", WQ_POWER_EFFICIENT|WQ_FREEZABLE, 0);
 
 	return pm_wq ? 0 : -ENOMEM;
 }

@@ -266,6 +266,14 @@ lookup_protocol:
 			goto out;
 		}
 	}
+
+	if (!kern) {
+		err = BPF_CGROUP_RUN_PROG_INET_SOCK(sk);
+		if (err) {
+			sk_common_release(sk);
+			goto out;
+		}
+	}
 out:
 	return err;
 out_rcu_unlock:
@@ -760,6 +768,8 @@ static void ipv6_packet_cleanup(void)
 
 static int __net_init ipv6_init_mibs(struct net *net)
 {
+	int i;
+
 	if (snmp_mib_init((void __percpu **)net->mib.udp_stats_in6,
 			  sizeof(struct udp_mib),
 			  __alignof__(struct udp_mib)) < 0)
@@ -772,6 +782,18 @@ static int __net_init ipv6_init_mibs(struct net *net)
 			  sizeof(struct ipstats_mib),
 			  __alignof__(struct ipstats_mib)) < 0)
 		goto err_ip_mib;
+
+	for_each_possible_cpu(i) {
+		struct ipstats_mib *af_inet6_stats;
+		af_inet6_stats = per_cpu_ptr(net->mib.ipv6_statistics[0], i);
+		u64_stats_init(&af_inet6_stats->syncp);
+#if SNMP_ARRAY_SZ == 2
+		af_inet6_stats = per_cpu_ptr(net->mib.ipv6_statistics[1], i);
+		u64_stats_init(&af_inet6_stats->syncp);
+#endif
+	}
+
+
 	if (snmp_mib_init((void __percpu **)net->mib.icmpv6_statistics,
 			  sizeof(struct icmpv6_mib),
 			  __alignof__(struct icmpv6_mib)) < 0)

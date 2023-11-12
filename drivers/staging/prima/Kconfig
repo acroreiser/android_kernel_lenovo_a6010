@@ -1,23 +1,18 @@
 comment "Qualcomm Atheros Prima WLAN module"
 
-config PRIMA_WLAN
+if CFG80211 && WCNSS_CORE_PRONTO
 
+config PRIMA_WLAN
 	tristate "Qualcomm Atheros Prima WLAN module"
 	default n
 	help
-	Add support for the Qualcomm Atheros Prima WLAN module
+	  Add support for the Qualcomm Atheros Prima WLAN module
 
 config PRONTO_WLAN
-
 	tristate "Qualcomm Atheros Pronto WLAN module"
 	default n
 	help
-	Add support for the Qualcomm Atheros Pronto WLAN module
-
-
-#	depends on WLAN
-#	depends on CFG80211
-#        depends on WCNSS_CORE
+	  Add support for the Qualcomm Atheros Pronto WLAN module
 
 if PRIMA_WLAN != n || PRONTO_WLAN != n
 
@@ -54,7 +49,9 @@ config WLAN_OFFLOAD_PACKETS
 	default n
 
 config QCOM_TDLS
-	bool "Enable TDLS feature"
+	bool "Enable TDLS"
 	default n
 
 endif # PRIMA_WLAN || PRONTO_WLAN
+
+endif # CFG80211 && WCNSS_CORE_PRONTO

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -603,6 +603,9 @@ typedef struct
   /* Pointer to the root of the chain */
   vos_pkt_t*                    vosAMSDUChain;
 
+  /* Drop any invalid amsdu */
+  bool drop_amsdu;
+
   /* Used for saving/restoring frame header for 802.3/11 AMSDU sub-frames */
   v_U8_t                        aucMPDUHeader[WLANTL_MPDU_HEADER_LEN];
 
@@ -702,6 +705,9 @@ typedef struct
 
  /* It contains 48-bit replay counter per TID*/
   v_U64_t       ullReplayCounter[WLANTL_MAX_TID];
+
+  /* Last seq number received on Tid */
+  v_U16_t      last_seq_no[WLANTL_MAX_TID];
 
  /* It contains no of replay packets found per STA.
     It is for debugging purpose only.*/

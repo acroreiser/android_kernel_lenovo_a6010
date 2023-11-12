@@ -129,8 +129,8 @@ int cap_capable(const struct cred *cred, struct user_namespace *targ_ns,
  */
 int cap_settime(const struct timespec *ts, const struct timezone *tz)
 {
-	if (!capable(CAP_SYS_TIME))
-		return -EPERM;
+//	if (!capable(CAP_SYS_TIME))
+//		return -EPERM;
 	return 0;
 }
 
@@ -471,6 +471,8 @@ static int get_file_caps(struct linux_binprm *bprm, bool *effective, bool *has_c
 		return 0;
 
 	if (bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID)
+		return 0;
+	if (!current_in_userns(bprm->file->f_path.mnt->mnt_sb->s_user_ns))
 		return 0;
 
 	dentry = dget(bprm->file->f_dentry);

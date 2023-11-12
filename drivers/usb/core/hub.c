@@ -27,6 +27,7 @@
 #include <linux/freezer.h>
 #include <linux/random.h>
 #include <linux/pm_qos.h>
+#include <linux/wake_gestures.h>
 
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
@@ -42,6 +43,8 @@
 
 #define USB_VENDOR_GENESYS_LOGIC		0x05e3
 #define HUB_QUIRK_CHECK_PORT_AUTOSUSPEND	0x01
+
+int deny_new_usb = 0;
 
 static inline int hub_is_superspeed(struct usb_device *hdev)
 {
@@ -2246,7 +2249,7 @@ static int usb_enumerate_device_otg(struct usb_device *udev)
 		/* descriptor may appear anywhere in config */
 		if (__usb_get_extra_descriptor (udev->rawdescriptors[0],
 					le16_to_cpu(udev->config[0].desc.wTotalLength),
-					USB_DT_OTG, (void **) &desc) == 0) {
+					USB_DT_OTG, (void **) &desc, sizeof(*desc)) == 0) {
 			if (desc->bmAttributes & USB_OTG_HNP) {
 				unsigned		port1 = udev->portnum;
 
@@ -4656,12 +4659,20 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
   			goto done;
 		return;
 	}
+
+	if (deny_new_usb) {
+		dev_err(hub_dev, "denied insert of USB device on port %d\n", port1);
+		goto done;
+	} else
+		set_vibrate(62);
+
 	if (hub_is_superspeed(hub->hdev))
 		unit_load = 150;
 	else
 		unit_load = 100;
 
 	status = 0;
+
 	for (i = 0; i < SET_CONFIG_TRIES; i++) {
 
 		/* reallocate for each attempt, since references

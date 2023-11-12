@@ -19,6 +19,7 @@
 #include <linux/mm.h>
 #include <linux/vmstat.h>
 #include <linux/eventfd.h>
+#include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/printk.h>
 #include <linux/notifier.h>
@@ -40,7 +41,7 @@
  * TODO: Make the window size depend on machine size, as we do for vmstat
  * thresholds. Currently we set it to 512 pages (2MB for 4KB pages).
  */
-static unsigned long vmpressure_win = SWAP_CLUSTER_MAX * 16;
+unsigned long vmpressure_win = SWAP_CLUSTER_MAX * 16;
 
 /*
  * These thresholds are used when we account memory pressure through
@@ -48,8 +49,8 @@ static unsigned long vmpressure_win = SWAP_CLUSTER_MAX * 16;
  * essence, they are percents: the higher the value, the more number
  * unsuccessful reclaims there were.
  */
-static const unsigned int vmpressure_level_med = 60;
-static const unsigned int vmpressure_level_critical = 95;
+unsigned int vmpressure_level_med = 60;
+unsigned int vmpressure_level_critical = 95;
 
 static unsigned long vmpressure_scale_max = 100;
 module_param_named(vmpressure_scale_max, vmpressure_scale_max,
@@ -105,15 +106,10 @@ static struct vmpressure *work_to_vmpressure(struct work_struct *work)
 }
 
 #ifdef CONFIG_MEMCG
-static struct vmpressure *cg_to_vmpressure(struct cgroup *cg)
-{
-	return css_to_vmpressure(cgroup_subsys_state(cg, mem_cgroup_subsys_id));
-}
-
 static struct vmpressure *vmpressure_parent(struct vmpressure *vmpr)
 {
-	struct cgroup *cg = vmpressure_to_css(vmpr)->cgroup;
-	struct mem_cgroup *memcg = mem_cgroup_from_cont(cg);
+	struct cgroup_subsys_state *css = vmpressure_to_css(vmpr);
+	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
 
 	memcg = parent_mem_cgroup(memcg);
 	if (!memcg)
@@ -272,20 +268,6 @@ void vmpressure_memcg(gfp_t gfp, struct mem_cgroup *memcg,
 	BUG_ON(!vmpr);
 
 	/*
-	 * Here we only want to account pressure that userland is able to
-	 * help us with. For example, suppose that DMA zone is under
-	 * pressure; if we notify userland about that kind of pressure,
-	 * then it will be mostly a waste as it will trigger unnecessary
-	 * freeing of memory by userland (since userland is more likely to
-	 * have HIGHMEM/MOVABLE pages instead of the DMA fallback). That
-	 * is why we include only movable, highmem and FS/IO pages.
-	 * Indirect reclaim (kswapd) sets sc->gfp_mask to GFP_KERNEL, so
-	 * we account it too.
-	 */
-	if (!(gfp & (__GFP_HIGHMEM | __GFP_MOVABLE | __GFP_IO | __GFP_FS)))
-		return;
-
-	/*
 	 * If we got here with no pages scanned, then that is an indicator
 	 * that reclaimer was unable to find any shrinkable LRUs at the
 	 * current scanning depth. But it does not mean that we should
@@ -338,29 +320,25 @@ void vmpressure_global(gfp_t gfp, unsigned long scanned,
 	unsigned long pressure;
 	unsigned long stall;
 
-	if (!(gfp & (__GFP_HIGHMEM | __GFP_MOVABLE | __GFP_IO | __GFP_FS)))
-		return;
+	if (scanned) {
+		spin_lock(&vmpr->sr_lock);
+		if (!vmpr->scanned)
+			calculate_vmpressure_win();
 
-	if (!scanned)
-		return;
+		vmpr->scanned += scanned;
+		vmpr->reclaimed += reclaimed;
 
-	spin_lock(&vmpr->sr_lock);
-	if (!vmpr->scanned)
-		calculate_vmpressure_win();
+		if (!current_is_kswapd())
+			vmpr->stall += scanned;
 
-	vmpr->scanned += scanned;
-	vmpr->reclaimed += reclaimed;
+		stall = vmpr->stall;
+		scanned = vmpr->scanned;
+		reclaimed = vmpr->reclaimed;
+		spin_unlock(&vmpr->sr_lock);
 
-	if (!current_is_kswapd())
-		vmpr->stall += scanned;
-
-	stall = vmpr->stall;
-	scanned = vmpr->scanned;
-	reclaimed = vmpr->reclaimed;
-	spin_unlock(&vmpr->sr_lock);
-
-	if (scanned < vmpressure_win)
-		return;
+		if (scanned < vmpressure_win)
+			return;
+	}
 
 	spin_lock(&vmpr->sr_lock);
 	vmpr->scanned = 0;
@@ -368,8 +346,12 @@ void vmpressure_global(gfp_t gfp, unsigned long scanned,
 	vmpr->stall = 0;
 	spin_unlock(&vmpr->sr_lock);
 
-	pressure = vmpressure_calc_pressure(scanned, reclaimed);
-	pressure = vmpressure_account_stall(pressure, stall, scanned);
+	if (scanned) {
+		pressure = vmpressure_calc_pressure(scanned, reclaimed);
+		pressure = vmpressure_account_stall(pressure, stall, scanned);
+	} else {
+		pressure = 100;
+	}
 	vmpressure_notify(pressure);
 }
 
@@ -428,8 +410,7 @@ void vmpressure_prio(gfp_t gfp, struct mem_cgroup *memcg, int prio)
 
 /**
  * vmpressure_register_event() - Bind vmpressure notifications to an eventfd
- * @cg:		cgroup that is interested in vmpressure notifications
- * @cft:	cgroup control files handle
+ * @css:	css that is interested in vmpressure notifications
  * @eventfd:	eventfd context to link notifications with
  * @args:	event arguments (used to set up a pressure level threshold)
  *
@@ -439,14 +420,12 @@ void vmpressure_prio(gfp_t gfp, struct mem_cgroup *memcg, int prio)
  * threshold (one of vmpressure_str_levels, i.e. "low", "medium", or
  * "critical").
  *
- * This function should not be used directly, just pass it to (struct
- * cftype).register_event, and then cgroup core will handle everything by
- * itself.
+ * To be used as memcg event method.
  */
-int vmpressure_register_event(struct cgroup *cg, struct cftype *cft,
+int vmpressure_register_event(struct cgroup_subsys_state *css,
 			      struct eventfd_ctx *eventfd, const char *args)
 {
-	struct vmpressure *vmpr = cg_to_vmpressure(cg);
+	struct vmpressure *vmpr = css_to_vmpressure(css);
 	struct vmpressure_event *ev;
 	int level;
 
@@ -476,22 +455,19 @@ int vmpressure_register_event(struct cgroup *cg, struct cftype *cft,
 
 /**
  * vmpressure_unregister_event() - Unbind eventfd from vmpressure
- * @cg:		cgroup handle
- * @cft:	cgroup control files handle
+ * @css:	css handle
  * @eventfd:	eventfd context that was used to link vmpressure with the @cg
  *
  * This function does internal manipulations to detach the @eventfd from
  * the vmpressure notifications, and then frees internal resources
  * associated with the @eventfd (but the @eventfd itself is not freed).
  *
- * This function should not be used directly, just pass it to (struct
- * cftype).unregister_event, and then cgroup core will handle everything
- * by itself.
+ * To be used as memcg event method.
  */
-void vmpressure_unregister_event(struct cgroup *cg, struct cftype *cft,
+void vmpressure_unregister_event(struct cgroup_subsys_state *css,
 				 struct eventfd_ctx *eventfd)
 {
-	struct vmpressure *vmpr = cg_to_vmpressure(cg);
+	struct vmpressure *vmpr = css_to_vmpressure(css);
 	struct vmpressure_event *ev;
 
 	if (!vmpr)

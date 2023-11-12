@@ -36,9 +36,9 @@
 #endif
 	.endm
 
-	.macro	alignment_trap, rtemp
+	.macro	alignment_trap, rtemp, label
 #ifdef CONFIG_ALIGNMENT_TRAP
-	ldr	\rtemp, .LCcralign
+	ldr	\rtemp, \label
 	ldr	\rtemp, [\rtemp]
 	mcr	p15, 0, \rtemp, c1, c0
 #endif
@@ -125,12 +125,6 @@
 	movs	pc, lr				@ return & move spsr_svc into cpsr
 	.endm
 
-	@
-	@ 32-bit wide "mov pc, reg"
-	@
-	.macro	movw_pc, reg
-	mov	pc, \reg
-	.endm
 #else	/* CONFIG_THUMB2_KERNEL */
 	.macro	svc_exit, rpsr, irq = 0
 	.if	\irq != 0
@@ -177,13 +171,6 @@
 	movs	pc, lr				@ return & move spsr_svc into cpsr
 	.endm
 
-	@
-	@ 32-bit wide "mov pc, reg"
-	@
-	.macro	movw_pc, reg
-	mov	pc, \reg
-	nop
-	.endm
 #endif	/* !CONFIG_THUMB2_KERNEL */
 
 /*
@@ -194,10 +181,10 @@
 #ifdef CONFIG_CONTEXT_TRACKING
 	.if	\save
 	stmdb   sp!, {r0-r3, ip, lr}
-	bl	user_exit
+	bl	context_tracking_user_exit
 	ldmia	sp!, {r0-r3, ip, lr}
 	.else
-	bl	user_exit
+	bl	context_tracking_user_exit
 	.endif
 #endif
 	.endm
@@ -206,11 +193,36 @@
 #ifdef CONFIG_CONTEXT_TRACKING
 	.if	\save
 	stmdb   sp!, {r0-r3, ip, lr}
-	bl	user_enter
+	bl	context_tracking_user_enter
 	ldmia	sp!, {r0-r3, ip, lr}
 	.else
-	bl	user_enter
+	bl	context_tracking_user_enter
 	.endif
+#endif
+	.endm
+
+	.macro	invoke_syscall, table, nr, tmp, ret, reload=0
+#ifdef CONFIG_CPU_SPECTRE
+	mov	\tmp, \nr
+	cmp	\tmp, #NR_syscalls		@ check upper syscall limit
+	movcs	\tmp, #0
+	csdb
+	adr	lr, BSYM(\ret)			@ return address
+	.if	\reload
+	add	r1, sp, #S_R0 + S_OFF		@ pointer to regs
+	ldmccia	r1, {r0 - r6}			@ reload r0-r6
+	stmccia	sp, {r4, r5}			@ update stack arguments
+	.endif
+	ldrcc	pc, [\table, \tmp, lsl #2]	@ call sys_* routine
+#else
+	cmp	\nr, #NR_syscalls		@ check upper syscall limit
+	adr	lr, BSYM(\ret)			@ return address
+	.if	\reload
+	add	r1, sp, #S_R0 + S_OFF		@ pointer to regs
+	ldmccia	r1, {r0 - r6}			@ reload r0-r6
+	stmccia	sp, {r4, r5}			@ update stack arguments
+	.endif
+	ldrcc	pc, [\table, \nr, lsl #2]	@ call sys_* routine
 #endif
 	.endm
 

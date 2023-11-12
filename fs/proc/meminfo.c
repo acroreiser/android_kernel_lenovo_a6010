@@ -26,7 +26,11 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	unsigned long committed;
 	unsigned long allowed;
 	long cached;
+	long available;
+	unsigned long pagecache;
+	unsigned long wmark_low = 0;
 	unsigned long pages[NR_LRU_LISTS];
+	struct zone *zone;
 	int lru;
 
 /*
@@ -47,12 +51,41 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	for (lru = LRU_BASE; lru < NR_LRU_LISTS; lru++)
 		pages[lru] = global_page_state(NR_LRU_BASE + lru);
 
+	for_each_zone(zone)
+		wmark_low += zone->watermark[WMARK_LOW];
+
+	/*
+	 * Estimate the amount of memory available for userspace allocations,
+	 * without causing swapping.
+	 */
+	available = i.freeram - totalreserve_pages;
+
+	/*
+	 * Not all the page cache can be freed, otherwise the system will
+	 * start swapping. Assume at least half of the page cache, or the
+	 * low watermark worth of cache, needs to stay.
+	 */
+	pagecache = pages[LRU_ACTIVE_FILE] + pages[LRU_INACTIVE_FILE];
+	pagecache -= min(pagecache / 2, wmark_low);
+	available += pagecache;
+
+	/*
+	 * Part of the reclaimable swap consists of items that are in use,
+	 * and cannot be freed. Cap this estimate at the low watermark.
+	 */
+	available += global_page_state(NR_SLAB_RECLAIMABLE) -
+		     min(global_page_state(NR_SLAB_RECLAIMABLE) / 2, wmark_low);
+
+	if (available < 0)
+		available = 0;
+
 	/*
 	 * Tagged format, for easy grepping and expansion.
 	 */
 	seq_printf(m,
 		"MemTotal:       %8lu kB\n"
 		"MemFree:        %8lu kB\n"
+		"MemAvailable:   %8lu kB\n"
 		"Buffers:        %8lu kB\n"
 		"Cached:         %8lu kB\n"
 		"SwapCached:     %8lu kB\n"
@@ -85,6 +118,9 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 		"SUnreclaim:     %8lu kB\n"
 		"KernelStack:    %8lu kB\n"
 		"PageTables:     %8lu kB\n"
+#ifdef CONFIG_UKSM
+		"KsmZeroPages:   %8lu kB\n"
+#endif
 #ifdef CONFIG_QUICKLIST
 		"Quicklists:     %8lu kB\n"
 #endif
@@ -105,6 +141,7 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 		,
 		K(i.totalram),
 		K(i.freeram),
+		K(available),
 		K(i.bufferram),
 		K(cached),
 		K(total_swapcache_pages()),
@@ -144,6 +181,9 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 		K(global_page_state(NR_SLAB_UNRECLAIMABLE)),
 		global_page_state(NR_KERNEL_STACK) * THREAD_SIZE / 1024,
 		K(global_page_state(NR_PAGETABLE)),
+#ifdef CONFIG_UKSM
+		K(global_page_state(NR_UKSM_ZERO_PAGES)),
+#endif
 #ifdef CONFIG_QUICKLIST
 		K(quicklist_total_size()),
 #endif

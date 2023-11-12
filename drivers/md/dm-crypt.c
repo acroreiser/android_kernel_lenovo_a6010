@@ -1265,7 +1265,7 @@ static int crypt_alloc_tfms(struct crypt_config *cc, char *ciphermode)
 	unsigned i;
 	int err;
 
-	cc->tfms = kmalloc(cc->tfms_count * sizeof(struct crypto_ablkcipher *),
+	cc->tfms = kzalloc(cc->tfms_count * sizeof(struct crypto_ablkcipher *),
 			   GFP_KERNEL);
 	if (!cc->tfms)
 		return -ENOMEM;
@@ -1653,7 +1653,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 
 	ret = -ENOMEM;
 	cc->io_queue = alloc_workqueue("kcryptd_io",
-				       WQ_NON_REENTRANT|
+				       WQ_NON_REENTRANT| WQ_POWER_EFFICIENT |
 				       WQ_MEM_RECLAIM,
 				       1);
 	if (!cc->io_queue) {
@@ -1662,7 +1662,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	}
 
 	cc->crypt_queue = alloc_workqueue("kcryptd",
-					  WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM |
+					  WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM | WQ_POWER_EFFICIENT |
 					  WQ_UNBOUND, num_online_cpus());
 	if (!cc->crypt_queue) {
 		ti->error = "Couldn't create kcryptd queue";

@@ -94,6 +94,8 @@ int fb_alloc_cmap_gfp(struct fb_cmap *cmap, int len, int transp, gfp_t flags)
 	int size = len * sizeof(u16);
 	int ret = -ENOMEM;
 
+	flags |= __GFP_NOWARN;
+
 	if (cmap->len != len) {
 		fb_dealloc_cmap(cmap);
 		if (!len)
@@ -166,7 +168,7 @@ int fb_copy_cmap(const struct fb_cmap *from, struct fb_cmap *to)
 	unsigned int tooff = 0, fromoff = 0;
 	size_t size;
 
-	if (!to || !from)
+	if (!to || !from || (int)(to->start) < 0)
 		return -EINVAL;
 
 	if (to->start > from->start)

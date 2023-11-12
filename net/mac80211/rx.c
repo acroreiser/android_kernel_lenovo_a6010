@@ -1585,13 +1585,11 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)
 	sc = le16_to_cpu(hdr->seq_ctrl);
 	frag = sc & IEEE80211_SCTL_FRAG;
 
-	if (is_multicast_ether_addr(hdr->addr1)) {
-		rx->local->dot11MulticastReceivedFrameCount++;
-		goto out_no_led;
-	}
-
 	if (likely(!ieee80211_has_morefrags(fc) && frag == 0))
 		goto out;
+
+	if (is_multicast_ether_addr(hdr->addr1))
+		return RX_DROP_MONITOR;
 
 	I802_DEBUG_INC(rx->local->rx_handlers_fragments);
 
@@ -1618,7 +1616,7 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)
 			entry->ccmp = 1;
 			memcpy(entry->last_pn,
 			       rx->key->u.ccmp.rx_pn[queue],
-			       CCMP_PN_LEN);
+			       IEEE80211_CCMP_PN_LEN);
 		}
 		return RX_QUEUED;
 	}
@@ -1637,21 +1635,21 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)
 	 * (IEEE 802.11i, 8.3.3.4.5) */
 	if (entry->ccmp) {
 		int i;
-		u8 pn[CCMP_PN_LEN], *rpn;
+		u8 pn[IEEE80211_CCMP_PN_LEN], *rpn;
 		int queue;
 		if (!rx->key || rx->key->conf.cipher != WLAN_CIPHER_SUITE_CCMP)
 			return RX_DROP_UNUSABLE;
-		memcpy(pn, entry->last_pn, CCMP_PN_LEN);
-		for (i = CCMP_PN_LEN - 1; i >= 0; i--) {
+		memcpy(pn, entry->last_pn, IEEE80211_CCMP_PN_LEN);
+		for (i = IEEE80211_CCMP_PN_LEN - 1; i >= 0; i--) {
 			pn[i]++;
 			if (pn[i])
 				break;
 		}
 		queue = rx->security_idx;
 		rpn = rx->key->u.ccmp.rx_pn[queue];
-		if (memcmp(pn, rpn, CCMP_PN_LEN))
+		if (memcmp(pn, rpn, IEEE80211_CCMP_PN_LEN))
 			return RX_DROP_UNUSABLE;
-		memcpy(entry->last_pn, pn, CCMP_PN_LEN);
+		memcpy(entry->last_pn, pn, IEEE80211_CCMP_PN_LEN);
 	}
 
 	skb_pull(rx->skb, ieee80211_hdrlen(fc));
@@ -1684,7 +1682,6 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)
 
  out:
 	ieee80211_led_rx(rx->local);
- out_no_led:
 	if (rx->sta)
 		rx->sta->rx_packets++;
 	return RX_CONTINUE;
@@ -2640,8 +2637,7 @@ ieee80211_rx_h_userspace_mgmt(struct ieee80211_rx_data *rx)
 		sig = status->signal;
 
 	if (cfg80211_rx_mgmt(&rx->sdata->wdev, status->freq, sig,
-			     rx->skb->data, rx->skb->len,
-			     GFP_ATOMIC)) {
+			     rx->skb->data, rx->skb->len, 0, GFP_ATOMIC)) {
 		if (rx->sta)
 			rx->sta->rx_packets++;
 		dev_kfree_skb(rx->skb);

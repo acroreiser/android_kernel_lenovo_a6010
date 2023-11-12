@@ -76,6 +76,7 @@
 #include <linux/elevator.h>
 #include <linux/sched_clock.h>
 #include <linux/random.h>
+#include <linux/context_tracking.h>
 
 #include <asm/io.h>
 #include <asm/bugs.h>
@@ -134,6 +135,13 @@ static char *static_command_line;
 
 static char *execute_command;
 static char *ramdisk_execute_command;
+
+/*
+ * Used to generate warnings if static_key manipulation functions are used
+ * before jump_label_init is called.
+ */
+bool static_key_initialized __read_mostly = false;
+EXPORT_SYMBOL_GPL(static_key_initialized);
 
 /*
  * If set, this is an indication to the drivers that reset the underlying
@@ -200,13 +208,13 @@ EXPORT_SYMBOL(loops_per_jiffy);
 
 static int __init debug_kernel(char *str)
 {
-	console_loglevel = 10;
+	console_loglevel = 0;
 	return 0;
 }
 
 static int __init quiet_kernel(char *str)
 {
-	console_loglevel = 4;
+	console_loglevel = 0;
 	return 0;
 }
 
@@ -498,6 +506,7 @@ asmlinkage void __init start_kernel(void)
 	page_address_init();
 	pr_notice("%s", linux_banner);
 	setup_arch(&command_line);
+	add_device_randomness(command_line, strlen(command_line));
 	/*
 	 * Set up the the initial canary ASAP:
 	 */
@@ -545,9 +554,9 @@ asmlinkage void __init start_kernel(void)
 	if (WARN(!irqs_disabled(), "Interrupts were enabled *very* early, fixing it\n"))
 		local_irq_disable();
 	idr_init_cache();
-	perf_event_init();
 	rcu_init();
 	tick_nohz_init();
+	context_tracking_init();
 	radix_tree_init();
 	/* init some links before init_ISA_irqs() */
 	early_irq_init();
@@ -558,6 +567,7 @@ asmlinkage void __init start_kernel(void)
 	softirq_init();
 	timekeeping_init();
 	time_init();
+	perf_event_init();
 	sched_clock_postinit();
 	profile_init();
 	call_function_init();
@@ -643,8 +653,6 @@ asmlinkage void __init start_kernel(void)
 		efi_free_boot_services();
 	}
 
-	ftrace_init();
-
 	/* Do the rest non-__init'ed, we're now alive */
 	rest_init();
 }
@@ -662,8 +670,6 @@ static void __init do_ctors(void)
 
 bool initcall_debug;
 core_param(initcall_debug, initcall_debug, bool, 0644);
-
-static char msgbuf[64];
 
 static int __init_or_module do_one_initcall_debug(initcall_t fn)
 {
@@ -687,6 +693,7 @@ int __init_or_module do_one_initcall(initcall_t fn)
 {
 	int count = preempt_count();
 	int ret;
+	char msgbuf[64];
 
 	if (initcall_debug)
 		ret = do_one_initcall_debug(fn);

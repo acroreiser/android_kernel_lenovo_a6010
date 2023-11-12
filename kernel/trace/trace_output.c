@@ -431,7 +431,7 @@ int ftrace_raw_output_prep(struct trace_iterator *iter,
 	}
 
 	trace_seq_init(p);
-	ret = trace_seq_printf(s, "%s: ", event->name);
+	ret = trace_seq_printf(s, "%s: ", ftrace_event_name(event));
 	if (!ret)
 		return TRACE_TYPE_PARTIAL_LINE;
 
@@ -1145,7 +1145,7 @@ static enum print_line_t trace_graph_ret_raw(struct trace_iterator *iter, int fl
 			      field->ret.calltime,
 			      field->ret.rettime,
 			      field->ret.overrun,
-			      field->ret.depth))
+			      field->ret.depth));
 		return TRACE_TYPE_PARTIAL_LINE;
 
 	return TRACE_TYPE_HANDLED;

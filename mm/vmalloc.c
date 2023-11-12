@@ -490,7 +490,11 @@ nocache:
 	}
 
 found:
-	if (addr + size > vend)
+	/*
+	 * Check also calculated address against the vstart,
+	 * because it can be 0 because of big align request.
+	 */
+	if (addr + size > vend || addr < vstart)
 		goto overflow;
 
 	va->va_start = addr;
@@ -617,7 +621,8 @@ static unsigned long lazy_max_pages(void)
 
 	log = fls(num_online_cpus());
 
-	return log * (32UL * 1024 * 1024 / PAGE_SIZE);
+	return log * (1UL * CONFIG_VMAP_LAZY_PURGING_FACTOR *
+					1024 * 1024 / PAGE_SIZE);
 }
 
 static atomic_t vmap_lazy_nr = ATOMIC_INIT(0);
@@ -1617,7 +1622,6 @@ static void __vunmap(const void *addr, int deallocate_pages)
  *	conventions for vfree() arch-depenedent would be a really bad idea)
  *
  *	NOTE: assumes that the object at *addr has a size >= sizeof(llist_node)
- *	
  */
 void vfree(const void *addr)
 {
@@ -1629,8 +1633,8 @@ void vfree(const void *addr)
 		return;
 	if (unlikely(in_interrupt())) {
 		struct vfree_deferred *p = &__get_cpu_var(vfree_deferred);
-		llist_add((struct llist_node *)addr, &p->list);
-		schedule_work(&p->wq);
+		if (llist_add((struct llist_node *)addr, &p->list))
+			schedule_work(&p->wq);
 	} else
 		__vunmap(addr, 1);
 }
@@ -2738,19 +2742,19 @@ static int s_show(struct seq_file *m, void *p)
 		seq_printf(m, " phys=%llx", (unsigned long long)v->phys_addr);
 
 	if (v->flags & VM_IOREMAP)
-		seq_printf(m, " ioremap");
+		seq_puts(m, " ioremap");
 
 	if (v->flags & VM_ALLOC)
-		seq_printf(m, " vmalloc");
+		seq_puts(m, " vmalloc");
 
 	if (v->flags & VM_MAP)
-		seq_printf(m, " vmap");
+		seq_puts(m, " vmap");
 
 	if (v->flags & VM_USERMAP)
-		seq_printf(m, " user");
+		seq_puts(m, " user");
 
 	if (v->flags & VM_VPAGES)
-		seq_printf(m, " vpages");
+		seq_puts(m, " vpages");
 
 	if (v->flags & VM_LOWMEM)
 		seq_printf(m, " lowmem");

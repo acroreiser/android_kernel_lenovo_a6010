@@ -301,16 +301,45 @@ static inline int ktime_compare(const ktime_t cmp1, const ktime_t cmp2)
 	return 0;
 }
 
+#if BITS_PER_LONG < 64
+extern s64 __ktime_divns(const ktime_t kt, s64 div);
+static inline s64 ktime_divns(const ktime_t kt, s64 div)
+{
+	/*
+	 * Negative divisors could cause an inf loop,
+	 * so bug out here.
+	 */
+	BUG_ON(div < 0);
+	if (__builtin_constant_p(div) && !(div >> 32)) {
+		s64 ns = kt.tv64;
+		u64 tmp = ns < 0 ? -ns : ns;
+
+		do_div(tmp, div);
+		return ns < 0 ? -tmp : tmp;
+	} else {
+		return __ktime_divns(kt, div);
+	}
+}
+#else /* BITS_PER_LONG < 64 */
+static inline s64 ktime_divns(const ktime_t kt, s64 div)
+{
+	/*
+	 * 32-bit implementation cannot handle negative divisors,
+	 * so catch them on 64bit as well.
+	 */
+	WARN_ON(div < 0);
+	return kt.tv64 / div;
+}
+#endif
+
 static inline s64 ktime_to_us(const ktime_t kt)
 {
-	struct timeval tv = ktime_to_timeval(kt);
-	return (s64) tv.tv_sec * USEC_PER_SEC + tv.tv_usec;
+	return ktime_divns(kt, NSEC_PER_USEC);
 }
 
 static inline s64 ktime_to_ms(const ktime_t kt)
 {
-	struct timeval tv = ktime_to_timeval(kt);
-	return (s64) tv.tv_sec * MSEC_PER_SEC + tv.tv_usec / USEC_PER_MSEC;
+	return ktime_divns(kt, NSEC_PER_MSEC);
 }
 
 static inline s64 ktime_us_delta(const ktime_t later, const ktime_t earlier)
@@ -321,6 +350,11 @@ static inline s64 ktime_us_delta(const ktime_t later, const ktime_t earlier)
 static inline ktime_t ktime_add_us(const ktime_t kt, const u64 usec)
 {
 	return ktime_add_ns(kt, usec * 1000);
+}
+
+static inline ktime_t ktime_add_ms(const ktime_t kt, const u64 msec)
+{
+	return ktime_add_ns(kt, msec * NSEC_PER_MSEC);
 }
 
 static inline ktime_t ktime_sub_us(const ktime_t kt, const u64 usec)
@@ -366,7 +400,16 @@ extern void ktime_get_ts(struct timespec *ts);
 static inline ktime_t ns_to_ktime(u64 ns)
 {
 	static const ktime_t ktime_zero = { .tv64 = 0 };
+
 	return ktime_add_ns(ktime_zero, ns);
 }
 
+static inline ktime_t ms_to_ktime(u64 ms)
+{
+	static const ktime_t ktime_zero = { .tv64 = 0 };
+
+	return ktime_add_ms(ktime_zero, ms);
+}
+
+u64 notrace ktime_get_mono_fast_ns(void);
 #endif

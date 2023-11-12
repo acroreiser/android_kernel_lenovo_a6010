@@ -3,6 +3,7 @@
 #
 config XOR_BLOCKS
 	tristate
+	default y
 
 #
 # async_tx api: hardware offloaded memory transfer/transform support
@@ -207,6 +208,18 @@ config CRYPTO_GCM
 	  Support for Galois/Counter Mode (GCM) and Galois Message
 	  Authentication Code (GMAC). Required for IPSec.
 
+config CRYPTO_CHACHA20POLY1305
+	tristate "ChaCha20-Poly1305 AEAD support"
+	select CRYPTO_CHACHA20
+	select CRYPTO_POLY1305
+	select CRYPTO_AEAD
+	help
+	  ChaCha20-Poly1305 AEAD support, RFC7539.
+
+	  Support for the AEAD wrapper using the ChaCha20 stream cipher combined
+	  with the Poly1305 authenticator. It is defined in RFC7539 for use in
+	  IETF protocols.
+
 config CRYPTO_SEQIV
 	tristate "Sequence Number IV Generator"
 	select CRYPTO_AEAD
@@ -286,6 +299,34 @@ config CRYPTO_XTS
 	  can't handle a sectorsize which is not a multiple of 16 bytes.
 
 comment "Hash modes"
+
+config CRYPTO_NHPOLY1305
+	tristate
+	select CRYPTO_HASH
+	select CRYPTO_POLY1305
+
+config CRYPTO_ADIANTUM
+	tristate "Adiantum support"
+	select CRYPTO_CHACHA20
+	select CRYPTO_POLY1305
+	select CRYPTO_NHPOLY1305
+	help
+	  Adiantum is a tweakable, length-preserving encryption mode
+	  designed for fast and secure disk encryption, especially on
+	  CPUs without dedicated crypto instructions.  It encrypts
+	  each sector using the XChaCha12 stream cipher, two passes of
+	  an ε-almost-∆-universal hash function, and an invocation of
+	  the AES-256 block cipher on a single 16-byte block.  On CPUs
+	  without AES instructions, Adiantum is much faster than
+	  AES-XTS.
+
+	  Adiantum's security is provably reducible to that of its
+	  underlying stream and block ciphers, subject to a security
+	  bound.  Unlike XTS, Adiantum is a true wide-block encryption
+	  mode, so it actually provides an even stronger notion of
+	  security than XTS, subject to the security bound.
+
+	  If unsure, say N.
 
 config CRYPTO_CMAC
 	tristate "CMAC support"
@@ -385,6 +426,15 @@ config CRYPTO_GHASH
 	select CRYPTO_GF128MUL
 	help
 	  GHASH is message digest algorithm for GCM (Galois/Counter Mode).
+
+config CRYPTO_POLY1305
+	tristate "Poly1305 authenticator algorithm"
+	help
+	  Poly1305 authenticator algorithm, RFC7539.
+
+	  Poly1305 is an authenticator algorithm designed by Daniel J. Bernstein.
+	  It is used for the ChaCha20-Poly1305 AEAD, specified in RFC7539 for use
+	  in IETF protocols. This is the portable C implementation of Poly1305.
 
 config CRYPTO_MD4
 	tristate "MD4 digest algorithm"
@@ -517,32 +567,12 @@ config CRYPTO_SHA1_SPARC64
 	  SHA-1 secure hash standard (FIPS 180-1/DFIPS 180-2) implemented
 	  using sparc64 crypto instructions, when available.
 
-config CRYPTO_SHA1_ARM
-	tristate "SHA1 digest algorithm (ARM-asm)"
-	depends on ARM
-	select CRYPTO_SHA1
-	select CRYPTO_HASH
-	help
-	  SHA-1 secure hash standard (FIPS 180-1/DFIPS 180-2) implemented
-	  using optimized ARM assembler.
-
 config CRYPTO_SHA1_PPC
 	tristate "SHA1 digest algorithm (powerpc)"
 	depends on PPC
 	help
 	  This is the powerpc hardware accelerated implementation of the
 	  SHA-1 secure hash standard (FIPS 180-1/DFIPS 180-2).
-
-config CRYPTO_SHA1_ARM_NEON
-	tristate "SHA1 digest algorithm (ARM NEON)"
-	depends on ARM && KERNEL_MODE_NEON && !CPU_BIG_ENDIAN
-	select CRYPTO_SHA1_ARM
-	select CRYPTO_SHA1
-	select CRYPTO_HASH
-	help
-	  SHA-1 secure hash standard (FIPS 180-1/DFIPS 180-2) implemented
-	  using optimized ARM NEON assembly, when NEON instructions are
-	  available.
 
 config CRYPTO_SHA256
 	tristate "SHA224 and SHA256 digest algorithm"
@@ -570,21 +600,6 @@ config CRYPTO_SHA512
 	select CRYPTO_HASH
 	help
 	  SHA512 secure hash standard (DFIPS 180-2).
-
-	  This version of SHA implements a 512 bit hash with 256 bits of
-	  security against collision attacks.
-
-	  This code also includes SHA-384, a 384 bit hash with 192 bits
-	  of security against collision attacks.
-
-config CRYPTO_SHA512_ARM_NEON
-	tristate "SHA384 and SHA512 digest algorithm (ARM NEON)"
-	depends on ARM && KERNEL_MODE_NEON && !CPU_BIG_ENDIAN
-	select CRYPTO_SHA512
-	select CRYPTO_HASH
-	help
-	  SHA-512 secure hash standard (DFIPS 180-2) implemented
-	  using ARM NEON instructions, when available.
 
 	  This version of SHA implements a 512 bit hash with 256 bits of
 	  security against collision attacks.
@@ -762,46 +777,6 @@ config CRYPTO_AES_SPARC64
 	  In addition to AES cipher algorithm support, the acceleration
 	  for some popular block cipher mode is supported too, including
 	  ECB and CBC.
-
-config CRYPTO_AES_ARM
-	tristate "AES cipher algorithms (ARM-asm)"
-	depends on ARM
-	select CRYPTO_ALGAPI
-	select CRYPTO_AES
-	help
-	  Use optimized AES assembler routines for ARM platforms.
-
-	  AES cipher algorithms (FIPS-197). AES uses the Rijndael
-	  algorithm.
-
-	  Rijndael appears to be consistently a very good performer in
-	  both hardware and software across a wide range of computing
-	  environments regardless of its use in feedback or non-feedback
-	  modes. Its key setup time is excellent, and its key agility is
-	  good. Rijndael's very low memory requirements make it very well
-	  suited for restricted-space environments, in which it also
-	  demonstrates excellent performance. Rijndael's operations are
-	  among the easiest to defend against power and timing attacks.
-
-	  The AES specifies three key sizes: 128, 192 and 256 bits
-
-	  See <http://csrc.nist.gov/encryption/aes/> for more information.
-
-config CRYPTO_AES_ARM_BS
-	tristate "Bit sliced AES using NEON instructions"
-	depends on ARM && KERNEL_MODE_NEON
-	select CRYPTO_ALGAPI
-	select CRYPTO_AES_ARM
-	select CRYPTO_ABLK_HELPER
-	help
-	  Use a faster and more secure NEON based implementation of AES in CBC,
-	  CTR and XTS modes
-
-	  Bit sliced AES gives around 45% speedup on Cortex-A15 for CTR mode
-	  and for XTS mode encryption, CBC and XTS mode decryption speedup is
-	  around 25%. (CBC encryption speed is not affected by this driver.)
-	  This implementation does not rely on any lookup tables so it is
-	  believed to be invulnerable to cache timing attacks.
 
 config CRYPTO_ANUBIS
 	tristate "Anubis cipher algorithm"
@@ -1108,6 +1083,38 @@ config CRYPTO_SALSA20_X86_64
 	  The Salsa20 stream cipher algorithm is designed by Daniel J.
 	  Bernstein <djb@cr.yp.to>. See <http://cr.yp.to/snuffle.html>
 
+config CRYPTO_CHACHA20
+	tristate "ChaCha stream cipher algorithms"
+	select CRYPTO_BLKCIPHER
+	help
+	  The ChaCha20, XChaCha20, and XChaCha12 stream cipher algorithms.
+
+	  ChaCha20 is a 256-bit high-speed stream cipher designed by Daniel J.
+	  Bernstein and further specified in RFC7539 for use in IETF protocols.
+	  This is the portable C implementation of ChaCha20.  See also:
+	  <http://cr.yp.to/chacha/chacha-20080128.pdf>
+
+	  XChaCha20 is the application of the XSalsa20 construction to ChaCha20
+	  rather than to Salsa20.  XChaCha20 extends ChaCha20's nonce length
+	  from 64 bits (or 96 bits using the RFC7539 convention) to 192 bits,
+	  while provably retaining ChaCha20's security.  See also:
+	  <https://cr.yp.to/snuffle/xsalsa-20081128.pdf>
+
+          XChaCha12 is XChaCha20 reduced to 12 rounds, with correspondingly
+	  reduced security margin but increased performance.  It can be needed
+	  in some performance-sensitive scenarios.
+
+config CRYPTO_CHACHA20_NEON
+	tristate "NEON accelerated ChaCha stream cipher algorithms"
+	depends on KERNEL_MODE_NEON
+	select CRYPTO_BLKCIPHER
+	select CRYPTO_CHACHA20
+
+config CRYPTO_NHPOLY1305_NEON
+	tristate "NEON accelerated NHPoly1305 hash function (for Adiantum)"
+	depends on KERNEL_MODE_NEON
+	select CRYPTO_NHPOLY1305
+
 config CRYPTO_SEED
 	tristate "SEED cipher algorithm"
 	select CRYPTO_ALGAPI
@@ -1223,6 +1230,27 @@ config CRYPTO_SERPENT_AVX2_X86_64
 
 	  See also:
 	  <http://www.cl.cam.ac.uk/~rja14/serpent.html>
+
+config CRYPTO_SPECK
+	tristate "Speck cipher algorithm"
+	select CRYPTO_ALGAPI
+	help
+	  Speck is a lightweight block cipher that is tuned for optimal
+	  performance in software (rather than hardware).
+
+	  Speck may not be as secure as AES, and should only be used on systems
+	  where AES is not fast enough.
+
+	  See also: <https://eprint.iacr.org/2013/404.pdf>
+
+	  If unsure, say N.
+
+config CRYPTO_SPECK_NEON
+	tristate "NEON accelerated Speck cipher algorithms"
+	depends on ARM && KERNEL_MODE_NEON
+	select CRYPTO_BLKCIPHER
+	select CRYPTO_GF128MUL
+	select CRYPTO_SPECK
 
 config CRYPTO_TEA
 	tristate "TEA, XTEA and XETA cipher algorithms"
@@ -1406,6 +1434,31 @@ config CRYPTO_842
 	select LZO_DECOMPRESS
 	help
 	  This is the 842 algorithm.
+
+config CRYPTO_LZ4
+	tristate "LZ4 compression algorithm"
+	select CRYPTO_ALGAPI
+	select LZ4_COMPRESS
+	select LZ4_DECOMPRESS
+	help
+	  This is the LZ4 algorithm.
+
+config CRYPTO_LZ4HC
+	tristate "LZ4HC compression algorithm"
+	select CRYPTO_ALGAPI
+	select LZ4HC_COMPRESS
+	select LZ4_DECOMPRESS
+	help
+	  This is the LZ4 high compression mode algorithm.
+
+config CRYPTO_ZSTD
+	tristate "Zstd compression algorithm"
+	select CRYPTO_ALGAPI
+	select CRYPTO_ACOMP2
+	select ZSTD_COMPRESS
+	select ZSTD_DECOMPRESS
+	help
+	  This is the zstd algorithm.
 
 comment "Random Number Generation"
 

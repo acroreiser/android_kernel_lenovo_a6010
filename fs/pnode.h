@@ -22,11 +22,14 @@
 
 #define CL_EXPIRE    		0x01
 #define CL_SLAVE     		0x02
-#define CL_COPY_ALL 		0x04
+#define CL_COPY_UNBINDABLE	0x04
 #define CL_MAKE_SHARED 		0x08
 #define CL_PRIVATE 		0x10
 #define CL_SHARED_TO_SLAVE	0x20
 #define CL_UNPRIVILEGED		0x40
+#define CL_COPY_MNT_NS_FILE	0x80
+
+#define CL_COPY_ALL		(CL_COPY_UNBINDABLE | CL_COPY_MNT_NS_FILE)
 
 static inline void set_mnt_shared(struct mount *mnt)
 {
@@ -49,4 +52,5 @@ void umount_tree(struct mount *, int);
 struct mount *copy_tree(struct mount *, struct dentry *, int);
 bool is_path_reachable(struct mount *, struct dentry *,
 			 const struct path *root);
+int count_mounts(struct mnt_namespace *ns, struct mount *mnt);
 #endif /* _LINUX_PNODE_H */

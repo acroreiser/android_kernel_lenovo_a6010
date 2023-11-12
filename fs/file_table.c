@@ -234,14 +234,14 @@ static void __fput(struct file *file)
 	 * in the file cleanup chain.
 	 */
 	eventpoll_release(file);
-	locks_remove_flock(file);
+	locks_remove_file(file);
 
 	if (unlikely(file->f_flags & FASYNC)) {
-		if (file->f_op && file->f_op->fasync)
+		if (file->f_op->fasync)
 			file->f_op->fasync(-1, file, 0);
 	}
 	ima_file_free(file);
-	if (file->f_op && file->f_op->release)
+	if (file->f_op->release)
 		file->f_op->release(inode, file);
 	security_file_free(file);
 	if (unlikely(S_ISCHR(inode->i_mode) && inode->i_cdev != NULL &&
@@ -305,6 +305,12 @@ void fput(struct file *file)
 			init_task_work(&file->f_u.fu_rcuhead, ____fput);
 			if (!task_work_add(task, &file->f_u.fu_rcuhead, true))
 				return;
+			/*
+			 * After this task has run exit_task_work(),
+			 * task_work_add() will fail.  free_ipc_ns()->
+			 * shm_destroy() can do this.  Fall through to delayed
+			 * fput to avoid leaking *file.
+			 */
 		}
 
 		if (llist_add(&file->f_u.fu_llist, &delayed_fput_list))

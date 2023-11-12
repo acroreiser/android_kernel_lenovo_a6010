@@ -684,6 +684,22 @@ nobufs:
 EXPORT_SYMBOL(__fscache_alloc_page);
 
 /*
+ * Unmark pages allocate in the readahead code path (via:
+ * fscache_readpages_or_alloc) after delegating to the base filesystem
+ */
+void __fscache_readpages_cancel(struct fscache_cookie *cookie,
+				struct list_head *pages)
+{
+	struct page *page;
+
+	list_for_each_entry(page, pages, lru) {
+		if (PageFsCache(page))
+			__fscache_uncache_page(cookie, page);
+	}
+}
+EXPORT_SYMBOL(__fscache_readpages_cancel);
+
+/*
  * release a write op reference
  */
 static void fscache_release_write_op(struct fscache_operation *_op)
@@ -875,7 +891,7 @@ int __fscache_write_page(struct fscache_cookie *cookie,
 			       fscache_release_write_op);
 	op->op.flags = FSCACHE_OP_ASYNC | (1 << FSCACHE_OP_WAITING);
 
-	ret = radix_tree_preload(gfp & ~__GFP_HIGHMEM);
+	ret = radix_tree_maybe_preload(gfp & ~__GFP_HIGHMEM);
 	if (ret < 0)
 		goto nomem_free;
 

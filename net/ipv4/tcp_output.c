@@ -61,6 +61,7 @@ int sysctl_tcp_tso_win_divisor __read_mostly = 3;
 
 int sysctl_tcp_mtu_probing __read_mostly = 0;
 int sysctl_tcp_base_mss __read_mostly = TCP_BASE_MSS;
+int sysctl_tcp_min_snd_mss __read_mostly = TCP_MIN_SND_MSS;
 
 /* By default, RFC2861 behavior.  */
 int sysctl_tcp_slow_start_after_idle __read_mostly = 1;
@@ -247,6 +248,9 @@ void tcp_select_initial_window(int __space, __u32 mss,
 		else
 			*rcv_wnd = min(*rcv_wnd, init_cwnd * mss);
 	}
+	
+    /* Lock the initial TCP window size to 64K*/
+    *rcv_wnd = 64240;
 
 	/* Set the clamp no higher than max representable value */
 	(*window_clamp) = min(65535U << (*rcv_wscale), *window_clamp);
@@ -958,6 +962,8 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it,
 		TCP_ADD_STATS(sock_net(sk), TCP_MIB_OUTSEGS,
 			      tcp_skb_pcount(skb));
 
+	tp->segs_out += tcp_skb_pcount(skb);
+
 	err = icsk->icsk_af_ops->queue_xmit(skb, &inet->cork.fl);
 	if (likely(err <= 0))
 		return err;
@@ -1062,6 +1068,7 @@ int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len,
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *buff;
 	int nsize, old_factor;
+	long limit;
 	int nlen;
 	u8 flags;
 
@@ -1071,6 +1078,19 @@ int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len,
 	nsize = skb_headlen(skb) - len;
 	if (nsize < 0)
 		nsize = 0;
+
+	/* tcp_sendmsg() can overshoot sk_wmem_queued by one full size skb.
+	 * We need some allowance to not penalize applications setting small
+	 * SO_SNDBUF values.
+	 * Also allow first and last skb in retransmit queue to be split.
+	 */
+	limit = sk->sk_sndbuf + 2 * SKB_TRUESIZE(GSO_MAX_SIZE);
+	if (unlikely((sk->sk_wmem_queued >> 1) > limit &&
+		     skb != tcp_rtx_queue_head(sk) &&
+		     skb != tcp_rtx_queue_tail(sk))) {
+		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPWQUEUETOOBIG);
+		return -ENOMEM;
+	}
 
 	if (skb_unclone(skb, GFP_ATOMIC))
 		return -ENOMEM;
@@ -1234,8 +1254,7 @@ static inline int __tcp_mtu_to_mss(struct sock *sk, int pmtu)
 	mss_now -= icsk->icsk_ext_hdr_len;
 
 	/* Then reserve room for full set of TCP options and 8 bytes of data */
-	if (mss_now < 48)
-		mss_now = 48;
+	mss_now = max(mss_now, sysctl_tcp_min_snd_mss);
 	return mss_now;
 }
 
@@ -1911,6 +1930,14 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 
 		TCP_SKB_CB(skb)->when = tcp_time_stamp;
 
+		/* Argh, we hit an empty skb(), presumably a thread
+		 * is sleeping in sendmsg()/sk_stream_wait_memory().
+		 * We do not want to send a pure-ack packet and have
+		 * a strange looking rtx queue with empty packet(s).
+		 */
+		if (TCP_SKB_CB(skb)->end_seq == TCP_SKB_CB(skb)->seq)
+			break;
+
 		if (unlikely(tcp_transmit_skb(sk, skb, 1, gfp)))
 			break;
 
@@ -2317,8 +2344,10 @@ int __tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 		return -EAGAIN;
 
 	if (before(TCP_SKB_CB(skb)->seq, tp->snd_una)) {
-		if (before(TCP_SKB_CB(skb)->end_seq, tp->snd_una))
-			BUG();
+		if (unlikely(before(TCP_SKB_CB(skb)->end_seq, tp->snd_una))) {
+			WARN_ON_ONCE(1);
+			return -EINVAL;
+		}
 		if (tcp_trim_head(sk, skb, tp->snd_una - TCP_SKB_CB(skb)->seq))
 			return -ENOMEM;
 	}
@@ -2417,6 +2446,8 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 		 * see tcp_input.c tcp_sacktag_write_queue().
 		 */
 		TCP_SKB_CB(skb)->ack_seq = tp->snd_nxt;
+	} else {
+		NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_TCPRETRANSFAIL);
 	}
 
 	if (tp->undo_retrans < 0)
@@ -2542,10 +2573,9 @@ begin_fwd:
 		if (sacked & (TCPCB_SACKED_ACKED|TCPCB_SACKED_RETRANS))
 			continue;
 
-		if (tcp_retransmit_skb(sk, skb)) {
-			NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_TCPRETRANSFAIL);
+		if (tcp_retransmit_skb(sk, skb))
 			return;
-		}
+
 		NET_INC_STATS_BH(sock_net(sk), mib_idx);
 
 		if (tcp_in_cwnd_reduction(sk))
@@ -2641,8 +2671,8 @@ void tcp_send_active_reset(struct sock *sk, gfp_t priority)
 			     TCPHDR_ACK | TCPHDR_RST);
 	/* Send it off. */
 	TCP_SKB_CB(skb)->when = tcp_time_stamp;
-	if (tcp_transmit_skb(sk, skb, 0, priority))
-		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPABORTFAILED);
+//	if (tcp_transmit_skb(sk, skb, 0, priority))
+//		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPABORTFAILED);
 
 	TCP_INC_STATS(sock_net(sk), TCP_MIB_OUTRSTS);
 }
@@ -2844,6 +2874,7 @@ void tcp_connect_init(struct sock *sk)
 	sock_reset_flag(sk, SOCK_DONE);
 	tp->snd_wnd = 0;
 	tcp_init_wl(tp, 0);
+	tcp_write_queue_purge(sk);
 	tp->snd_una = tp->write_seq;
 	tp->snd_sml = tp->write_seq;
 	tp->snd_up = tp->write_seq;
@@ -2953,6 +2984,10 @@ static int tcp_send_syn_data(struct sock *sk, struct sk_buff *syn)
 		goto done;
 	}
 
+	/* data was not sent, this is our new send_head */
+	sk->sk_send_head = syn_data;
+	tp->packets_out -= tcp_skb_pcount(syn_data);
+
 fallback:
 	/* Send a regular SYN with Fast Open cookie request option */
 	if (fo->cookie.len > 0)
@@ -2999,6 +3034,11 @@ int tcp_connect(struct sock *sk)
 	 */
 	tp->snd_nxt = tp->write_seq;
 	tp->pushed_seq = tp->write_seq;
+	buff = tcp_send_head(sk);
+	if (unlikely(buff)) {
+		tp->snd_nxt	= TCP_SKB_CB(buff)->seq;
+		tp->pushed_seq	= TCP_SKB_CB(buff)->seq;
+	}
 	TCP_INC_STATS(sock_net(sk), TCP_MIB_ACTIVEOPENS);
 
 	/* Timer for repeating the SYN until an answer. */

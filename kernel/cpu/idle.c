@@ -21,6 +21,9 @@ void cpu_idle_poll_ctrl(bool enable)
 		cpu_idle_force_poll--;
 		WARN_ON_ONCE(cpu_idle_force_poll < 0);
 	}
+
+	/* Make sure poll mode is entered on all CPUs after the flag is set */
+	mb();
 }
 
 #ifdef CONFIG_GENERIC_IDLE_POLL_SETUP
@@ -44,7 +47,7 @@ static inline int cpu_idle_poll(void)
 	rcu_idle_enter();
 	trace_cpu_idle_rcuidle(0, smp_processor_id());
 	local_irq_enable();
-	while (!tif_need_resched())
+	while (!tif_need_resched() && cpu_idle_force_poll)
 		cpu_relax();
 	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, smp_processor_id());
 	rcu_idle_exit();
@@ -67,6 +70,8 @@ void __weak arch_cpu_idle(void)
  */
 static void cpu_idle_loop(void)
 {
+	int cpu = smp_processor_id();
+
 	while (1) {
 		tick_nohz_idle_enter();
 
@@ -105,7 +110,7 @@ static void cpu_idle_loop(void)
 		}
 		tick_nohz_idle_exit();
 		schedule_preempt_disabled();
-		if (cpu_is_offline(smp_processor_id()))
+		if (cpu_is_offline(cpu))
 			arch_cpu_idle_dead();
 
 	}

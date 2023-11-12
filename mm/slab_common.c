@@ -19,6 +19,7 @@
 #include <asm/tlbflush.h>
 #include <asm/page.h>
 #include <linux/memcontrol.h>
+#include <trace/events/kmem.h>
 
 #include "slab.h"
 
@@ -82,6 +83,29 @@ static inline int kmem_cache_sanity_check(struct mem_cgroup *memcg,
 	return 0;
 }
 #endif
+
+void __kmem_cache_free_bulk(struct kmem_cache *s, size_t nr, void **p)
+{
+	size_t i;
+
+	for (i = 0; i < nr; i++)
+		kmem_cache_free(s, p[i]);
+}
+
+bool __kmem_cache_alloc_bulk(struct kmem_cache *s, gfp_t flags, size_t nr,
+								void **p)
+{
+	size_t i;
+
+	for (i = 0; i < nr; i++) {
+		void *x = p[i] = kmem_cache_alloc(s, flags);
+		if (!x) {
+			__kmem_cache_free_bulk(s, i, p);
+			return false;
+		}
+	}
+	return true;
+}
 
 #ifdef CONFIG_MEMCG_KMEM
 int memcg_update_all_caches(int num_memcgs)
@@ -185,6 +209,9 @@ kmem_cache_create_memcg(struct mem_cgroup *memcg, const char *name, size_t size,
 	 * passed flags.
 	 */
 	flags &= CACHE_CREATE_MASK;
+
+	/* Embrace davem */
+	flags |= SLAB_HWCACHE_ALIGN;
 
 	s = __kmem_cache_alias(memcg, name, size, align, flags, ctor);
 	if (s)
@@ -497,8 +524,24 @@ void __init create_kmalloc_caches(unsigned long flags)
 }
 #endif /* !CONFIG_SLOB */
 
+#ifdef CONFIG_TRACING
+void *kmalloc_order_trace(size_t size, gfp_t flags, unsigned int order)
+{
+	void *ret = kmalloc_order(size, flags, order);
+	trace_kmalloc(_RET_IP_, ret, size, PAGE_SIZE << order, flags);
+	return ret;
+}
+EXPORT_SYMBOL(kmalloc_order_trace);
+#endif
 
 #ifdef CONFIG_SLABINFO
+
+#ifdef CONFIG_SLAB
+#define SLABINFO_RIGHTS (S_IWUSR | S_IRUSR)
+#else
+#define SLABINFO_RIGHTS S_IRUSR
+#endif
+
 void print_slabinfo_header(struct seq_file *m)
 {
 	/*
@@ -533,12 +576,12 @@ static void *s_start(struct seq_file *m, loff_t *pos)
 	return seq_list_start(&slab_caches, *pos);
 }
 
-static void *s_next(struct seq_file *m, void *p, loff_t *pos)
+void *slab_next(struct seq_file *m, void *p, loff_t *pos)
 {
 	return seq_list_next(p, &slab_caches, pos);
 }
 
-static void s_stop(struct seq_file *m, void *p)
+void slab_stop(struct seq_file *m, void *p)
 {
 	mutex_unlock(&slab_mutex);
 }
@@ -615,8 +658,8 @@ static int s_show(struct seq_file *m, void *p)
  */
 static const struct seq_operations slabinfo_op = {
 	.start = s_start,
-	.next = s_next,
-	.stop = s_stop,
+	.next = slab_next,
+	.stop = slab_stop,
 	.show = s_show,
 };
 
@@ -635,7 +678,8 @@ static const struct file_operations proc_slabinfo_operations = {
 
 static int __init slab_proc_init(void)
 {
-	proc_create("slabinfo", S_IRUSR, NULL, &proc_slabinfo_operations);
+	proc_create("slabinfo", SLABINFO_RIGHTS, NULL,
+						&proc_slabinfo_operations);
 	return 0;
 }
 module_init(slab_proc_init);

@@ -424,8 +424,18 @@ lookup_protocol:
 
 	if (sk->sk_prot->init) {
 		err = sk->sk_prot->init(sk);
-		if (err)
+		if (err) {
 			sk_common_release(sk);
+			goto out;
+		}
+	}
+
+	if (!kern) {
+		err = BPF_CGROUP_RUN_PROG_INET_SOCK(sk);
+		if (err) {
+			sk_common_release(sk);
+			goto out;
+		}
 	}
 out:
 	return err;
@@ -1522,9 +1532,9 @@ u64 snmp_fold_field64(void __percpu *mib[], int offt, size_t syncp_offset)
 		bhptr = per_cpu_ptr(mib[0], cpu);
 		syncp = (struct u64_stats_sync *)(bhptr + syncp_offset);
 		do {
-			start = u64_stats_fetch_begin_bh(syncp);
+			start = u64_stats_fetch_begin_irq(syncp);
 			v = *(((u64 *) bhptr) + offt);
-		} while (u64_stats_fetch_retry_bh(syncp, start));
+		} while (u64_stats_fetch_retry_irq(syncp, start));
 
 		res += v;
 	}
@@ -1539,6 +1549,7 @@ int snmp_mib_init(void __percpu *ptr[2], size_t mibsize, size_t align)
 	ptr[0] = __alloc_percpu(mibsize, align);
 	if (!ptr[0])
 		return -ENOMEM;
+
 #if SNMP_ARRAY_SZ == 2
 	ptr[1] = __alloc_percpu(mibsize, align);
 	if (!ptr[1]) {
@@ -1550,18 +1561,6 @@ int snmp_mib_init(void __percpu *ptr[2], size_t mibsize, size_t align)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(snmp_mib_init);
-
-void snmp_mib_free(void __percpu *ptr[SNMP_ARRAY_SZ])
-{
-	int i;
-
-	BUG_ON(ptr == NULL);
-	for (i = 0; i < SNMP_ARRAY_SZ; i++) {
-		free_percpu(ptr[i]);
-		ptr[i] = NULL;
-	}
-}
-EXPORT_SYMBOL_GPL(snmp_mib_free);
 
 #ifdef CONFIG_IP_MULTICAST
 static const struct net_protocol igmp_protocol = {
@@ -1610,6 +1609,8 @@ static const struct net_protocol icmp_protocol = {
 
 static __net_init int ipv4_mib_init_net(struct net *net)
 {
+	int i;
+
 	if (snmp_mib_init((void __percpu **)net->mib.tcp_statistics,
 			  sizeof(struct tcp_mib),
 			  __alignof__(struct tcp_mib)) < 0)
@@ -1618,6 +1619,17 @@ static __net_init int ipv4_mib_init_net(struct net *net)
 			  sizeof(struct ipstats_mib),
 			  __alignof__(struct ipstats_mib)) < 0)
 		goto err_ip_mib;
+
+	for_each_possible_cpu(i) {
+		struct ipstats_mib *af_inet_stats;
+		af_inet_stats = per_cpu_ptr(net->mib.ip_statistics[0], i);
+		u64_stats_init(&af_inet_stats->syncp);
+#if SNMP_ARRAY_SZ == 2
+		af_inet_stats = per_cpu_ptr(net->mib.ip_statistics[1], i);
+		u64_stats_init(&af_inet_stats->syncp);
+#endif
+	}
+
 	if (snmp_mib_init((void __percpu **)net->mib.net_statistics,
 			  sizeof(struct linux_mib),
 			  __alignof__(struct linux_mib)) < 0)

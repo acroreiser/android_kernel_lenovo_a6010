@@ -82,35 +82,11 @@
  */
 #define fixup_tmp_permissions(x)	\
 	do {						\
-		(x)->i_uid = SDCARDFS_I(x)->data->d_uid;	\
-		(x)->i_gid = AID_SDCARD_RW;	\
+		(x)->i_uid = make_kuid(&init_user_ns,	\
+				SDCARDFS_I(x)->data->d_uid);	\
+		(x)->i_gid = make_kgid(&init_user_ns, AID_SDCARD_RW);	\
 		(x)->i_mode = ((x)->i_mode & S_IFMT) | 0775;\
 	} while (0)
-
-/* OVERRIDE_CRED() and REVERT_CRED()
- *	OVERRIDE_CRED()
- *		backup original task->cred
- *		and modifies task->cred->fsuid/fsgid to specified value.
- *	REVERT_CRED()
- *		restore original task->cred->fsuid/fsgid.
- * These two macro should be used in pair, and OVERRIDE_CRED() should be
- * placed at the beginning of a function, right after variable declaration.
- */
-#define OVERRIDE_CRED(sdcardfs_sbi, saved_cred, info)		\
-	do {	\
-		saved_cred = override_fsids(sdcardfs_sbi, info->data);	\
-		if (!saved_cred)	\
-			return -ENOMEM;	\
-	} while (0)
-
-#define OVERRIDE_CRED_PTR(sdcardfs_sbi, saved_cred, info)	\
-	do {	\
-		saved_cred = override_fsids(sdcardfs_sbi, info->data);	\
-		if (!saved_cred)	\
-			return ERR_PTR(-ENOMEM);	\
-	} while (0)
-
-#define REVERT_CRED(saved_cred)	revert_fsids(saved_cred)
 
 /* Android 5.0 support */
 
@@ -221,7 +197,9 @@ struct sdcardfs_mount_options {
 	bool multiuser;
 	bool gid_derivation;
 	bool default_normal;
+	bool unshared_obb;
 	unsigned int reserved_mb;
+	bool nocache;
 };
 
 struct sdcardfs_vfsmount_options {
@@ -575,8 +553,8 @@ static inline int prepare_dir(const char *path_s, uid_t uid, gid_t gid, mode_t m
 		goto out_dput;
 	}
 
-	attrs.ia_uid = uid;
-	attrs.ia_gid = gid;
+	attrs.ia_uid = make_kuid(&init_user_ns, uid);
+	attrs.ia_gid = make_kgid(&init_user_ns, gid);
 	attrs.ia_valid = ATTR_UID | ATTR_GID;
 	mutex_lock(&dent->d_inode->i_mutex);
 	notify_change2(parent.mnt, dent, &attrs);
@@ -646,8 +624,8 @@ static inline void sdcardfs_copy_and_fix_attrs(struct inode *dest, const struct 
 
 	dest->i_mode = (src->i_mode  & S_IFMT) | S_IRWXU | S_IRWXG |
 			S_IROTH | S_IXOTH; /* 0775 */
-	dest->i_uid = SDCARDFS_I(dest)->data->d_uid;
-	dest->i_gid = AID_SDCARD_RW;
+	dest->i_uid = make_kuid(&init_user_ns, SDCARDFS_I(dest)->data->d_uid);
+	dest->i_gid = make_kgid(&init_user_ns, AID_SDCARD_RW);
 	dest->i_rdev = src->i_rdev;
 	dest->i_atime = src->i_atime;
 	dest->i_mtime = src->i_mtime;

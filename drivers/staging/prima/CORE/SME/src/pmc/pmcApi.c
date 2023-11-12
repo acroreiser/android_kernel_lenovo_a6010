@@ -381,7 +381,7 @@ eHalStatus pmcClose (tHalHandle hHal)
 ******************************************************************************/
 eHalStatus pmcSignalPowerEvent (tHalHandle hHal, tPmcPowerEvent event)
 {
-    tpAniSirGlobal pMac = PMAC_STRUCT(hHal);
+    tpAniSirGlobal __maybe_unused pMac = PMAC_STRUCT(hHal);
 #ifndef GEN6_ONWARDS
     tSirMacHTMIMOPowerSaveState  htMimoPowerSaveState;
 #endif
@@ -1578,6 +1578,7 @@ static void pmcProcessResponse( tpAniSirGlobal pMac, tSirSmeRsp *pMsg )
                 pMac->pmc.pmcState = FULL_POWER;
                 pMac->pmc.isAPWOWExit = TRUE;
                 pMac->pmc.requestFullPowerPending = false;
+                pmcDoCallbacks(pMac, eHAL_STATUS_SUCCESS);
                 break;
             }
             else

@@ -201,6 +201,7 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 	.accept_ra_rtr_pref	= 1,
 	.rtr_probe_interval	= 60 * HZ,
 #ifdef CONFIG_IPV6_ROUTE_INFO
+	.accept_ra_rt_info_min_plen = 0,
 	.accept_ra_rt_info_max_plen = 0,
 #endif
 #endif
@@ -242,6 +243,7 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 	.accept_ra_rtr_pref	= 1,
 	.rtr_probe_interval	= 60 * HZ,
 #ifdef CONFIG_IPV6_ROUTE_INFO
+	.accept_ra_rt_info_min_plen = 0,
 	.accept_ra_rt_info_max_plen = 0,
 #endif
 #endif
@@ -300,10 +302,24 @@ static void addrconf_mod_dad_work(struct inet6_ifaddr *ifp,
 
 static int snmp6_alloc_dev(struct inet6_dev *idev)
 {
+	int i;
+
 	if (snmp_mib_init((void __percpu **)idev->stats.ipv6,
 			  sizeof(struct ipstats_mib),
 			  __alignof__(struct ipstats_mib)) < 0)
 		goto err_ip;
+
+	for_each_possible_cpu(i) {
+		struct ipstats_mib *addrconf_stats;
+		addrconf_stats = per_cpu_ptr(idev->stats.ipv6[0], i);
+		u64_stats_init(&addrconf_stats->syncp);
+#if SNMP_ARRAY_SZ == 2
+		addrconf_stats = per_cpu_ptr(idev->stats.ipv6[1], i);
+		u64_stats_init(&addrconf_stats->syncp);
+#endif
+	}
+
+
 	idev->stats.icmpv6dev = kzalloc(sizeof(struct icmpv6_mib_device),
 					GFP_KERNEL);
 	if (!idev->stats.icmpv6dev)
@@ -4383,6 +4399,7 @@ static inline void ipv6_store_devconf(struct ipv6_devconf *cnf,
 	array[DEVCONF_RTR_PROBE_INTERVAL] =
 		jiffies_to_msecs(cnf->rtr_probe_interval);
 #ifdef CONFIG_IPV6_ROUTE_INFO
+	array[DEVCONF_ACCEPT_RA_RT_INFO_MIN_PLEN] = cnf->accept_ra_rt_info_min_plen;
 	array[DEVCONF_ACCEPT_RA_RT_INFO_MAX_PLEN] = cnf->accept_ra_rt_info_max_plen;
 #endif
 #endif
@@ -4402,6 +4419,8 @@ static inline void ipv6_store_devconf(struct ipv6_devconf *cnf,
 	array[DEVCONF_NDISC_NOTIFY] = cnf->ndisc_notify;
 	array[DEVCONF_ACCEPT_RA_MTU] = cnf->accept_ra_mtu;
 	array[DEVCONF_USE_OIF_ADDRS_ONLY] = cnf->use_oif_addrs_only;
+	array[DEVCONF_DROP_UNICAST_IN_L2_MULTICAST] = cnf->drop_unicast_in_l2_multicast;
+	array[DEVCONF_DROP_UNSOLICITED_NA] = cnf->drop_unsolicited_na;
 }
 
 static inline size_t inet6_ifla6_size(void)
@@ -5125,6 +5144,13 @@ static struct addrconf_sysctl_table
 		},
 #ifdef CONFIG_IPV6_ROUTE_INFO
 		{
+			.procname	= "accept_ra_rt_info_min_plen",
+			.data		= &ipv6_devconf.accept_ra_rt_info_min_plen,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= proc_dointvec,
+		},
+		{
 			.procname	= "accept_ra_rt_info_max_plen",
 			.data		= &ipv6_devconf.accept_ra_rt_info_max_plen,
 			.maxlen		= sizeof(int),
@@ -5230,6 +5256,20 @@ static struct addrconf_sysctl_table
 			.mode           = 0644,
 			.proc_handler   = proc_dointvec,
 
+		},
+		{
+			.procname	= "drop_unicast_in_l2_multicast",
+			.data		= &ipv6_devconf.drop_unicast_in_l2_multicast,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= proc_dointvec,
+		},
+		{
+			.procname	= "drop_unsolicited_na",
+			.data		= &ipv6_devconf.drop_unsolicited_na,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= proc_dointvec,
 		},
 		{
 			/* sentinel */

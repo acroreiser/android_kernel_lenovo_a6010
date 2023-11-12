@@ -1586,8 +1586,6 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 
-	__vsync_set_vsync_handler(mfd);
-
 	if (data) {
 		mdss_mdp_set_roi(ctl, data);
 	} else {
@@ -1643,6 +1641,7 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 		}
 		ATRACE_END("display_commit");
 	}
+	__vsync_set_vsync_handler(mfd);
 
 	if ((!need_cleanup) && (!mdp5_data->kickoff_released))
 		mdss_mdp_ctl_notify(ctl, MDP_NOTIFY_FRAME_CTX_DONE);
@@ -3249,11 +3248,10 @@ static int mdss_fb_get_metadata(struct msm_fb_data_type *mfd,
 		ret = mdss_fb_get_hw_caps(mfd, &metadata->data.caps);
 		break;
 	case metadata_op_get_ion_fd:
-		if (mfd->fb_ion_handle && mfd->fb_ion_client) {
+		if (mfd->fb_ion_handle) {
 			get_dma_buf(mfd->fbmem_buf);
 			metadata->data.fbmem_ionfd =
-				ion_share_dma_buf_fd(mfd->fb_ion_client,
-					mfd->fb_ion_handle);
+				dma_buf_fd(mfd->fbmem_buf, 0);
 			if (metadata->data.fbmem_ionfd < 0) {
 				dma_buf_put(mfd->fbmem_buf);
 				pr_err("fd allocation failed. fd = %d\n",
@@ -4096,13 +4094,13 @@ static void __vsync_retire_handle_vsync(struct mdss_mdp_ctl *ctl, ktime_t t)
 	}
 
 	mdp5_data = mfd_to_mdp5_data(mfd);
-	schedule_work(&mdp5_data->retire_work);
+	queue_kthread_work(&mdp5_data->worker, &mdp5_data->vsync_work);
 }
 
-static void __vsync_retire_work_handler(struct work_struct *work)
+static void __vsync_retire_work_handler(struct kthread_work *work)
 {
 	struct mdss_overlay_private *mdp5_data =
-		container_of(work, typeof(*mdp5_data), retire_work);
+		container_of(work, typeof(*mdp5_data), vsync_work);
 
 	if (!mdp5_data->ctl || !mdp5_data->ctl->mfd)
 		return;
@@ -4190,6 +4188,7 @@ static int __vsync_retire_setup(struct msm_fb_data_type *mfd)
 {
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	char name[24];
+	struct sched_param param = { .sched_priority = 5 }; 
 
 	snprintf(name, sizeof(name), "mdss_fb%d_retire", mfd->index);
 	mdp5_data->vsync_timeline = sw_sync_timeline_create(name);
@@ -4197,12 +4196,26 @@ static int __vsync_retire_setup(struct msm_fb_data_type *mfd)
 		pr_err("cannot vsync create time line");
 		return -ENOMEM;
 	}
+
+	init_kthread_worker(&mdp5_data->worker);
+	init_kthread_work(&mdp5_data->vsync_work, __vsync_retire_work_handler);
+
+	mdp5_data->thread = kthread_run(kthread_worker_fn,
+					&mdp5_data->worker, "vsync_retire_work");
+
+	if (IS_ERR(mdp5_data->thread)) {
+		pr_err("unable to start vsync thread\n");
+		mdp5_data->thread = NULL;
+		return -ENOMEM;
+	}
+
+ 	sched_setscheduler(mdp5_data->thread, SCHED_FIFO, &param);
+
 	mfd->mdp_sync_pt_data.get_retire_fence = __vsync_retire_get_fence;
 
 	mdp5_data->vsync_retire_handler.vsync_handler =
 		__vsync_retire_handle_vsync;
 	mdp5_data->vsync_retire_handler.cmd_post_flush = false;
-	INIT_WORK(&mdp5_data->retire_work, __vsync_retire_work_handler);
 
 	return 0;
 }
@@ -4305,8 +4318,7 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 		goto init_fail;
 	}
 
-	mdp5_data->vsync_event_sd = sysfs_get_dirent(dev->kobj.sd, NULL,
-						     "vsync_event");
+	mdp5_data->vsync_event_sd = sysfs_get_dirent(dev->kobj.sd, "vsync_event");
 	if (!mdp5_data->vsync_event_sd) {
 		pr_err("vsync_event sysfs lookup failed\n");
 		rc = -ENODEV;

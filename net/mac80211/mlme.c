@@ -1010,9 +1010,6 @@ static void ieee80211_chswitch_work(struct work_struct *work)
 		local->hw.conf.chandef = local->_oper_chandef;
 	}
 
-	/* XXX: shouldn't really modify cfg80211-owned data! */
-	ifmgd->associated->channel = local->_oper_chandef.chan;
-
 	/* XXX: wait for a beacon first? */
 	ieee80211_wake_queues_by_reason(&local->hw,
 					IEEE80211_MAX_QUEUE_MAP,
@@ -4161,20 +4158,20 @@ int ieee80211_mgd_auth(struct ieee80211_sub_if_data *sdata,
 		return -EOPNOTSUPP;
 	}
 
-	auth_data = kzalloc(sizeof(*auth_data) + req->sae_data_len +
+	auth_data = kzalloc(sizeof(*auth_data) + req->auth_data_len +
 			    req->ie_len, GFP_KERNEL);
 	if (!auth_data)
 		return -ENOMEM;
 
 	auth_data->bss = req->bss;
 
-	if (req->sae_data_len >= 4) {
-		__le16 *pos = (__le16 *) req->sae_data;
+	if (req->auth_data_len >= 4) {
+		__le16 *pos = (__le16 *) req->auth_data;
 		auth_data->sae_trans = le16_to_cpu(pos[0]);
 		auth_data->sae_status = le16_to_cpu(pos[1]);
-		memcpy(auth_data->data, req->sae_data + 4,
-		       req->sae_data_len - 4);
-		auth_data->data_len += req->sae_data_len - 4;
+		memcpy(auth_data->data, req->auth_data + 4,
+		       req->auth_data_len - 4);
+		auth_data->data_len += req->auth_data_len - 4;
 	}
 
 	if (req->ie && req->ie_len) {

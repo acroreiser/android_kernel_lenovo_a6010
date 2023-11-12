@@ -76,6 +76,7 @@
 #include <linux/printk.h>
 #include <linux/cgroup.h>
 #include <linux/cpuset.h>
+#include <linux/cpufreq.h>
 #include <linux/audit.h>
 #include <linux/poll.h>
 #include <linux/nsproxy.h>
@@ -106,7 +107,7 @@
  */
 
 struct pid_entry {
-	char *name;
+	const char *name;
 	int len;
 	umode_t mode;
 	const struct inode_operations *iop;
@@ -308,6 +309,20 @@ static int proc_pid_stack(struct seq_file *m, struct pid_namespace *ns,
 	int err;
 	int i;
 
+	/*
+	 * The ability to racily run the kernel stack unwinder on a running task
+	 * and then observe the unwinder output is scary; while it is useful for
+	 * debugging kernel issues, it can also allow an attacker to leak kernel
+	 * stack contents.
+	 * Doing this in a manner that is at least safe from races would require
+	 * some work to ensure that the remote task can not be scheduled; and
+	 * even then, this would still expose the unwinder as local attack
+	 * surface.
+	 * Therefore, this interface is restricted to root.
+	 */
+	if (!file_ns_capable(m->file, &init_user_ns, CAP_SYS_ADMIN))
+		return -EACCES;
+
 	entries = kmalloc(MAX_STACK_TRACE_DEPTH * sizeof(*entries), GFP_KERNEL);
 	if (!entries)
 		return -ENOMEM;
@@ -406,21 +421,6 @@ static const struct file_operations proc_lstats_operations = {
 
 #endif
 
-#ifdef CONFIG_CGROUPS
-static int cgroup_open(struct inode *inode, struct file *file)
-{
-	struct pid *pid = PROC_I(inode)->pid;
-	return single_open(file, proc_cgroup_show, pid);
-}
-
-static const struct file_operations proc_cgroup_operations = {
-	.open		= cgroup_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= single_release,
-};
-#endif
-
 #ifdef CONFIG_PROC_PID_CPUSET
 
 static int cpuset_open(struct inode *inode, struct file *file)
@@ -437,7 +437,8 @@ static const struct file_operations proc_cpuset_operations = {
 };
 #endif
 
-static int proc_oom_score(struct task_struct *task, char *buffer)
+static int proc_oom_score(struct seq_file *m, struct pid_namespace *ns,
+			  struct pid *pid, struct task_struct *task)
 {
 	unsigned long totalpages = totalram_pages + total_swap_pages;
 	unsigned long points = 0;
@@ -447,12 +448,12 @@ static int proc_oom_score(struct task_struct *task, char *buffer)
 		points = oom_badness(task, NULL, NULL, totalpages) *
 						1000 / totalpages;
 	read_unlock(&tasklist_lock);
-	return sprintf(buffer, "%lu\n", points);
+	return seq_printf(m, "%lu\n", points);
 }
 
 struct limit_names {
-	char *name;
-	char *unit;
+	const char *name;
+	const char *unit;
 };
 
 static const struct limit_names lnames[RLIM_NLIMITS] = {
@@ -963,7 +964,7 @@ static ssize_t oom_adj_write(struct file *file, const char __user *buf,
 	}
 
 	qmp_sphinx_logk_oom_adjust_write(task->pid,
-			task->cred->uid, oom_adj);
+			task->cred->uid.val, oom_adj);
 
 	task_lock(task);
 	if (!task->mm) {
@@ -1069,13 +1070,9 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 	}
 
 	qmp_sphinx_logk_oom_adjust_write(task->pid,
-			task->cred->uid, oom_score_adj);
+			task->cred->uid.val, oom_score_adj);
 
 	task_lock(task);
-	if (!task->mm) {
-		err = -EINVAL;
-		goto err_task_lock;
-	}
 
 	if (!lock_task_sighand(task, &flags)) {
 		err = -ESRCH;
@@ -2116,7 +2113,7 @@ static int show_timer(struct seq_file *m, void *v)
 	struct k_itimer *timer;
 	struct timers_private *tp = m->private;
 	int notify;
-	static char *nstr[] = {
+	static const char * const nstr[] = {
 		[SIGEV_SIGNAL] = "signal",
 		[SIGEV_NONE] = "none",
 		[SIGEV_THREAD] = "thread",
@@ -2741,6 +2738,7 @@ static const struct pid_entry tgid_base_stuff[] = {
 #ifdef CONFIG_PROC_PAGE_MONITOR
 	REG("clear_refs", S_IWUSR, proc_clear_refs_operations),
 	REG("smaps",      S_IRUGO, proc_pid_smaps_operations),
+	REG("smaps_rollup", S_IRUGO, proc_pid_smaps_rollup_operations),
 	REG("pagemap",    S_IRUGO, proc_pagemap_operations),
 #endif
 #ifdef CONFIG_SECURITY
@@ -2762,9 +2760,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("cpuset",     S_IRUGO, proc_cpuset_operations),
 #endif
 #ifdef CONFIG_CGROUPS
-	REG("cgroup",  S_IRUGO, proc_cgroup_operations),
+	ONE("cgroup",  S_IRUGO, proc_cgroup_show),
 #endif
-	INF("oom_score",  S_IRUGO, proc_oom_score),
+	ONE("oom_score",  S_IRUGO, proc_oom_score),
 	REG("oom_adj",    S_IRUSR, proc_oom_adj_operations),
 	REG("oom_score_adj", S_IRUSR, proc_oom_score_adj_operations),
 #ifdef CONFIG_AUDITSYSCALL
@@ -2792,6 +2790,11 @@ static const struct pid_entry tgid_base_stuff[] = {
 #ifdef CONFIG_CHECKPOINT_RESTORE
 	REG("timers",	  S_IRUGO, proc_timers_operations),
 #endif
+#ifdef CONFIG_CPU_FREQ_STAT
+	ONE("time_in_state", 0444, proc_time_in_state_show),
+	ONE("concurrent_active_time", 0444, proc_concurrent_active_time_show),
+	ONE("concurrent_policy_time", 0444, proc_concurrent_policy_time_show),
+#endif
 };
 
 static int proc_tgid_base_readdir(struct file * filp,
@@ -2806,6 +2809,29 @@ static const struct file_operations proc_tgid_base_operations = {
 	.readdir	= proc_tgid_base_readdir,
 	.llseek		= default_llseek,
 };
+
+static inline int can_lookup(struct inode *inode)
+{
+	if (likely(inode->i_opflags & IOP_LOOKUP))
+		return 1;
+	if (likely(!inode->i_op->lookup))
+		return 0;
+
+	/* We do this once for the lifetime of the inode */
+	spin_lock(&inode->i_lock);
+	inode->i_opflags |= IOP_LOOKUP;
+	spin_unlock(&inode->i_lock);
+	return 1;
+}
+
+struct pid *tgid_pidfd_to_pid(const struct file *file)
+{
+	if (!can_lookup(file->f_inode) ||
+	    (file->f_op != &proc_tgid_base_operations))
+		return ERR_PTR(-EBADF);
+
+	return proc_pid(file_inode(file));
+}
 
 static struct dentry *proc_tgid_base_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 {
@@ -3138,6 +3164,7 @@ static const struct pid_entry tid_base_stuff[] = {
 #ifdef CONFIG_PROC_PAGE_MONITOR
 	REG("clear_refs", S_IWUSR, proc_clear_refs_operations),
 	REG("smaps",     S_IRUGO, proc_tid_smaps_operations),
+	REG("smaps_rollup", S_IRUGO, proc_pid_smaps_rollup_operations),
 	REG("pagemap",    S_IRUGO, proc_pagemap_operations),
 #endif
 #ifdef CONFIG_SECURITY
@@ -3159,9 +3186,9 @@ static const struct pid_entry tid_base_stuff[] = {
 	REG("cpuset",    S_IRUGO, proc_cpuset_operations),
 #endif
 #ifdef CONFIG_CGROUPS
-	REG("cgroup",  S_IRUGO, proc_cgroup_operations),
+	ONE("cgroup",  S_IRUGO, proc_cgroup_show),
 #endif
-	INF("oom_score", S_IRUGO, proc_oom_score),
+	ONE("oom_score", S_IRUGO, proc_oom_score),
 	REG("oom_adj",   S_IRUSR, proc_oom_adj_operations),
 	REG("oom_score_adj", S_IRUSR, proc_oom_score_adj_operations),
 #ifdef CONFIG_AUDITSYSCALL
@@ -3182,6 +3209,11 @@ static const struct pid_entry tid_base_stuff[] = {
 	REG("gid_map",    S_IRUGO|S_IWUSR, proc_gid_map_operations),
 	REG("projid_map", S_IRUGO|S_IWUSR, proc_projid_map_operations),
 	REG("setgroups",  S_IRUGO|S_IWUSR, proc_setgroups_operations),
+#endif
+#ifdef CONFIG_CPU_FREQ_STAT
+	ONE("time_in_state", 0444, proc_time_in_state_show),
+	ONE("concurrent_active_time", 0444, proc_concurrent_active_time_show),
+	ONE("concurrent_policy_time", 0444, proc_concurrent_policy_time_show),
 #endif
 };
 

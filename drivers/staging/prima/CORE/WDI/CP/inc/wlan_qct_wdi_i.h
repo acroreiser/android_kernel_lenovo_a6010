@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2017, 2020 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -505,6 +505,15 @@ typedef enum
   WDI_FW_ARP_STATS_REQ                           = 125,
   WDI_FW_GET_ARP_STATS_REQ                       = 126,
 
+  /* BLACKLIST Request */
+  WDI_BLACKLIST_REQ                              = 127,
+  WDI_SET_LOW_POWER_REQ                          = 128,
+
+#ifdef FEATURE_WLAN_SW_PTA
+  /* SW PTA coex params request */
+  WDI_SW_PTA_COEX_PARAMS_REQ                     = 129,
+#endif
+
   WDI_MAX_REQ,
 
   /*Send a suspend Indication down to HAL*/
@@ -573,7 +582,9 @@ typedef enum
 #endif
 
   WDI_SET_AP_FIND_IND = WDI_MAX_REQ + 25,
-  WDI_MAX_UMAC_IND = WDI_MAX_REQ + 26
+  WDI_SET_VOWIFI_IND = WDI_MAX_REQ + 26,
+  WDI_SET_QPOWER = WDI_MAX_REQ + 27,
+  WDI_MAX_UMAC_IND = WDI_MAX_REQ + 28,
 
 }WDI_RequestEnumType;
 
@@ -892,7 +903,14 @@ typedef enum
   WDI_FW_ARP_STATS_RSP                           = 124,
   WDI_FW_GET_ARP_STATS_RSP                       = 125,
 
+  /* BLACKLIST Response */
+  WDI_BLACKLIST_RSP                              = 126,
+  WDI_SET_LOW_POWER_RSP                          = 127,
 
+#ifdef FEATURE_WLAN_SW_PTA
+  /* SW PTA coex params response */
+  WDI_SW_PTA_COEX_PARAMS_RSP                    = 128,
+#endif
   /*-------------------------------------------------------------------------
     Indications
      !! Keep these last in the enum if possible
@@ -1893,6 +1911,50 @@ WDI_ProcessEndScanReq
   WDI_EventInfoType*     pEventData
 );
 
+/**
+ * WDI_process_low_power_request - Sends the low_power request data to
+ * the firmware when OLPCMODE driver command is invoked
+ * @pWDICtx:      pointer to the WLAN DAL context
+ * @pEventData:   pointer to the event information structure
+ *
+ * Return value: status whether the sending is successful or not
+ */
+WDI_Status
+WDI_process_low_power_request
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+/**
+ * WDI_process_vowifi_request - Sends the vowifi request data to
+ * the firmware when VOWIFI driver command is invoked
+ * @pWDICtx:      pointer to the WLAN DAL context
+ * @pEventData:   pointer to the event information structure
+ *
+ * Return value: status whether the sending is successful or not
+ */
+WDI_Status
+WDI_process_vowifi_request
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
+
+/**
+ * WDI_process_qpower_request - Sends the qpower request data to
+ * the firmware when qpower driver command is invoked
+ * @pWDICtx:      pointer to the WLAN DAL context
+ * @pEventData:   pointer to the event information structure
+ *
+ * Return value: status whether the sending is successful or not
+ */
+WDI_Status
+WDI_process_qpower_request
+(
+  WDI_ControlBlockType*  pWDICtx,
+  WDI_EventInfoType*     pEventData
+);
 
 /**
  @brief Process Finish Scan Request function (called when Main 
@@ -2499,6 +2561,7 @@ WDI_Status WDI_ProcessSetTxPowerReq
   WDI_EventInfoType*     pEventData
 );
 
+#ifdef WLAN_FEATURE_P2P
 /**
  @brief Process P2P Notice Of Absence Request function (called when Main FSM
         allows it)
@@ -2515,6 +2578,7 @@ WDI_ProcessP2PGONOAReq
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 );
+#endif
 
 /**
  @brief Process TDLS Link Establish Request function (called when Main FSM
@@ -4733,6 +4797,7 @@ WDI_ProcessTXFailInd
 );
 #endif /* WLAN_FEATURE_RMC */
 
+#ifdef WLAN_FEATURE_P2P
 /**
 *@brief Process Noa Start Indication function (called when
         an indication of this kind is being received over the
@@ -4768,6 +4833,7 @@ WDI_ProcessP2pNoaAttrInd
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 );
+#endif
 
 /**
 *@brief Process Tx Per Hit Indication function (called when
@@ -6469,6 +6535,38 @@ WDI_ProcessNanEvent
   WDI_EventInfoType*     pEventData
 );
 
+/**
+ @brief Process BlackList Request
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessBlackListReq
+(
+  WDI_ControlBlockType *pWDICtx,
+  WDI_EventInfoType    *pEventData
+);
+
+/**
+ @brief Process BlackList Response
+
+ @param  pWDICtx:         pointer to the WLAN DAL context
+         pEventData:      pointer to the event information structure
+
+ @see
+ @return Result of the function call
+*/
+WDI_Status
+WDI_ProcessBlackListResp
+(
+  WDI_ControlBlockType  *pWDICtx,
+  WDI_EventInfoType     *pEventData
+);
+
 
 /**
 *@brief Process Lost Link param function (called when
@@ -6781,6 +6879,24 @@ WDI_ProcessApFindInd
 );
 #endif
 
+/*
+ * WDI_low_power_rsp_callback() -  The callback function for the response of
+ *                                 OLPCMODE driver command
+ *
+ * @wdi_ctx: pointer to the HAL DAL context
+ * @event_data: pointer to the event information structure
+ *
+ * The function will be called when the firmware sends status of the OLPCMODE
+ * command sent by driver
+ *
+ * Return: status success on receiving valid response
+ */
+WDI_Status WDI_low_power_rsp_callback
+(
+    WDI_ControlBlockType *wdi_ctx,
+    WDI_EventInfoType *event_data
+);
+
 WDI_Status
 wdi_cap_tsf_req
 (
@@ -6828,6 +6944,32 @@ WDI_ProcessGetArpStatsResp
   WDI_ControlBlockType*  pWDICtx,
   WDI_EventInfoType*     pEventData
 );
+
+#ifdef FEATURE_WLAN_SW_PTA
+/**
+ * WDI_process_sw_pta_req() - process sw pta coex params request
+ *
+ * @pWDICtx: pointer to the WLAN DAL context
+ * @pEventData: pointer to the event information structure
+ *
+ * @return Result of the function call
+ */
+WDI_Status
+WDI_process_sw_pta_req(WDI_ControlBlockType *pWDICtx,
+		       WDI_EventInfoType *pEventData);
+
+/**
+ * WDI_process_sw_pta_resp() - process sw pta coex params response
+ *
+ * @pWDICtx: pointer to the WLAN DAL context
+ * @pEventData: pointer to the event information structure
+ *
+ * @return Result of the function call
+ */
+WDI_Status
+WDI_process_sw_pta_resp(WDI_ControlBlockType *pWDICtx,
+			WDI_EventInfoType *pEventData);
+#endif /* FEATURE_WLAN_SW_PTA */
 
 #endif /*WLAN_QCT_WDI_I_H*/
 

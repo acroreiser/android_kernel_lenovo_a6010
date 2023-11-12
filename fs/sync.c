@@ -104,7 +104,7 @@ static void fdatawait_one_bdev(struct block_device *bdev, void *arg)
  * just write metadata (such as inodes or bitmaps) to block device page cache
  * and do not sync it on their own in ->sync_fs().
  */
-SYSCALL_DEFINE0(sync)
+static void do_sync(void)
 {
 	int nowait = 0, wait = 1;
 
@@ -116,6 +116,60 @@ SYSCALL_DEFINE0(sync)
 	iterate_bdevs(fdatawait_one_bdev, NULL);
 	if (unlikely(laptop_mode))
 		laptop_sync_completion();
+	return;
+}
+
+static DEFINE_MUTEX(sync_mutex);	/* One do_sync() at a time. */
+static unsigned long sync_seq;		/* Many sync()s from one do_sync(). */
+					/*  Overflow harmless, extra wait. */
+
+/*
+ * Only allow one task to do sync() at a time, and further allow
+ * concurrent sync() calls to be satisfied by a single do_sync()
+ * invocation.
+ */
+SYSCALL_DEFINE0(sync)
+{
+	unsigned long snap;
+	unsigned long snap_done;
+
+	snap = ACCESS_ONCE(sync_seq);
+	smp_mb();  /* Prevent above from bleeding into critical section. */
+	mutex_lock(&sync_mutex);
+	snap_done = sync_seq;
+
+	/*
+	 * If the value in snap is odd, we need to wait for the current
+	 * do_sync() to complete, then wait for the next one, in other
+	 * words, we need the value of snap_done to be three larger than
+	 * the value of snap.  On the other hand, if the value in snap is
+	 * even, we only have to wait for the next request to complete,
+	 * in other words, we need the value of snap_done to be only two
+	 * greater than the value of snap.  The "(snap + 3) & 0x1" computes
+	 * this for us (thank you, Linus!).
+	 */
+	if (ULONG_CMP_GE(snap_done, (snap + 3) & ~0x1)) {
+		/*
+		 * A full do_sync() executed between our two fetches from
+		 * sync_seq, so our work is done!
+		 */
+		smp_mb(); /* Order test with caller's subsequent code. */
+		mutex_unlock(&sync_mutex);
+		return 0;
+	}
+
+	/* Record the start of do_sync(). */
+	ACCESS_ONCE(sync_seq)++;
+	WARN_ON_ONCE((sync_seq & 0x1) != 1);
+	smp_mb(); /* Keep prior increment out of do_sync(). */
+
+	do_sync();
+
+	/* Record the end of do_sync(). */
+	smp_mb(); /* Keep subsequent increment out of do_sync(). */
+	ACCESS_ONCE(sync_seq)++;
+	WARN_ON_ONCE((sync_seq & 0x1) != 0);
+	mutex_unlock(&sync_mutex);
 	return 0;
 }
 
@@ -182,8 +236,16 @@ SYSCALL_DEFINE1(syncfs, int, fd)
  */
 int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
 {
-	if (!file->f_op || !file->f_op->fsync)
+	struct inode *inode = file->f_mapping->host;
+
+	if (!file->f_op->fsync)
 		return -EINVAL;
+	if (!datasync && (inode->i_state & I_DIRTY_TIME)) {
+		spin_lock(&inode->i_lock);
+		inode->i_state &= ~I_DIRTY_TIME;
+		spin_unlock(&inode->i_lock);
+		mark_inode_dirty_sync(inode);
+	}
 	return file->f_op->fsync(file, start, end, datasync);
 }
 EXPORT_SYMBOL(vfs_fsync_range);
@@ -210,6 +272,7 @@ static int do_fsync(unsigned int fd, int datasync)
 	if (f.file) {
 		ret = vfs_fsync(f.file, datasync);
 		fdput(f);
+		inc_syscfs(current);
 	}
 	return ret;
 }
@@ -223,23 +286,6 @@ SYSCALL_DEFINE1(fdatasync, unsigned int, fd)
 {
 	return do_fsync(fd, 1);
 }
-
-/**
- * generic_write_sync - perform syncing after a write if file / inode is sync
- * @file:	file to which the write happened
- * @pos:	offset where the write started
- * @count:	length of the write
- *
- * This is just a simple wrapper about our general syncing function.
- */
-int generic_write_sync(struct file *file, loff_t pos, loff_t count)
-{
-	if (!(file->f_flags & O_DSYNC) && !IS_SYNC(file->f_mapping->host))
-		return 0;
-	return vfs_fsync_range(file, pos, pos + count - 1,
-			       (file->f_flags & __O_SYNC) ? 0 : 1);
-}
-EXPORT_SYMBOL(generic_write_sync);
 
 /*
  * sys_sync_file_range() permits finely controlled syncing over a segment of
@@ -357,7 +403,8 @@ SYSCALL_DEFINE4(sync_file_range, int, fd, loff_t, offset, loff_t, nbytes,
 	}
 
 	if (flags & SYNC_FILE_RANGE_WRITE) {
-		ret = filemap_fdatawrite_range(mapping, offset, endbyte);
+		ret = __filemap_fdatawrite_range(mapping, offset, endbyte,
+						 WB_SYNC_NONE);
 		if (ret < 0)
 			goto out_put;
 	}

@@ -13,67 +13,79 @@ ifeq ($(KERNEL_BUILD),1)
 	WLAN_ROOT := drivers/staging/prima
 endif
 
-ifeq ($(KERNEL_BUILD), 0)
-# These are configurable via Kconfig for kernel-based builds
-# Need to explicitly configure for Android-based builds
+# Flag to enable BlueTooth AMP feature
+CONFIG_PRIMA_WLAN_BTAMP := y
 
-#Flag to enable BlueTooth AMP feature
-    CONFIG_PRIMA_WLAN_BTAMP := n
+# Flag to enable Legacy Fast Roaming(LFR)
+CONFIG_PRIMA_WLAN_LFR := y
 
-#Flag to enable Legacy Fast Roaming(LFR)
-    CONFIG_PRIMA_WLAN_LFR := y
+# Flag to enable SAE
+CONFIG_WLAN_FEATURE_SAE := y
 
-#Flag to enable Legacy Fast Roaming(LFR) Make Before Break
-    CONFIG_PRIMA_WLAN_LFR_MBB := y
+# Flag to enable SW PTA
+CONFIG_WLAN_FEATURE_SW_PTA := y
 
-#JB kernel has PMKSA patches, hence enabling this flag
-    CONFIG_PRIMA_WLAN_OKC := y
+# Flag to enable OWE
+CONFIG_WLAN_AKM_SUITE_OWE := y
+
+# Flag to enable Legacy Fast Roaming(LFR) Make Before Break
+CONFIG_PRIMA_WLAN_LFR_MBB := y
+
+# JB kernel has PMKSA patches, hence enabling this flag
+CONFIG_PRIMA_WLAN_OKC := y
 
 # JB kernel has CPU enablement patches, so enable
-    CONFIG_PRIMA_WLAN_11AC_HIGH_TP := y
+CONFIG_PRIMA_WLAN_11AC_HIGH_TP := y
 
-#Flag to enable mDNS feature
-    CONFIG_MDNS_OFFLOAD_SUPPORT := y
+# Flag to enable mDNS feature
+CONFIG_MDNS_OFFLOAD_SUPPORT := y
 
-#Flag to enable TDLS feature
-    CONFIG_QCOM_TDLS := y
+# Flag to enable TDLS feature
+CONFIG_QCOM_TDLS := y
 
-#Flag to enable Fast Transition (11r) feature
-    CONFIG_QCOM_VOWIFI_11R := y
+# Flag to enable Fast Transition (11r) feature
+CONFIG_QCOM_VOWIFI_11R := y
 
-#Flag to enable Protected Managment Frames (11w) feature
+# Flag to enable Protected Managment Frames (11w) feature
 ifneq ($(CONFIG_PRONTO_WLAN),)
     CONFIG_WLAN_FEATURE_11W := y
-    endif
+endif
 
-#Flag to enable new Linux Regulatory implementation
-    CONFIG_ENABLE_LINUX_REG := y
+# Flag to enable new Linux Regulatory implementation
+CONFIG_ENABLE_LINUX_REG := y
 
-#Flag to enable offload packets feature
-    CONFIG_WLAN_OFFLOAD_PACKETS := y
+# Flag to enable offload packets feature
+CONFIG_WLAN_OFFLOAD_PACKETS := y
 
-    endif
-#Flag to enable AP Find feature
+# Flag to enable hold RX wake lock feature
+CONFIG_WLAN_FEATURE_HOLD_RX_WAKELOCK := n
+
+# Flag to enable AP Find feature
 CONFIG_WLAN_FEATURE_AP_FIND := y
 
 # Flag to enable feature Software AP Authentication Offload
 SAP_AUTH_OFFLOAD := y
 
-# To enable CONFIG_QCOM_ESE_UPLOAD, dependent config
-# CONFIG_QCOM_ESE must be enabled.
+# Flag to enable ESE
 CONFIG_QCOM_ESE := n
+ifeq ($(CONFIG_QCOM_ESE),y)
+ifeq ($(WLAN_PROPRIETARY),1)
 CONFIG_QCOM_ESE_UPLOAD := n
+else
+CONFIG_QCOM_ESE_UPLOAD := y
+endif
+endif
 
 # Feature flags which are not (currently) configurable via Kconfig
 
-#Whether to build debug version
+# Whether to build debug version
 BUILD_DEBUG_VERSION := 0
 
 #Enable this flag to build driver in diag version
 BUILD_DIAG_VERSION := 1
 
 #Do we panic on bug?  default is to warn
-PANIC_ON_BUG := 1
+PANIC_ON_BUG := 0
 
 #Re-enable wifi on WDI timeout
 RE_ENABLE_WIFI_ON_WDI_TIMEOUT := 0
@@ -88,6 +100,37 @@ HAVE_CFG80211 := 0
 endif
 endif
 
+ifeq ($(KERNEL_BUILD), 0)
+ifeq ($(WLAN_PROPRIETARY),1)
+    WLAN_BLD_DIR := vendor/qcom/proprietary/wlan
+else
+ifneq ($(TARGET_SUPPORTS_WEARABLES),true)
+ifneq ($(ANDROID_BUILD_TOP),)
+    WLAN_BLD_DIR := $(ANDROID_BUILD_TOP)/vendor/qcom/opensource/wlan
+else
+    WLAN_BLD_DIR := vendor/qcom/opensource/wlan
+endif # ANDROID_BUILD_TOP
+else
+ifneq ($(ANDROID_BUILD_TOP),)
+ifeq ($(TARGET_PRODUCT),sdm429w)
+    WLAN_BLD_DIR := $(ANDROID_BUILD_TOP)/$(BOARD_OPENSOURCE_DIR)/wlan
+else
+    WLAN_BLD_DIR := $(ANDROID_BUILD_TOP)/vendor/qcom/opensource/wlan
+endif #TARGET_PRODUCT
+else
+    WLAN_BLD_DIR := $(BOARD_OPENSOURCE_DIR)/wlan
+endif # ANDROID_BUILD_TOP
+endif # TARGET_SUPPORTS_WEARABLES
+endif # WLAN_PROPRIETARY
+
+ifneq ($(ANDROID_BUILD_TOP),)
+WLAN_ROOT=$(WLAN_BLD_DIR)/prima
+else
+WLAN_ROOT=$(KERNEL_TO_BUILD_ROOT_OFFSET)$(WLAN_BLD_DIR)/prima
+endif # ANDROID_BUILD_TOP
+endif # KERNEL_BUILD
+
+ifeq ($(CONFIG_PRIMA_WLAN_BTAMP),y)
 ############ BAP ############
 BAP_DIR :=	CORE/BAP
 BAP_INC_DIR :=	$(BAP_DIR)/inc
@@ -116,6 +159,7 @@ BAP_OBJS := 	$(BAP_SRC_DIR)/bapApiData.o \
 		$(BAP_SRC_DIR)/bapRsnTxRx.o \
 		$(BAP_SRC_DIR)/btampFsm.o \
 		$(BAP_SRC_DIR)/btampHCI.o
+endif
 
 ############ DXE ############
 DXE_DIR :=	CORE/DXE
@@ -136,8 +180,7 @@ HDD_SRC_DIR :=	$(HDD_DIR)/src
 HDD_INC := 	-I$(WLAN_ROOT)/$(HDD_INC_DIR) \
 		-I$(WLAN_ROOT)/$(HDD_SRC_DIR)
 
-HDD_OBJS := 	$(HDD_SRC_DIR)/bap_hdd_main.o \
-		$(HDD_SRC_DIR)/wlan_hdd_assoc.o \
+HDD_OBJS := 	$(HDD_SRC_DIR)/wlan_hdd_assoc.o \
 		$(HDD_SRC_DIR)/wlan_hdd_cfg.o \
 		$(HDD_SRC_DIR)/wlan_hdd_debugfs.o \
 		$(HDD_SRC_DIR)/wlan_hdd_dev_pwr.o \
@@ -156,6 +199,10 @@ HDD_OBJS := 	$(HDD_SRC_DIR)/bap_hdd_main.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wext.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wmm.o \
 		$(HDD_SRC_DIR)/wlan_hdd_wowl.o
+
+ifeq ($(CONFIG_PRIMA_WLAN_BTAMP),y)
+HDD_OBJS += 	$(HDD_SRC_DIR)/bap_hdd_main.o
+endif
 
 ifeq ($(HAVE_CFG80211),1)
 HDD_OBJS +=	$(HDD_SRC_DIR)/wlan_hdd_cfg80211.o \
@@ -501,8 +548,7 @@ RIVA_INC :=	-I$(WLAN_ROOT)/riva/inc
 
 LINUX_INC :=	-Iinclude/linux
 
-INCS :=		$(BAP_INC) \
-		$(DXE_INC) \
+INCS :=		$(DXE_INC) \
 		$(HDD_INC) \
 		$(LINUX_INC) \
 		$(MAC_INC) \
@@ -515,6 +561,10 @@ INCS :=		$(BAP_INC) \
 		$(VOSS_INC) \
 		$(WDA_INC) \
 		$(WDI_INC)
+
+ifeq ($(CONFIG_PRIMA_WLAN_BTAMP),y)
+INCS +=		$(BAP_INC)
+endif
 
 OBJS :=		$(BAP_OBJS) \
 		$(DXE_OBJS) \
@@ -529,6 +579,10 @@ OBJS :=		$(BAP_OBJS) \
 		$(WDA_OBJS) \
 		$(WDI_OBJS)
 
+ifeq ($(CONFIG_PRIMA_WLAN_BTAMP),y)
+OBJS += 	$(BAP_OBJS)
+endif
+
 EXTRA_CFLAGS += $(INCS)
 EXTRA_CFLAGS += -fno-pic
 
@@ -541,7 +595,6 @@ CDEFINES :=	-DANI_BUS_TYPE_PLATFORM=1 \
 		-DGEN6_ONWARDS \
 		-DANI_COMPILER_TYPE_GCC \
 		-DANI_OS_TYPE_ANDROID=6 \
-		-DANI_LOGDUMP \
 		-DWLAN_PERF \
 		-DPTT_SOCK_SVC_ENABLE \
 		-Wall\
@@ -550,8 +603,6 @@ CDEFINES :=	-DANI_BUS_TYPE_PLATFORM=1 \
 		-DHAL_SELF_STA_PER_BSS=1 \
 		-DWLAN_FEATURE_VOWIFI_11R \
 		-DWLAN_FEATURE_NEIGHBOR_ROAMING \
-		-DWLAN_FEATURE_NEIGHBOR_ROAMING_DEBUG \
-		-DWLAN_FEATURE_VOWIFI_11R_DEBUG \
 		-DFEATURE_WLAN_WAPI \
 		-DFEATURE_OEM_DATA_SUPPORT\
 		-DSOFTAP_CHANNEL_RANGE \
@@ -560,12 +611,10 @@ CDEFINES :=	-DANI_BUS_TYPE_PLATFORM=1 \
 		-DWLAN_FEATURE_PACKET_FILTERING \
 		-DWLAN_FEATURE_VOWIFI \
 		-DWLAN_FEATURE_11AC \
-		-DWLAN_FEATURE_P2P_DEBUG \
 		-DWLAN_ENABLE_AGEIE_ON_SCAN_RESULTS \
 		-DWLANTL_DEBUG\
 		-DWLAN_NS_OFFLOAD \
 		-DWLAN_ACTIVEMODE_OFFLOAD_FEATURE \
-		-DWLAN_FEATURE_HOLD_RX_WAKELOCK \
 		-DWLAN_SOFTAP_VSTA_FEATURE \
 		-DWLAN_FEATURE_ROAM_SCAN_OFFLOAD \
 		-DWLAN_FEATURE_GTK_OFFLOAD \
@@ -580,7 +629,6 @@ CDEFINES :=	-DANI_BUS_TYPE_PLATFORM=1 \
                 -DFEATURE_WLAN_CH144 \
                 -DWLAN_BUG_ON_SKB_ERROR \
                 -DWLAN_DXE_LOW_RESOURCE_TIMER \
-                -DWLAN_LOGGING_SOCK_SVC_ENABLE \
                 -DWLAN_FEATURE_LINK_LAYER_STATS \
                 -DWLAN_FEATURE_EXTSCAN \
                 -DFEATURE_EXT_LL_STAT \
@@ -600,8 +648,15 @@ CDEFINES +=	-DWLAN_DEBUG \
 		-DSME_TRACE_RECORD \
 		-DPE_DEBUG_LOGW \
 		-DPE_DEBUG_LOGE \
-                -DDXE_TRACE \
+		-DDXE_TRACE \
+		-DANI_LOGDUMP \
+		-DWLAN_FEATURE_NEIGHBOR_ROAMING_DEBUG \
+		-DWLAN_FEATURE_VOWIFI_11R_DEBUG \
 		-DDEBUG
+endif
+
+ifeq ($(BUILD_DIAG_VERSION),1)
+CDEFINES += -DWLAN_LOGGING_SOCK_SVC_ENABLE
 endif
 
 ifeq ($(CONFIG_SLUB_DEBUG_ON),y)
@@ -611,6 +666,9 @@ endif
 
 ifeq ($(HAVE_CFG80211),1)
 CDEFINES += -DWLAN_FEATURE_P2P
+ifeq ($(BUILD_DEBUG_VERSION),1)
+CDEFINES += -DWLAN_FEATURE_P2P_DEBUG
+endif
 CDEFINES += -DWLAN_FEATURE_WFD
 ifeq ($(CONFIG_QCOM_VOWIFI_11R),y)
 CDEFINES += -DKERNEL_SUPPORT_11R_CFG80211
@@ -637,6 +695,18 @@ endif
 
 ifeq ($(CONFIG_PRIMA_WLAN_LFR),y)
 CDEFINES += -DFEATURE_WLAN_LFR
+endif
+
+ifeq ($(CONFIG_WLAN_FEATURE_SAE),y)
+CDEFINES += -DWLAN_FEATURE_SAE
+endif
+
+ifeq ($(CONFIG_WLAN_FEATURE_SW_PTA),y)
+CDEFINES += -DFEATURE_WLAN_SW_PTA
+endif
+
+ifeq ($(CONFIG_WLAN_AKM_SUITE_OWE),y)
+CDEFINES += -DWLAN_AKM_SUITE_OWE
 endif
 
 ifeq ($(CONFIG_PRIMA_WLAN_LFR_MBB),y)
@@ -708,7 +778,11 @@ CDEFINES += -DEXISTS_MSM_SMSM
 endif
 
 # Fix build for GCC 4.7
-EXTRA_CFLAGS += -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable
+EXTRA_CFLAGS += $(call cc-disable-warning, maybe-uninitialized)
+
+# Silence Clang warning
+EXTRA_CFLAGS += $(call cc-disable-warning, enum-conversion)
+EXTRA_CFLAGS += $(call cc-disable-warning, void-pointer-to-enum-cast)
 
 ifeq ($(CONFIG_WLAN_OFFLOAD_PACKETS),y)
 CDEFINES += -DWLAN_FEATURE_OFFLOAD_PACKETS
@@ -716,6 +790,10 @@ endif
 
 ifeq ($(CONFIG_MDNS_OFFLOAD_SUPPORT), y)
 CDEFINES += -DMDNS_OFFLOAD
+endif
+
+ifeq ($(CONFIG_WLAN_FEATURE_HOLD_RX_WAKELOCK),y)
+CDEFINES += -DWLAN_FEATURE_HOLD_RX_WAKELOCK
 endif
 
 KBUILD_CPPFLAGS += $(CDEFINES)

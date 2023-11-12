@@ -31,6 +31,9 @@ enum { sysctl_hung_task_timeout_secs = 0 };
 
 extern int sysctl_max_map_count;
 
+#ifdef CONFIG_ANDROID_DONT_KILL_MAGISK
+extern unsigned int sysctl_magisk_workaround;
+#endif
 extern unsigned int sysctl_sched_latency;
 extern unsigned int sysctl_sched_min_granularity;
 extern unsigned int sysctl_sched_wakeup_granularity;
@@ -43,6 +46,7 @@ extern unsigned int sysctl_sched_ravg_hist_size;
 extern unsigned int sysctl_sched_freq_account_wait_time;
 extern unsigned int sysctl_sched_migration_fixup;
 extern unsigned int sysctl_sched_heavy_task_pct;
+extern unsigned int sysctl_sched_enable_power_aware;
 
 #if defined(CONFIG_SCHED_FREQ_INPUT) || defined(CONFIG_SCHED_HMP)
 extern unsigned int sysctl_sched_init_task_load_pct;
@@ -65,6 +69,7 @@ extern int sysctl_sched_upmigrate_min_nice;
 extern unsigned int sysctl_sched_prefer_idle;
 extern unsigned int sysctl_sched_powerband_limit_pct;
 extern unsigned int sysctl_sched_boost;
+extern unsigned int sysctl_sched_new_task_windows;
 
 #else /* CONFIG_SCHED_HMP */
 

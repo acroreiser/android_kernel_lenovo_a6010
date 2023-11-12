@@ -541,6 +541,13 @@ config SRAM
 	  the genalloc API. It is supposed to be used for small on-chip SRAM
 	  areas found on many SoCs.
 
+config UID_SYS_STATS
+	tristate "Per-UID statistics"
+	depends on PROFILING
+	help
+	  Per UID based cpu time statistics exported to /proc/uid_cputime
+	  Per UID based io statistics exported to /proc/uid_io
+
 config TSIF
 	depends on ARCH_MSM8X60 || ARCH_MSM8960 || ARCH_APQ8064
 	tristate "TSIF (Transport Stream InterFace) support"
@@ -625,11 +632,19 @@ config HARDWARE_INFO
 	help
 	  This option enables device driver to initial the hardware info module.
 
-config UID_CPUTIME
-	tristate "Per-UID cpu time statistics"
-	depends on PROFILING
+config BATTERY_SAVER
+	bool "Battery saver mode for kernelspace"
+	default y
 	help
-	  Per UID based cpu time statistics exported to /proc/uid_cputime
+	  This driver creates a sysfs toggle that can be enabled when
+	  battery saver mode is activated in userspace, and provides
+	  functions to check the status of battery saver and to activate
+	  it from anywhere in the kernel.
+
+	  The former can be used to disable features that may otherwise
+	  drain battery faster, such as CPU and DDR boosting.
+
+	  If in doubt, say Y.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, 2020 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -81,7 +81,7 @@ void hdd_softap_tkip_mic_fail_counter_measure(hdd_adapter_t*,v_BOOL_t);
 int hdd_softap_unpackIE( tHalHandle halHandle,
                 eCsrEncryptionType *pEncryptType,
                 eCsrEncryptionType *mcEncryptType,
-                eCsrAuthType *pAuthType,
+                tCsrAuthList *akm_list,
                 v_BOOL_t *pMFPCapable,
                 v_BOOL_t *pMFPRequired,
                 u_int16_t gen_ie_len,
@@ -119,15 +119,8 @@ int hdd_del_all_sta(hdd_adapter_t *pAdapter);
 void hdd_sap_indicate_disconnect_for_sta(hdd_adapter_t *adapter);
 void hdd_sap_destroy_timers(hdd_adapter_t *adapter);
 
-#ifdef SAP_AUTH_OFFLOAD
 bool  hdd_set_sap_auth_offload(hdd_adapter_t *pHostapdAdapter,
         bool enabled);
-#else
-static inline bool
-hdd_set_sap_auth_offload(hdd_adapter_t *pHostapdAdapter, bool enabled)
-{
-}
-#endif
 
 /**
  * hdd_check_for_unsafe_ch() - Check the current operating channel with

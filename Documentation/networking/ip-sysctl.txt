@@ -175,6 +175,14 @@ tcp_base_mss - INTEGER
 	Path MTU discovery (MTU probing).  If MTU probing is enabled,
 	this is the initial MSS used by the connection.
 
+tcp_min_snd_mss - INTEGER
+	TCP SYN and SYNACK messages usually advertise an ADVMSS option,
+	as described in RFC 1122 and RFC 6691.
+	If this ADVMSS option is smaller than tcp_min_snd_mss,
+	it is silently capped to tcp_min_snd_mss.
+
+	Default : 48 (at least 8 bytes of payload per segment)
+
 tcp_congestion_control - STRING
 	Set the congestion control algorithm to be used for new
 	connections. The algorithm "reno" is always available, but
@@ -456,7 +464,7 @@ tcp_fastopen - INTEGER
 	connect() to perform a TCP handshake automatically.
 
 	The values (bitmap) are
-	1: Enables sending data in the opening SYN on the client.
+	1: Enables sending data in the opening SYN on the client w/ MSG_FASTOPEN.
 	2: Enables TCP Fast Open on the server side, i.e., allowing data in
 	   a SYN packet to be accepted and passed to the application before
 	   3-way hand shake finishes.
@@ -469,7 +477,7 @@ tcp_fastopen - INTEGER
 	   different ways of setting max_qlen without the TCP_FASTOPEN socket
 	   option.
 
-	Default: 0
+	Default: 1
 
 	Note that the client & server side Fast Open flags (1 and 2
 	respectively) must be also enabled before the rest of flags can take
@@ -725,7 +733,22 @@ icmp_ratelimit - INTEGER
 	icmp_ratemask (see below) to specific targets.
 	0 to disable any limiting,
 	otherwise the minimal space between responses in milliseconds.
+	Note that another sysctl, icmp_msgs_per_sec limits the number
+	of ICMP packets	sent on all targets.
 	Default: 1000
+
+icmp_msgs_per_sec - INTEGER
+	Limit maximal number of ICMP packets sent per second from this host.
+	Only messages whose type matches icmp_ratemask (see below) are
+	controlled by this limit. For security reasons, the precise count
+	of messages per second is randomized.
+	Default: 1000
+
+icmp_msgs_burst - INTEGER
+	icmp_msgs_per_sec controls number of ICMP packets sent per second,
+	while icmp_msgs_burst controls the burst size of these packets.
+	For security reasons, the precise burst size is randomized.
+	Default: 50
 
 icmp_ratemask - INTEGER
 	Mask made of ICMP types for which rates are being limited.
@@ -1061,6 +1084,19 @@ ak@muc.de
 Nicolas Delon
 delon.nicolas@wanadoo.fr
 
+drop_unicast_in_l2_multicast - BOOLEAN
+	Drop any unicast IP packets that are received in link-layer
+	multicast (or broadcast) frames.
+	This behavior (for multicast) is actually a SHOULD in RFC
+	1122, but is disabled by default for compatibility reasons.
+	Default: off (0)
+
+drop_gratuitous_arp - BOOLEAN
+	Drop all gratuitous ARP frames, for example if there's a known
+	good ARP proxy on the network and such frames need not be used
+	(or in the case of 802.11, must not be used to prevent attacks.)
+	Default: off (0)
+
 
 
 
@@ -1170,11 +1206,20 @@ accept_ra_pinfo - BOOLEAN
 	Functional default: enabled if accept_ra is enabled.
 			    disabled if accept_ra is disabled.
 
+accept_ra_rt_info_min_plen - INTEGER
+	Minimum prefix length of Route Information in RA.
+
+	Route Information w/ prefix smaller than this variable shall
+	be ignored.
+
+	Functional default: 0 if accept_ra_rtr_pref is enabled.
+			    -1 if accept_ra_rtr_pref is disabled.
+
 accept_ra_rt_info_max_plen - INTEGER
 	Maximum prefix length of Route Information in RA.
 
-	Route Information w/ prefix larger than or equal to this
-	variable shall be ignored.
+	Route Information w/ prefix larger than this variable shall
+	be ignored.
 
 	Functional default: 0 if accept_ra_rtr_pref is enabled.
 			    -1 if accept_ra_rtr_pref is disabled.
@@ -1384,6 +1429,20 @@ use_optimistic - BOOLEAN
 	address selection algorithm.
 		0: disabled (default)
 		1: enabled
+
+drop_unicast_in_l2_multicast - BOOLEAN
+	Drop any unicast IPv6 packets that are received in link-layer
+	multicast (or broadcast) frames.
+
+	By default this is turned off.
+
+drop_unsolicited_na - BOOLEAN
+	Drop all unsolicited neighbor advertisements, for example if there's
+	a known good NA proxy on the network and such frames need not be used
+	(or in the case of 802.11, must not be used to prevent attacks.)
+
+	By default this is turned off.
+
 mldv1_unsolicited_report_interval - INTEGER
 	The interval in milliseconds in which the next unsolicited
 	MLDv1 report retransmit will take place.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, 2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, 2016-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -305,7 +305,7 @@ char *dumpLim( tpAniSirGlobal pMac, char *p, tANI_U32 sessionId)
  ******************************************/
 char *triggerBeaconGen( tpAniSirGlobal pMac, char *p )
 {
-    tSirMsgQ mesg = { (tANI_U16) SIR_LIM_BEACON_GEN_IND, (tANI_U16) 0, (tANI_U32) 0 };
+    tSirMsgQ mesg = { (tANI_U16) SIR_LIM_BEACON_GEN_IND, (tANI_U16) 0, NULL };
     
     pMac->lim.gLimSmeState = eLIM_SME_NORMAL_STATE;
     MTRACE(macTrace(pMac, TRACE_CODE_SME_STATE, NO_SESSION, pMac->lim.gLimSmeState));
@@ -725,6 +725,8 @@ void
 limSetEdcaBcastACMFlag(tpAniSirGlobal pMac, tANI_U32 ac, tANI_U32 acmFlag)
 {
     tpPESession psessionEntry = &pMac->lim.gpSession[0];  //TBD-RAJESH HOW TO GET sessionEntry?????
+    if (ac >= MAX_NUM_AC)
+        return;
     psessionEntry->gLimEdcaParamsBC[ac].aci.acm = (tANI_U8)acmFlag;
     psessionEntry->gLimEdcaParamSetCount++;
     schSetFixedBeaconFields(pMac,psessionEntry);

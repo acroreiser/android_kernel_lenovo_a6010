@@ -4,12 +4,13 @@ config ARM
 	select ARCH_BINFMT_ELF_RANDOMIZE_PIE
 	select ARCH_HAS_ATOMIC64_DEC_IF_POSITIVE
 	select ARCH_HAVE_CUSTOM_GPIO_H
+	select ARCH_HAS_MEMBARRIER_SYNC_CORE
 	select ARCH_SUPPORTS_ATOMIC_RMW
 	select ARCH_HAS_TICK_BROADCAST if GENERIC_CLOCKEVENTS_BROADCAST
 	select ARCH_WANT_IPC_PARSE_VERSION
 	select BUILDTIME_EXTABLE_SORT if MMU
 	select CPU_PM if (SUSPEND || CPU_IDLE)
-	select DCACHE_WORD_ACCESS if (CPU_V6 || CPU_V6K || CPU_V7) && !CPU_BIG_ENDIAN && MMU
+	select DCACHE_WORD_ACCESS if HAVE_EFFICIENT_UNALIGNED_ACCESS
 	select GENERIC_ATOMIC64 if (CPU_V6 || !CPU_32v6K || !AEABI)
 	select GENERIC_CLOCKEVENTS_BROADCAST if SMP
 	select GENERIC_IRQ_PROBE
@@ -26,14 +27,16 @@ config ARM
 	select HAVE_ARCH_MMAP_RND_BITS if MMU
 	select HAVE_ARCH_SECCOMP_FILTER
 	select HAVE_ARCH_TRACEHOOK
-	select HAVE_BPF_JIT
+	select HAVE_BPF_JIT if !CPU_ENDIAN_BE32
 	select HAVE_C_RECORDMCOUNT
 	select HAVE_CC_STACKPROTECTOR
 	select HAVE_DEBUG_KMEMLEAK
+	select ARCH_USE_BUILTIN_BSWAP
 	select HAVE_DMA_API_DEBUG
 	select HAVE_DMA_ATTRS
 	select HAVE_DMA_CONTIGUOUS if MMU
 	select HAVE_DYNAMIC_FTRACE if (!XIP_KERNEL)
+	select HAVE_EFFICIENT_UNALIGNED_ACCESS if (CPU_V6 || CPU_V6K || CPU_V7) && MMU
 	select HAVE_FTRACE_MCOUNT_RECORD if (!XIP_KERNEL)
 	select HAVE_FUNCTION_GRAPH_TRACER if (!THUMB2_KERNEL)
 	select HAVE_FUNCTION_TRACER if (!XIP_KERNEL)
@@ -42,6 +45,7 @@ config ARM
 	select HAVE_IDE if PCI || ISA || PCMCIA
 	select HAVE_IRQ_TIME_ACCOUNTING
 	select HAVE_KERNEL_GZIP
+	select HAVE_KERNEL_LZ4
 	select HAVE_KERNEL_LZMA
 	select HAVE_KERNEL_LZO
 	select HAVE_KERNEL_XZ
@@ -159,10 +163,9 @@ config TRACE_IRQFLAGS_SUPPORT
 
 config RWSEM_GENERIC_SPINLOCK
 	bool
-	default y
 
 config RWSEM_XCHGADD_ALGORITHM
-	bool
+	def_bool y
 
 config ARCH_HAS_ILOG2_U32
 	bool
@@ -1345,7 +1348,7 @@ config ARM_ERRATA_754327
 
 config ARM_ERRATA_364296
 	bool "ARM errata: Possible cache data corruption with hit-under-miss enabled"
-	depends on CPU_V6 && !SMP
+	depends on CPU_V6
 	help
 	  This options enables the workaround for the 364296 ARM1136
 	  r0p2 erratum (possible cache data corruption with
@@ -1742,6 +1745,24 @@ config THUMB2_AVOID_R_ARM_THM_JUMP11
 config ARM_ASM_UNIFIED
 	bool
 
+config ARM_PATCH_IDIV
+	bool "Runtime patch udiv/sdiv instructions into __aeabi_{u}idiv()"
+	depends on CPU_32v7 && !XIP_KERNEL
+	default y
+	help
+	  The ARM compiler inserts calls to __aeabi_idiv() and
+	  __aeabi_uidiv() when it needs to perform division on signed
+	  and unsigned integers. Some v7 CPUs have support for the sdiv
+	  and udiv instructions that can be used to implement those
+	  functions.
+
+	  Enabling this option allows the kernel to modify itself to
+	  replace the first two instructions of these library functions
+	  with the sdiv or udiv plus "bx lr" instructions when the CPU
+	  it is running on supports them. Typically this will be faster
+	  and less power intensive than running the original library
+	  code to do integer division.
+
 config AEABI
 	bool "Use the ARM EABI to compile the kernel"
 	help
@@ -1822,6 +1843,12 @@ config HIGHMEM
 config HIGHPTE
 	bool "Allocate 2nd-level pagetables from highmem"
 	depends on HIGHMEM
+	help
+	  The VM uses one page of physical memory for each page table.
+	  For systems with a lot of processes, this can use a lot of
+	  precious low memory, eventually leading to low memory being
+	  consumed by page tables.  Setting this option will allow
+	  user-space 2nd level page tables to reside in high memory.
 
 config HW_PERF_EVENTS
 	bool "Enable hardware performance counter support for perf events"
@@ -1926,6 +1953,19 @@ config UACCESS_WITH_MEMCPY
 
 	  However, if the CPU data cache is using a write-allocate mode,
 	  this option is unlikely to provide any performance gain.
+
+config ARM_PLD_64BYTE
+	bool "Use 64-bit preload size for kernel memory copy"
+	depends on CPU_V7
+	help
+	  Config preload size for memcpy, selecting this for Cortex-A15
+
+config USE_LDRDSTRD_OVER_LDMSTM
+	bool "Use 64-bit access instructions to optimize memory copy"
+	depends on CPU_V7
+	help
+	  Cortex-A15 perform better when use LDRD/STRD to access memory.
+	  Selecting this to optimize memory copy routines.
 
 config SECCOMP
 	bool
@@ -2322,6 +2362,8 @@ config CPU_FREQ_S3C24XX_DEBUGFS
 
 endif
 
+source "arch/arm/hotplug/Kconfig"
+
 source "drivers/cpuidle/Kconfig"
 
 endmenu
@@ -2443,6 +2485,9 @@ source "arch/arm/Kconfig.debug"
 source "security/Kconfig"
 
 source "crypto/Kconfig"
+if CRYPTO
+source "arch/arm/crypto/Kconfig"
+endif
 
 source "lib/Kconfig"
 

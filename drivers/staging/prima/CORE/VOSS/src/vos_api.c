@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -84,6 +84,7 @@
 #include "bap_hdd_main.h"
 #endif //WLAN_BTAMP_FEATURE
 #include "wlan_qct_wdi_cts.h"
+#include "wlan_qct_pal_sync.h"
 
 /*---------------------------------------------------------------------------
  * Preprocessor Definitions and Constants
@@ -1706,6 +1707,7 @@ VOS_STATUS vos_free_context( v_VOID_t *pVosContext, VOS_MODULE_ID moduleID,
 } /* vos_free_context() */
 
 
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
 bool vos_is_log_report_in_progress(void)
 {
     return wlan_is_log_report_in_progress();
@@ -1716,9 +1718,6 @@ void vos_reset_log_report_in_progress(void)
     return wlan_reset_log_report_in_progress();
 }
 
-
-
-
 int vos_set_log_completion(uint32 is_fatal,
                             uint32 indicator,
                             uint32 reason_code)
@@ -1726,13 +1725,16 @@ int vos_set_log_completion(uint32 is_fatal,
     return wlan_set_log_completion(is_fatal,
                                    indicator,reason_code);
 }
+#endif
 
 void vos_get_log_and_reset_completion(uint32 *is_fatal,
                              uint32 *indicator,
                              uint32 *reason_code,
                              bool reset)
 {
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
     wlan_get_log_and_reset_completion(is_fatal, indicator, reason_code, reset);
+#endif
 }
 
 
@@ -1775,7 +1777,7 @@ void vos_send_fatal_event_done(void)
     {
          VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
            "Do SSR for reason_code=%d", reason_code);
-         vos_wlanRestart();
+         vos_wlanRestart(VOS_GET_MSG_BUFF_FAILURE);
     }
 }
 
@@ -1825,6 +1827,7 @@ VOS_STATUS __vos_fatal_event_logs_req( uint32_t is_fatal,
                         bool wait_required,
                         bool dump_vos_trace)
 {
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
     VOS_STATUS vosStatus;
     eHalStatus status;
     VosContextType *vos_context;
@@ -1846,9 +1849,11 @@ VOS_STATUS __vos_fatal_event_logs_req( uint32_t is_fatal,
 
     if(!pHddCtx->cfg_ini->wlanLoggingEnable)
     {
+#endif
        VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
             "%s: Wlan logging not enabled", __func__);
         return VOS_STATUS_E_FAILURE;
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
     }
 
     if (!pHddCtx->cfg_ini->enableFatalEvent || !pHddCtx->is_fatal_event_log_sup)
@@ -1922,6 +1927,7 @@ VOS_STATUS __vos_fatal_event_logs_req( uint32_t is_fatal,
         return VOS_STATUS_SUCCESS;
     else
         return VOS_STATUS_E_FAILURE;
+#endif
 }
 
 VOS_STATUS vos_fatal_event_logs_req( uint32_t is_fatal,
@@ -1957,7 +1963,9 @@ VOS_STATUS vos_fatal_event_logs_req( uint32_t is_fatal,
 
 VOS_STATUS vos_process_done_indication(v_U8_t type, v_U32_t reason_code)
 {
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
     wlan_process_done_indication(type, reason_code);
+#endif
     return VOS_STATUS_SUCCESS;
 }
 
@@ -1967,8 +1975,10 @@ VOS_STATUS vos_process_done_indication(v_U8_t type, v_U32_t reason_code)
  */
 void vos_flush_host_logs_for_fatal(void)
 {
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
    wlan_flush_host_logs_for_fatal();
    return;
+#endif
 }
 
 
@@ -2671,6 +2681,7 @@ vos_fetch_tl_cfg_parms
   pTLConfig->ucReorderAgingTime[3] = pConfig->VoReorderAgingTime;/*WLANTL_AC_VO*/
   pTLConfig->uDelayedTriggerFrmInt = pConfig->DelayedTriggerFrmInt;
   pTLConfig->uMinFramesProcThres = pConfig->MinFramesProcThres;
+  pTLConfig->ucIsReplayCheck = pConfig->enablePNReplay;
 
 }
 
@@ -2864,7 +2875,7 @@ VOS_STATUS vos_wlanReInit(void)
   The function wlan_hdd_restart_driver protects against re-entrant calls.
 
   @param
-       NONE
+       reason: recovery reason
   @return
        VOS_STATUS_SUCCESS   - Operation completed successfully.
        VOS_STATUS_E_FAILURE - Operation failed.
@@ -2873,11 +2884,11 @@ VOS_STATUS vos_wlanReInit(void)
 
 
 */
-VOS_STATUS vos_wlanRestart(void)
+VOS_STATUS vos_wlanRestart(enum vos_hang_reason reason)
 {
    VOS_STATUS vstatus;
    hdd_context_t *pHddCtx = NULL;
-   v_CONTEXT_t pVosContext        = NULL;
+   VosContextType  *pVosContext        = NULL;
 
    /* Check whether driver load unload is in progress */
    if(vos_is_load_unload_in_progress( VOS_MODULE_ID_VOSS, NULL)) 
@@ -2894,7 +2905,8 @@ VOS_STATUS vos_wlanRestart(void)
                "%s: Global VOS context is Null", __func__);
       return VOS_STATUS_E_FAILURE;
    }
-    
+   pVosContext->recovery_reason = reason;
+
    /* Get the HDD context */
    pHddCtx = (hdd_context_t *)vos_get_context(VOS_MODULE_ID_HDD, pVosContext );
    if(!pHddCtx) {
@@ -2906,6 +2918,45 @@ VOS_STATUS vos_wlanRestart(void)
    /* Reload the driver */
    vstatus = wlan_hdd_restart_driver(pHddCtx);
    return vstatus;
+}
+
+/**
+ * vos_get_recovery_reason() - get self recovery reason
+ * @reason: recovery reason
+ *
+ * Return: None
+ */
+void vos_get_recovery_reason(enum vos_hang_reason *reason)
+{
+	VosContextType *pVosContext = NULL;
+
+	pVosContext = vos_get_global_context(VOS_MODULE_ID_VOSS, NULL);
+	if(!pVosContext) {
+		VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
+		     "%s: Global VOS context is Null", __func__);
+		return;
+	}
+
+	*reason = pVosContext->recovery_reason;
+}
+
+/**
+ * vos_reset_recovery_reason() - reset the reason to unspecified
+ *
+ * Return: None
+ */
+void vos_reset_recovery_reason(void)
+{
+	VosContextType *pVosContext = NULL;
+
+	pVosContext = vos_get_global_context(VOS_MODULE_ID_VOSS, NULL);
+	if(!pVosContext) {
+		VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_FATAL,
+		     "%s: Global VOS context is Null", __func__);
+		return;
+	}
+
+	pVosContext->recovery_reason = VOS_REASON_UNSPECIFIED;
 }
 
 
@@ -3421,8 +3472,10 @@ void vos_probe_threads(void)
         return;
     } else if (ring_id == RING_ID_PER_PACKET_STATS) {
         vos_context->packet_stats_log_level = log_val;
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
         if (WLAN_LOG_LEVEL_ACTIVE != log_val)
             wlan_disable_and_flush_pkt_stats();
+#endif
 
         return;
     }
@@ -3626,15 +3679,18 @@ v_U16_t vos_get_rate_from_rateidx(uint32 rateindex)
 	return rate;
 }
 
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
 bool vos_isPktStatsEnabled(void)
 {
     bool value;
     value = wlan_isPktStatsEnabled();
     return (value);
 }
+#endif
 
 bool vos_is_wlan_logging_enabled(void)
 {
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
     v_CONTEXT_t vos_ctx = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
     hdd_context_t *hdd_ctx;
 
@@ -3654,11 +3710,14 @@ bool vos_is_wlan_logging_enabled(void)
 
     if (!hdd_ctx->cfg_ini->wlanLoggingEnable)
     {
+#endif
        hddLog(VOS_TRACE_LEVEL_FATAL,"%s: Logging framework not enabled!", __func__);
        return false;
+#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
     }
 
     return true;
+#endif
 }
 
 /**---------------------------------------------------------------------------
@@ -3830,7 +3889,7 @@ void vos_update_arp_fw_tx_delivered(void)
 {
    v_CONTEXT_t pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
    hdd_context_t *pHddCtx = NULL;
-   hdd_adapter_t * pAdapter;
+   hdd_adapter_t * pAdapter = NULL;
    hdd_adapter_list_node_t *pAdapterNode = NULL, *pNext = NULL;
    uint8_t status;
 
@@ -3857,8 +3916,8 @@ void vos_update_arp_fw_tx_delivered(void)
       status = hdd_get_next_adapter (pHddCtx, pAdapterNode, &pNext);
       pAdapterNode = pNext;
    }
-
-   pAdapter->hdd_stats.hddArpStats.tx_host_fw_sent++;
+   if (pAdapter)
+      pAdapter->hdd_stats.hddArpStats.tx_host_fw_sent++;
 }
 
 /**
@@ -3871,7 +3930,7 @@ void vos_update_arp_rx_drop_reorder(void)
 {
    v_CONTEXT_t pVosContext = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
    hdd_context_t *pHddCtx = NULL;
-   hdd_adapter_t * pAdapter;
+   hdd_adapter_t * pAdapter = NULL;
    hdd_adapter_list_node_t *pAdapterNode = NULL, *pNext = NULL;
    uint8_t status;
 
@@ -3898,8 +3957,8 @@ void vos_update_arp_rx_drop_reorder(void)
       status = hdd_get_next_adapter (pHddCtx, pAdapterNode, &pNext);
       pAdapterNode = pNext;
    }
-
-   pAdapter->hdd_stats.hddArpStats.rx_host_drop_reorder++;
+   if (pAdapter)
+      pAdapter->hdd_stats.hddArpStats.rx_host_drop_reorder++;
 }
 
 v_BOOL_t vos_check_monitor_state(void)
@@ -3916,3 +3975,110 @@ v_BOOL_t vos_check_monitor_state(void)
 
 	return wlan_hdd_check_monitor_state(hdd_ctx);
 }
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0))
+struct wcnss_driver_ops driver_ops = {
+	.name = "WLAN_CTRL",
+	.driver_state = WCTS_driver_state_process,
+	.bt_profile_state = WCTS_bt_profile_state_process
+};
+
+VOS_STATUS vos_smd_open(const char *szname, WCTS_ControlBlockType* wcts_cb)
+{
+	wcts_cb->wctsChannel = wcnss_open_channel(szname,
+						  WCTS_smd_resp_process,
+						  wcts_cb);
+	if (IS_ERR(wcts_cb->wctsChannel)) {
+		VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+			  "%s: wcnss_open_channel failed", __func__);
+		return VOS_STATUS_E_INVAL;
+	}
+
+	wcnss_register_driver(&driver_ops, wcts_cb);
+
+	return VOS_STATUS_SUCCESS;
+}
+
+void wlan_unregister_driver(void )
+{
+	wcnss_unregister_driver(&driver_ops);
+}
+
+#ifdef FEATURE_WLAN_SW_PTA
+int vos_process_bt_profile(bool bt_enabled, bool bt_adv,
+			   bool ble_enabled, bool bt_a2dp,
+			   bool bt_sco)
+{
+	v_CONTEXT_t vos_ctx = vos_get_global_context(VOS_MODULE_ID_SYS, NULL);
+	hdd_context_t *hdd_ctx;
+	int ret;
+
+	if (!vos_ctx) {
+		VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+			  "%s: Global VOS context is Null", __func__);
+		return -EINVAL;
+	}
+
+	hdd_ctx = vos_get_context(VOS_MODULE_ID_HDD, vos_ctx);
+	if (wlan_hdd_validate_context(hdd_ctx)) {
+		if (hdd_ctx && hdd_ctx->isLogpInProgress)
+			return -EAGAIN;
+		return -EINVAL;
+	}
+
+	if (!hdd_is_sw_pta_enabled(hdd_ctx)) {
+		VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+			  "%s: sw pta is not enabled", __func__);
+		return -EINVAL;
+	}
+
+	ret = hdd_process_bt_sco_profile(hdd_ctx, bt_enabled, bt_adv,
+					 ble_enabled, bt_a2dp, bt_sco);
+	if (ret)
+		VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+			  "%s: Unable to process bt sco profile", __func__);
+
+	return ret;
+}
+#endif
+#else
+VOS_STATUS vos_smd_open(const char *szname, WCTS_ControlBlockType* wcts_cb)
+{
+	int status;
+	wpt_status wpt_status;
+
+	wpalEventReset(&wcts_cb->wctsEvent);
+
+	status = smd_named_open_on_edge(szname,
+					   SMD_APPS_WCNSS,
+					   &wcts_cb->wctsChannel,
+					   wcts_cb,
+					   WCTS_NotifyCallback);
+	if (status) {
+		VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+			  "%s: smd_named_open_on_edge failed with status %d",
+			  __func__, status);
+
+		return VOS_STATUS_E_FAILURE;
+	}
+
+	/* wait for the channel to be fully opened before we proceed */
+	wpt_status = wpalEventWait(&wcts_cb->wctsEvent, WCTS_SMD_OPEN_TIMEOUT);
+	if (eWLAN_PAL_STATUS_SUCCESS != wpt_status) {
+		VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+				"%s: failed to receive SMD_EVENT_OPEN",
+				__func__);
+
+		/* since we opened one end of the channel, close it */
+		status = smd_close(wcts_cb->wctsChannel);
+		if (status)
+			VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_ERROR,
+				  "%s: smd_close failed with status %d",
+				  __func__, status);
+
+		return VOS_STATUS_E_FAILURE;
+	}
+
+	return VOS_STATUS_SUCCESS;
+}
+#endif

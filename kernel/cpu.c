@@ -8,6 +8,7 @@
 #include <linux/init.h>
 #include <linux/notifier.h>
 #include <linux/sched.h>
+#include <linux/sched/rt.h>
 #include <linux/unistd.h>
 #include <linux/cpu.h>
 #include <linux/oom.h>
@@ -19,6 +20,7 @@
 #include <linux/mutex.h>
 #include <linux/gfp.h>
 #include <linux/suspend.h>
+#include <linux/lockdep.h>
 
 #include <trace/events/sched.h>
 
@@ -64,17 +66,30 @@ static struct {
 	 * an ongoing cpu hotplug operation.
 	 */
 	int refcount;
+
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	struct lockdep_map dep_map;
+#endif
 } cpu_hotplug = {
 	.active_writer = NULL,
 	.lock = __MUTEX_INITIALIZER(cpu_hotplug.lock),
 	.refcount = 0,
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	.dep_map = {.name = "cpu_hotplug.lock" },
+#endif
 };
+
+/* Lockdep annotations for get/put_online_cpus() and cpu_hotplug_begin/end() */
+#define cpuhp_lock_acquire_read() lock_map_acquire_read(&cpu_hotplug.dep_map)
+#define cpuhp_lock_acquire()      lock_map_acquire(&cpu_hotplug.dep_map)
+#define cpuhp_lock_release()      lock_map_release(&cpu_hotplug.dep_map)
 
 void get_online_cpus(void)
 {
 	might_sleep();
 	if (cpu_hotplug.active_writer == current)
 		return;
+	cpuhp_lock_acquire_read();
 	mutex_lock(&cpu_hotplug.lock);
 	cpu_hotplug.refcount++;
 	mutex_unlock(&cpu_hotplug.lock);
@@ -94,6 +109,7 @@ void put_online_cpus(void)
 	if (!--cpu_hotplug.refcount && unlikely(cpu_hotplug.active_writer))
 		wake_up_process(cpu_hotplug.active_writer);
 	mutex_unlock(&cpu_hotplug.lock);
+	cpuhp_lock_release();
 
 }
 EXPORT_SYMBOL_GPL(put_online_cpus);
@@ -124,6 +140,7 @@ static void cpu_hotplug_begin(void)
 {
 	cpu_hotplug.active_writer = current;
 
+	cpuhp_lock_acquire();
 	for (;;) {
 		mutex_lock(&cpu_hotplug.lock);
 		if (likely(!cpu_hotplug.refcount))
@@ -138,6 +155,7 @@ static void cpu_hotplug_done(void)
 {
 	cpu_hotplug.active_writer = NULL;
 	mutex_unlock(&cpu_hotplug.lock);
+	cpuhp_lock_release();
 }
 
 /*
@@ -446,9 +464,40 @@ out:
 	return ret;
 }
 
+static int switch_to_rt_policy(void)
+{
+	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
+	unsigned int policy = current->policy;
+	int err;
+
+	/* Nobody should be attempting hotplug from these policy contexts. */
+	if (policy == SCHED_BATCH || policy == SCHED_IDLE)
+		return -EPERM;
+
+	if (policy == SCHED_FIFO || policy == SCHED_RR)
+		return 1;
+
+	/* Only SCHED_NORMAL left. */
+	err = sched_setscheduler_nocheck(current, SCHED_FIFO, &param);
+	return err;
+
+}
+
+static int switch_to_fair_policy(void)
+{
+	struct sched_param param = { .sched_priority = 0 };
+
+	return sched_setscheduler_nocheck(current, SCHED_NORMAL, &param);
+}
+
 int __cpuinit cpu_up(unsigned int cpu)
 {
 	int err = 0;
+	int switch_err = 0;
+
+	switch_err = switch_to_rt_policy();
+	if (switch_err < 0)
+		return switch_err;
 
 #ifdef	CONFIG_MEMORY_HOTPLUG
 	int nid;
@@ -498,6 +547,11 @@ int __cpuinit cpu_up(unsigned int cpu)
 
 out:
 	cpu_maps_update_done();
+
+	if (!switch_err) {
+		switch_err = switch_to_fair_policy();
+	}
+
 	return err;
 }
 EXPORT_SYMBOL_GPL(cpu_up);

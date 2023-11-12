@@ -150,7 +150,7 @@ ext4_file_dio_write(struct kiocb *iocb, const struct iovec *iov,
 	if (ret > 0 || ret == -EIOCBQUEUED) {
 		ssize_t err;
 
-		err = generic_write_sync(file, pos, ret);
+		err = generic_write_sync(file, iocb->ki_pos - ret, ret);
 		if (err < 0 && ret > 0)
 			ret = err;
 	}
@@ -207,9 +207,18 @@ static const struct vm_operations_struct ext4_file_vm_ops = {
 static int ext4_file_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct address_space *mapping = file->f_mapping;
+	struct inode *inode = file->f_mapping->host;
 
 	if (!mapping->a_ops->readpage)
 		return -ENOEXEC;
+
+	if (ext4_encrypted_inode(inode)) {
+		int err = ext4_get_encryption_info(inode);
+		if (err)
+			return 0;
+		if (ext4_encryption_info(inode) == NULL)
+			return -ENOKEY;
+	}
 	file_accessed(file);
 	vma->vm_ops = &ext4_file_vm_ops;
 	return 0;
@@ -219,10 +228,10 @@ static int ext4_file_open(struct inode * inode, struct file * filp)
 {
 	struct super_block *sb = inode->i_sb;
 	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
-	struct ext4_inode_info *ei = EXT4_I(inode);
 	struct vfsmount *mnt = filp->f_path.mnt;
 	struct path path;
 	char buf[64], *cp;
+	int ret;
 
 	if (unlikely(!(sbi->s_mount_flags & EXT4_MF_MNTDIR_SAMPLED) &&
 		     !(sb->s_flags & MS_RDONLY))) {
@@ -255,26 +264,21 @@ static int ext4_file_open(struct inode * inode, struct file * filp)
 			ext4_journal_stop(handle);
 		}
 	}
+	if (ext4_encrypted_inode(inode)) {
+		ret = ext4_get_encryption_info(inode);
+		if (ret)
+			return -EACCES;
+		if (ext4_encryption_info(inode) == NULL)
+			return -ENOKEY;
+	}
 	/*
 	 * Set up the jbd2_inode if we are opening the inode for
 	 * writing and the journal is present
 	 */
-	if (sbi->s_journal && !ei->jinode && (filp->f_mode & FMODE_WRITE)) {
-		struct jbd2_inode *jinode = jbd2_alloc_inode(GFP_KERNEL);
-
-		spin_lock(&inode->i_lock);
-		if (!ei->jinode) {
-			if (!jinode) {
-				spin_unlock(&inode->i_lock);
-				return -ENOMEM;
-			}
-			ei->jinode = jinode;
-			jbd2_journal_init_jbd_inode(ei->jinode, inode);
-			jinode = NULL;
-		}
-		spin_unlock(&inode->i_lock);
-		if (unlikely(jinode != NULL))
-			jbd2_free_inode(jinode);
+	if (filp->f_mode & FMODE_WRITE) {
+		int ret = ext4_inode_attach_jinode(inode);
+		if (ret < 0)
+			return ret;
 	}
 	return dquot_file_open(inode, filp);
 }
@@ -475,17 +479,7 @@ static loff_t ext4_seek_data(struct file *file, loff_t offset, loff_t maxsize)
 	if (dataoff > isize)
 		return -ENXIO;
 
-	if (dataoff < 0 && !(file->f_mode & FMODE_UNSIGNED_OFFSET))
-		return -EINVAL;
-	if (dataoff > maxsize)
-		return -EINVAL;
-
-	if (dataoff != file->f_pos) {
-		file->f_pos = dataoff;
-		file->f_version = 0;
-	}
-
-	return dataoff;
+	return vfs_setpos(file, dataoff, maxsize);
 }
 
 /*
@@ -561,17 +555,7 @@ static loff_t ext4_seek_hole(struct file *file, loff_t offset, loff_t maxsize)
 	if (holeoff > isize)
 		holeoff = isize;
 
-	if (holeoff < 0 && !(file->f_mode & FMODE_UNSIGNED_OFFSET))
-		return -EINVAL;
-	if (holeoff > maxsize)
-		return -EINVAL;
-
-	if (holeoff != file->f_pos) {
-		file->f_pos = holeoff;
-		file->f_version = 0;
-	}
-
-	return holeoff;
+	return vfs_setpos(file, holeoff, maxsize);
 }
 
 /*

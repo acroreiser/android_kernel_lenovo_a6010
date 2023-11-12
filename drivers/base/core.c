@@ -403,6 +403,36 @@ static ssize_t store_uevent(struct device *dev, struct device_attribute *attr,
 static struct device_attribute uevent_attr =
 	__ATTR(uevent, S_IRUGO | S_IWUSR, show_uevent, store_uevent);
 
+static ssize_t show_online(struct device *dev, struct device_attribute *attr,
+			   char *buf)
+{
+	bool val;
+
+	lock_device_hotplug();
+	val = !dev->offline;
+	unlock_device_hotplug();
+	return sprintf(buf, "%u\n", val);
+}
+
+static ssize_t store_online(struct device *dev, struct device_attribute *attr,
+			    const char *buf, size_t count)
+{
+	bool val;
+	int ret;
+
+	ret = strtobool(buf, &val);
+	if (ret < 0)
+		return ret;
+
+	lock_device_hotplug();
+	ret = val ? device_online(dev) : device_offline(dev);
+	unlock_device_hotplug();
+	return ret < 0 ? ret : count;
+}
+
+static struct device_attribute online_attr =
+	__ATTR(online, S_IRUGO | S_IWUSR, show_online, store_online);
+
 static int device_add_attributes(struct device *dev,
 				 struct device_attribute *attrs)
 {
@@ -464,31 +494,13 @@ static void device_remove_bin_attributes(struct device *dev,
 static int device_add_groups(struct device *dev,
 			     const struct attribute_group **groups)
 {
-	int error = 0;
-	int i;
-
-	if (groups) {
-		for (i = 0; groups[i]; i++) {
-			error = sysfs_create_group(&dev->kobj, groups[i]);
-			if (error) {
-				while (--i >= 0)
-					sysfs_remove_group(&dev->kobj,
-							   groups[i]);
-				break;
-			}
-		}
-	}
-	return error;
+	return sysfs_create_groups(&dev->kobj, groups);
 }
 
 static void device_remove_groups(struct device *dev,
 				 const struct attribute_group **groups)
 {
-	int i;
-
-	if (groups)
-		for (i = 0; groups[i]; i++)
-			sysfs_remove_group(&dev->kobj, groups[i]);
+	sysfs_remove_groups(&dev->kobj, groups);
 }
 
 static int device_add_attrs(struct device *dev)
@@ -516,6 +528,12 @@ static int device_add_attrs(struct device *dev)
 	if (error)
 		goto err_remove_type_groups;
 
+	if (device_supports_offline(dev) && !dev->offline_disabled) {
+		error = device_create_file(dev, &online_attr);
+		if (error)
+			goto err_remove_type_groups;
+	}
+
 	return 0;
 
  err_remove_type_groups:
@@ -536,6 +554,7 @@ static void device_remove_attrs(struct device *dev)
 	struct class *class = dev->class;
 	const struct device_type *type = dev->type;
 
+	device_remove_file(dev, &online_attr);
 	device_remove_groups(dev, dev->groups);
 
 	if (type)
@@ -594,6 +613,23 @@ void device_remove_file(struct device *dev,
 	if (dev)
 		sysfs_remove_file(&dev->kobj, &attr->attr);
 }
+
+/**
+ * device_remove_file_self - remove sysfs attribute file from its own method.
+ * @dev: device.
+ * @attr: device attribute descriptor.
+ *
+ * See kernfs_remove_self() for details.
+ */
+bool device_remove_file_self(struct device *dev,
+			     const struct device_attribute *attr)
+{
+	if (dev)
+		return sysfs_remove_file_self(&dev->kobj, &attr->attr);
+	else
+		return false;
+}
+EXPORT_SYMBOL_GPL(device_remove_file_self);
 
 /**
  * device_create_bin_file - create sysfs binary attribute file for device.
@@ -1459,6 +1495,99 @@ EXPORT_SYMBOL_GPL(put_device);
 EXPORT_SYMBOL_GPL(device_create_file);
 EXPORT_SYMBOL_GPL(device_remove_file);
 
+static DEFINE_MUTEX(device_hotplug_lock);
+
+void lock_device_hotplug(void)
+{
+	mutex_lock(&device_hotplug_lock);
+}
+
+void unlock_device_hotplug(void)
+{
+	mutex_unlock(&device_hotplug_lock);
+}
+
+static int device_check_offline(struct device *dev, void *not_used)
+{
+	int ret;
+
+	ret = device_for_each_child(dev, NULL, device_check_offline);
+	if (ret)
+		return ret;
+
+	return device_supports_offline(dev) && !dev->offline ? -EBUSY : 0;
+}
+
+/**
+ * device_offline - Prepare the device for hot-removal.
+ * @dev: Device to be put offline.
+ *
+ * Execute the device bus type's .offline() callback, if present, to prepare
+ * the device for a subsequent hot-removal.  If that succeeds, the device must
+ * not be used until either it is removed or its bus type's .online() callback
+ * is executed.
+ *
+ * Call under device_hotplug_lock.
+ */
+int device_offline(struct device *dev)
+{
+	int ret;
+
+	if (dev->offline_disabled)
+		return -EPERM;
+
+	ret = device_for_each_child(dev, NULL, device_check_offline);
+	if (ret)
+		return ret;
+
+	device_lock(dev);
+	if (device_supports_offline(dev)) {
+		if (dev->offline) {
+			ret = 1;
+		} else {
+			ret = dev->bus->offline(dev);
+			if (!ret) {
+				kobject_uevent(&dev->kobj, KOBJ_OFFLINE);
+				dev->offline = true;
+			}
+		}
+	}
+	device_unlock(dev);
+
+	return ret;
+}
+
+/**
+ * device_online - Put the device back online after successful device_offline().
+ * @dev: Device to be put back online.
+ *
+ * If device_offline() has been successfully executed for @dev, but the device
+ * has not been removed subsequently, execute its bus type's .online() callback
+ * to indicate that the device can be used again.
+ *
+ * Call under device_hotplug_lock.
+ */
+int device_online(struct device *dev)
+{
+	int ret = 0;
+
+	device_lock(dev);
+	if (device_supports_offline(dev)) {
+		if (dev->offline) {
+			ret = dev->bus->online(dev);
+			if (!ret) {
+				kobject_uevent(&dev->kobj, KOBJ_ONLINE);
+				dev->offline = false;
+			}
+		} else {
+			ret = 1;
+		}
+	}
+	device_unlock(dev);
+
+	return ret;
+}
+
 struct root_device {
 	struct device dev;
 	struct module *owner;
@@ -1729,6 +1858,7 @@ EXPORT_SYMBOL_GPL(device_destroy);
  */
 int device_rename(struct device *dev, const char *new_name)
 {
+	struct kobject *kobj = &dev->kobj;
 	char *old_device_name = NULL;
 	int error;
 
@@ -1746,13 +1876,14 @@ int device_rename(struct device *dev, const char *new_name)
 	}
 
 	if (dev->class) {
-		error = sysfs_rename_link(&dev->class->p->subsys.kobj,
-			&dev->kobj, old_device_name, new_name);
+		error = sysfs_rename_link_ns(&dev->class->p->subsys.kobj,
+					     kobj, old_device_name,
+					     new_name, kobject_namespace(kobj));
 		if (error)
 			goto out;
 	}
 
-	error = kobject_rename(&dev->kobj, new_name);
+	error = kobject_rename(kobj, new_name);
 	if (error)
 		goto out;
 

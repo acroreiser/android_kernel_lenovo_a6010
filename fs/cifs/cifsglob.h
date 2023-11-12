@@ -28,6 +28,7 @@
 #include "cifsacl.h"
 #include <crypto/internal/hash.h>
 #include <linux/scatterlist.h>
+#include <uapi/linux/cifs/cifs_mount.h>
 #ifdef CONFIG_CIFS_SMB2
 #include "smb2pdu.h"
 #endif
@@ -41,12 +42,7 @@
 #define MAX_SES_INFO 2
 #define MAX_TCON_INFO 4
 
-#define MAX_TREE_SIZE (2 + MAX_SERVER_SIZE + 1 + MAX_SHARE_SIZE + 1)
-#define MAX_SERVER_SIZE 15
-#define MAX_SHARE_SIZE 80
-#define CIFS_MAX_DOMAINNAME_LEN 256 /* max domain name length */
-#define MAX_USERNAME_SIZE 256	/* reasonable maximum for current servers */
-#define MAX_PASSWORD_SIZE 512	/* max for windows seems to be 256 wide chars */
+#define MAX_TREE_SIZE (2 + CIFS_NI_MAXHOST + 1 + CIFS_MAX_SHARE_LEN + 1)
 
 #define CIFS_MIN_RCV_POOL 4
 
@@ -134,6 +130,7 @@ struct cifs_secmech {
 
 /* per smb session structure/fields */
 struct ntlmssp_auth {
+	bool sesskey_per_smbsess; /* whether session key is per smb session */
 	__u32 client_flags; /* sent by client in type 1 ntlmsssp exchange */
 	__u32 server_flags; /* sent by server in type 2 ntlmssp exchange */
 	unsigned char ciphertext[CIFS_CPHTXT_SIZE]; /* sent to server */
@@ -193,6 +190,7 @@ struct cifs_writedata;
 struct cifs_io_parms;
 struct cifs_search_info;
 struct cifsInodeInfo;
+struct cifs_open_parms;
 
 struct smb_version_operations {
 	int (*send_cancel)(struct TCP_Server_Info *, void *,
@@ -305,9 +303,8 @@ struct smb_version_operations {
 			       const char *, const char *,
 			       struct cifs_sb_info *);
 	/* open a file for non-posix mounts */
-	int (*open)(const unsigned int, struct cifs_tcon *, const char *, int,
-		    int, int, struct cifs_fid *, __u32 *, FILE_ALL_INFO *,
-		    struct cifs_sb_info *);
+	int (*open)(const unsigned int, struct cifs_open_parms *,
+		    __u32 *, FILE_ALL_INFO *);
 	/* set fid protocol-specific info */
 	void (*set_fid)(struct cifsFileInfo *, struct cifs_fid *, __u32);
 	/* close a file */
@@ -919,6 +916,17 @@ struct cifs_search_info {
 	bool emptyDir:1;
 	bool unicode:1;
 	bool smallBuf:1; /* so we know which buf_release function to call */
+};
+
+struct cifs_open_parms {
+	struct cifs_tcon *tcon;
+	struct cifs_sb_info *cifs_sb;
+	int disposition;
+	int desired_access;
+	int create_options;
+	const char *path;
+	struct cifs_fid *fid;
+	bool reconnect:1;
 };
 
 struct cifs_fid {

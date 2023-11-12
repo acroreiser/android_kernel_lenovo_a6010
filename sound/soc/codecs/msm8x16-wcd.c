@@ -136,7 +136,17 @@ static const DECLARE_TLV_DB_SCALE(digital_gain, 0, 1, 0);
 static const DECLARE_TLV_DB_SCALE(analog_gain, 0, 25, 1);
 static struct snd_soc_dai_driver msm8x16_wcd_i2s_dai[];
 
+
+#ifdef CONFIG_8916_IMPEDANCE_TUNE
+static int h_imped = 0;
+#endif
+
 #ifdef CONFIG_MACH_WT86518
+#ifdef CONFIG_PHANTOM_GAIN_CONTROL
+static struct snd_soc_codec *sound_control_codec_ptr;
+static int lgain,rgain = 0;
+static int sgain = 0;
+#endif
 static struct switch_dev accdet_data;
 static int accdet_state = 0;
 static struct delayed_work analog_switch_enable;
@@ -1003,7 +1013,14 @@ static const struct wcd_mbhc_cb mbhc_cb = {
 
 static const uint32_t wcd_imped_val[] = {4, 8, 12, 16,
 					20, 24, 28, 32,
-					36, 40, 44, 48};
+					36, 40, 44, 48, 
+					52, 56, 60, 64, 
+					68, 72, 76, 80, 
+					84, 88, 92, 96, 
+					100, 104, 108, 112, 
+					116, 120, 124, 128, 
+					132, 136, 140, 144, 
+					148, 152, 156, 160};
 
 void msm8x16_notifier_call(struct snd_soc_codec *codec,
 				  const enum wcd_notify_event event)
@@ -1873,13 +1890,12 @@ static int msm8x16_wcd_codec_enable_on_demand_supply(
 				 __func__, on_demand_supply_name[w->shift]);
 			goto out;
 		}
-		if (atomic_dec_return(&supply->ref) == 0) {
+		if (atomic_dec_return(&supply->ref) == 0)
 			ret = regulator_disable(supply->supply);
 			if (ret)
 				dev_err(codec->dev, "%s: Failed to disable %s\n",
 					__func__,
 					on_demand_supply_name[w->shift]);
-                }
 		break;
 	default:
 		break;
@@ -3185,7 +3201,7 @@ static int msm8x16_wcd_codec_enable_spk_pa(struct snd_soc_dapm_widget *w,
 		usleep_range(CODEC_DELAY_1_MS, CODEC_DELAY_1_1_MS);
 		snd_soc_update_bits(codec,
 			MSM8X16_WCD_A_ANALOG_SPKR_DAC_CTL, 0x10, 0x10);
-		if (get_codec_version(msm8x16_wcd) < CAJON_2_0) {
+		if (get_codec_version(msm8x16_wcd) < CAJON_2_0)
 			msm8x16_wcd_boost_mode_sequence(codec, SPK_PMD);
 			snd_soc_update_bits(codec, w->reg, 0x80, 0x00);
 			switch (msm8x16_wcd->boost_option) {
@@ -3207,7 +3223,6 @@ static int msm8x16_wcd_codec_enable_spk_pa(struct snd_soc_dapm_widget *w,
 				pr_err("%s: invalid boost option: %d\n",
 					__func__, msm8x16_wcd->boost_option);
 			break;
-                }
 		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
@@ -3878,8 +3893,6 @@ static uint32_t wcd_get_impedance_value(uint32_t imped)
 			break;
 	}
 
-	pr_debug("%s: selected impedance value = %d\n",
-		 __func__, wcd_imped_val[i]);
 	return wcd_imped_val[i];
 }
 
@@ -3890,16 +3903,33 @@ void wcd_imped_config(struct snd_soc_codec *codec,
 	int codec_version;
 	struct msm8x16_wcd_priv *msm8x16_wcd =
 				snd_soc_codec_get_drvdata(codec);
+#ifdef CONFIG_8916_IMPEDANCE_TUNE
+	if (h_imped > 3) 
+	{
+		value = h_imped;
+		pr_info("%s: used manually selected impedance = %d Ohm\n",
+			__func__, value);
+	}
+	else if (h_imped == 1)
+	{
+		value = (wcd_get_impedance_value(imped) / 10);
+		pr_info("%s: used corrected impedance: %d Ohm\n",
+			__func__, value);
+	}
+	else
+#endif
+		value = wcd_get_impedance_value(imped);
 
-	value = wcd_get_impedance_value(imped);
+	pr_info("%s: detected impedance: %d Ohm\n",
+			__func__, wcd_get_impedance_value(imped));
 
 	if (value < wcd_imped_val[0]) {
-		pr_debug("%s, detected impedance is less than 4 Ohm\n",
+		pr_info("%s, detected impedance is less than 4 Ohm\n",
 			 __func__);
 		return;
 	}
-	if (value >= wcd_imped_val[ARRAY_SIZE(wcd_imped_val) - 1]) {
-		pr_err("%s, invalid imped, greater than 48 Ohm\n = %d\n",
+	if (value > wcd_imped_val[ARRAY_SIZE(wcd_imped_val) - 1]) {
+		pr_err("%s, invalid imped, greater than 160 Ohm\n = %d\n",
 			__func__, value);
 		return;
 	}
@@ -4151,9 +4181,21 @@ static int msm8x16_wcd_hph_pa_event(struct snd_soc_dapm_widget *w,
 #ifdef CONFIG_MACH_WT86518
 		usleep_range(10000, 10100);
 		if(!state)
+		{
+#ifdef CONFIG_PHANTOM_GAIN_CONTROL
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL, sgain);
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL, sgain);
+#endif
 			gpio_direction_output(EXT_SPK_AMP_HEADSET_GPIO, false);
+		}
 		else
+		{
+#ifdef CONFIG_PHANTOM_GAIN_CONTROL
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL, lgain);
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL, rgain);
+#endif
 			schedule_delayed_work(&analog_switch_enable, msecs_to_jiffies(500));
+		}
 #endif
 		break;
 
@@ -5456,6 +5498,164 @@ static void msm8x16_wcd_configure_cap(struct snd_soc_codec *codec,
 	}
 }
 
+#ifdef CONFIG_8916_IMPEDANCE_TUNE
+static ssize_t headphone_impedance_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", h_imped);
+}
+
+static ssize_t headphone_impedance_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+
+	int input_l;
+
+	sscanf(buf, "%d", &input_l);
+
+	if (input_l < 0 || input_l > 160 || input_l == 2 || input_l == 3)
+		h_imped = 0;
+
+	h_imped = input_l;
+
+	pr_info("%s: impedance control state = %d\n",
+			__func__, h_imped);
+
+	return count;
+}
+
+static struct kobj_attribute headphone_impedance_attribute =
+	__ATTR(headphone_impedance, 0644,
+		headphone_impedance_show,
+		headphone_impedance_store);
+
+static struct attribute *impe_control_attrs[] = {
+		&headphone_impedance_attribute.attr,
+		NULL,
+};
+
+static struct attribute_group impe_control_attr_group = {
+		.attrs = impe_control_attrs,
+};
+
+static struct kobject *impe_control_kobj;
+#endif
+
+#ifdef CONFIG_PHANTOM_GAIN_CONTROL
+
+static ssize_t headphone_gain_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d %d\n", lgain, rgain);
+}
+
+static ssize_t headphone_gain_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+
+	int input_l, input_r;
+
+	sscanf(buf, "%d %d", &input_l, &input_r);
+
+	if (input_l < -20 || input_l > 20)
+		return -EINVAL;
+
+	if (input_r < -20 || input_r > 20)
+		return -EINVAL;
+
+	lgain = input_l;
+	rgain = input_r;
+
+	if(msm8x16_wcd_codec_get_headset_state())
+	{
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL, lgain);
+			snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL, rgain);
+	}
+
+
+	return count;
+}
+
+static struct kobj_attribute headphone_gain_attribute =
+	__ATTR(headphone_gain, 0664,
+		headphone_gain_show,
+		headphone_gain_store);
+
+static ssize_t mic_gain_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n",
+		snd_soc_read(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_TX1_VOL_CTL_GAIN));
+}
+
+static ssize_t mic_gain_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int input;
+
+	sscanf(buf, "%d", &input);
+
+	if (input < -10 || input > 20)
+		return -EINVAL;
+
+	snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_TX1_VOL_CTL_GAIN, input);
+
+	return count;
+}
+
+static struct kobj_attribute mic_gain_attribute =
+	__ATTR(mic_gain, 0664,
+		mic_gain_show,
+		mic_gain_store);
+
+static ssize_t speaker_gain_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n",
+		sgain);
+}
+
+static ssize_t speaker_gain_store(struct kobject *kobj,
+				struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int input;
+
+	sscanf(buf, "%d", &input);
+
+	if (input < -20 || input > 20)
+		return -EINVAL;
+
+	sgain = input;
+
+	if(!msm8x16_wcd_codec_get_headset_state())
+	{
+		snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX2_VOL_CTL_B2_CTL, sgain);
+		snd_soc_write(sound_control_codec_ptr, MSM8X16_WCD_A_CDC_RX1_VOL_CTL_B2_CTL, sgain);
+	}
+
+	return count;
+}
+
+static struct kobj_attribute speaker_gain_attribute =
+		__ATTR(speaker_gain, 0664,
+				speaker_gain_show,
+				speaker_gain_store);
+
+
+static struct attribute *sound_control_attrs[] = {
+		&headphone_gain_attribute.attr,
+		&mic_gain_attribute.attr,
+		&speaker_gain_attribute.attr,
+		NULL,
+};
+
+static struct attribute_group sound_control_attr_group = {
+		.attrs = sound_control_attrs,
+};
+
+static struct kobject *sound_control_kobj;
+#endif
+
 static int msm8x16_wcd_codec_probe(struct snd_soc_codec *codec)
 {
 	struct msm8x16_wcd_priv *msm8x16_wcd_priv;
@@ -5465,6 +5665,10 @@ static int msm8x16_wcd_codec_probe(struct snd_soc_codec *codec)
 	int i, ret;
 
 	dev_dbg(codec->dev, "%s()\n", __func__);
+
+#ifdef CONFIG_PHANTOM_GAIN_CONTROL
+	sound_control_codec_ptr = codec;
+#endif
 
 	msm8x16_wcd_priv = kzalloc(sizeof(struct msm8x16_wcd_priv), GFP_KERNEL);
 	if (!msm8x16_wcd_priv) {
@@ -6018,6 +6222,30 @@ static int msm8x16_wcd_spmi_probe(struct spmi_device *spmi)
 	}
 	dev_set_drvdata(&spmi->dev, msm8x16);
 
+#ifdef CONFIG_8916_IMPEDANCE_TUNE
+	impe_control_kobj = kobject_create_and_add("impe_control", kernel_kobj);
+	if (impe_control_kobj == NULL) {
+		pr_warn("%s kobject create failed!\n", __func__);
+        }
+
+	ret = sysfs_create_group(impe_control_kobj, &impe_control_attr_group);
+        if (ret) {
+		pr_warn("%s sysfs file create failed!\n", __func__);
+	}
+#endif
+
+#ifdef CONFIG_PHANTOM_GAIN_CONTROL
+	sound_control_kobj = kobject_create_and_add("sound_control", kernel_kobj);
+	if (sound_control_kobj == NULL) {
+		pr_warn("%s kobject create failed!\n", __func__);
+        }
+
+	ret = sysfs_create_group(sound_control_kobj, &sound_control_attr_group);
+        if (ret) {
+		pr_warn("%s sysfs file create failed!\n", __func__);
+	}
+#endif
+
 	ret = snd_soc_register_codec(&spmi->dev, &soc_codec_dev_msm8x16_wcd,
 				     msm8x16_wcd_i2s_dai,
 				     ARRAY_SIZE(msm8x16_wcd_i2s_dai));
@@ -6114,7 +6342,7 @@ static int __init msm8x16_wcd_codec_init(void)
 	spmi_driver_register(&wcd_spmi_driver);
 	return 0;
 }
-module_init(msm8x16_wcd_codec_init);
+late_initcall(msm8x16_wcd_codec_init);
 
 static void __exit msm8x16_wcd_codec_exit(void)
 {

@@ -259,6 +259,8 @@ static int aesbs_xts_encrypt(struct blkcipher_desc *desc,
 
 	blkcipher_walk_init(&walk, dst, src, nbytes);
 	err = blkcipher_walk_virt_block(desc, &walk, 8 * AES_BLOCK_SIZE);
+	if (err)
+		return err;
 
 	/* generate the initial tweak */
 	AES_encrypt(walk.iv, walk.iv, &ctx->twkey);
@@ -283,6 +285,8 @@ static int aesbs_xts_decrypt(struct blkcipher_desc *desc,
 
 	blkcipher_walk_init(&walk, dst, src, nbytes);
 	err = blkcipher_walk_virt_block(desc, &walk, 8 * AES_BLOCK_SIZE);
+	if (err)
+		return err;
 
 	/* generate the initial tweak */
 	AES_encrypt(walk.iv, walk.iv, &ctx->twkey);
@@ -301,7 +305,8 @@ static struct crypto_alg aesbs_algs[] = { {
 	.cra_name		= "__cbc-aes-neonbs",
 	.cra_driver_name	= "__driver-cbc-aes-neonbs",
 	.cra_priority		= 0,
-	.cra_flags		= CRYPTO_ALG_TYPE_BLKCIPHER,
+	.cra_flags		= CRYPTO_ALG_TYPE_BLKCIPHER |
+				  CRYPTO_ALG_INTERNAL,
 	.cra_blocksize		= AES_BLOCK_SIZE,
 	.cra_ctxsize		= sizeof(struct aesbs_cbc_ctx),
 	.cra_alignmask		= 7,
@@ -319,7 +324,8 @@ static struct crypto_alg aesbs_algs[] = { {
 	.cra_name		= "__ctr-aes-neonbs",
 	.cra_driver_name	= "__driver-ctr-aes-neonbs",
 	.cra_priority		= 0,
-	.cra_flags		= CRYPTO_ALG_TYPE_BLKCIPHER,
+	.cra_flags		= CRYPTO_ALG_TYPE_BLKCIPHER |
+				  CRYPTO_ALG_INTERNAL,
 	.cra_blocksize		= 1,
 	.cra_ctxsize		= sizeof(struct aesbs_ctr_ctx),
 	.cra_alignmask		= 7,
@@ -337,7 +343,8 @@ static struct crypto_alg aesbs_algs[] = { {
 	.cra_name		= "__xts-aes-neonbs",
 	.cra_driver_name	= "__driver-xts-aes-neonbs",
 	.cra_priority		= 0,
-	.cra_flags		= CRYPTO_ALG_TYPE_BLKCIPHER,
+	.cra_flags		= CRYPTO_ALG_TYPE_BLKCIPHER |
+				  CRYPTO_ALG_INTERNAL,
 	.cra_blocksize		= AES_BLOCK_SIZE,
 	.cra_ctxsize		= sizeof(struct aesbs_xts_ctx),
 	.cra_alignmask		= 7,

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,6 +13,7 @@
 #define pr_fmt(fmt) "%s:%d " fmt, __func__, __LINE__
 
 #include <linux/module.h>
+#include <linux/ratelimit.h>
 #include "msm_sd.h"
 #include "msm_actuator.h"
 #include "msm_cci.h"
@@ -242,8 +243,11 @@ static int32_t msm_actuator_piezo_move_focus(
 		return -EFAULT;
 	}
 
-	if (num_steps == 0)
-		return rc;
+	if (num_steps <= 0 || num_steps > MAX_NUMBER_OF_STEPS) {
+		pr_err("num_steps out of range = %d\n",
+			num_steps);
+		return -EFAULT;
+	}
 
 	a_ctrl->i2c_tbl_index = 0;
 	a_ctrl->func_tbl->actuator_parse_i2c_params(a_ctrl,
@@ -384,7 +388,7 @@ static int32_t msm_actuator_park_lens(struct msm_actuator_ctrl_t *a_ctrl)
 		(!a_ctrl->func_tbl->actuator_parse_i2c_params)) {
 		pr_err("%s:%d Failed to park lens.\n",
 			__func__, __LINE__);
-		return 0;
+		return -EFAULT;
 	}
 
 	if (a_ctrl->park_lens.max_step > a_ctrl->max_code_size)
@@ -502,6 +506,7 @@ static int32_t msm_actuator_vreg_control(struct msm_actuator_ctrl_t *a_ctrl,
 {
 	int rc = 0, i, cnt;
 	struct msm_actuator_vreg *vreg_cfg;
+	struct device *dev = NULL;
 
 	vreg_cfg = &a_ctrl->vreg_cfg;
 	cnt = vreg_cfg->num_vreg;
@@ -513,8 +518,18 @@ static int32_t msm_actuator_vreg_control(struct msm_actuator_ctrl_t *a_ctrl,
 		return -EINVAL;
 	}
 
+	if (a_ctrl->act_device_type == MSM_CAMERA_I2C_DEVICE)
+		dev = &(a_ctrl->i2c_client.client->dev);
+	else if (a_ctrl->act_device_type == MSM_CAMERA_PLATFORM_DEVICE)
+		dev = &(a_ctrl->pdev->dev);
+
+	if (dev == NULL) {
+		pr_err("%s:a_ctrl device structure got corrupted\n", __func__);
+		return -EINVAL;
+	}
+
 	for (i = 0; i < cnt; i++) {
-		rc = msm_camera_config_single_vreg(&(a_ctrl->pdev->dev),
+		rc = msm_camera_config_single_vreg(dev,
 			&vreg_cfg->cam_vreg[i],
 			(struct regulator **)&vreg_cfg->data[i],
 			config);
@@ -525,8 +540,10 @@ static int32_t msm_actuator_vreg_control(struct msm_actuator_ctrl_t *a_ctrl,
 static int32_t msm_actuator_power_down(struct msm_actuator_ctrl_t *a_ctrl)
 {
 	int32_t rc = 0;
+	int force = 1;
+
 	CDBG("Enter\n");
-	if (a_ctrl->actuator_state != ACTUATOR_POWER_DOWN) {
+	if (force || a_ctrl->actuator_state != ACTUATOR_POWER_DOWN) {
 
 		if (a_ctrl->func_tbl && a_ctrl->func_tbl->actuator_park_lens) {
 			rc = a_ctrl->func_tbl->actuator_park_lens(a_ctrl);
@@ -565,8 +582,12 @@ static int32_t msm_actuator_set_position(
 	uint32_t hw_params = 0;
 	struct msm_camera_i2c_reg_setting reg_setting;
 	CDBG("%s Enter %d\n", __func__, __LINE__);
-	if (set_pos->number_of_steps  == 0)
-		return rc;
+	if (set_pos->number_of_steps <= 0 ||
+		set_pos->number_of_steps > MAX_NUMBER_OF_STEPS) {
+		pr_err("num_steps out of range = %d\n",
+			set_pos->number_of_steps);
+		return -EFAULT;
+	}
 
 	a_ctrl->i2c_tbl_index = 0;
 	for (index = 0; index < set_pos->number_of_steps; index++) {
@@ -753,7 +774,7 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 {
 	struct msm_actuator_cfg_data *cdata =
 		(struct msm_actuator_cfg_data *)argp;
-	int32_t rc = 0;
+	int32_t rc = -EINVAL;
 	mutex_lock(a_ctrl->actuator_mutex);
 	CDBG("Enter\n");
 	CDBG("%s type %d\n", __func__, cdata->cfgtype);
@@ -766,6 +787,7 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 	case CFG_GET_ACTUATOR_INFO:
 		cdata->is_af_supported = 1;
 		cdata->cfg.cam_name = a_ctrl->cam_name;
+		rc = 0;
 		break;
 
 	case CFG_SET_ACTUATOR_INFO:
@@ -775,15 +797,19 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		break;
 
 	case CFG_SET_DEFAULT_FOCUS:
-		rc = a_ctrl->func_tbl->actuator_set_default_focus(a_ctrl,
-			&cdata->cfg.move);
+		if (a_ctrl->func_tbl &&
+			a_ctrl->func_tbl->actuator_set_default_focus)
+			rc = a_ctrl->func_tbl->actuator_set_default_focus(
+				a_ctrl,	&cdata->cfg.move);
 		if (rc < 0)
 			pr_err("move focus failed %d\n", rc);
 		break;
 
 	case CFG_MOVE_FOCUS:
-		rc = a_ctrl->func_tbl->actuator_move_focus(a_ctrl,
-			&cdata->cfg.move);
+		if (a_ctrl->func_tbl &&
+			a_ctrl->func_tbl->actuator_move_focus)
+			rc = a_ctrl->func_tbl->actuator_move_focus(a_ctrl,
+				&cdata->cfg.move);
 		if (rc < 0)
 			pr_err("move focus failed %d\n", rc);
 		break;
@@ -794,8 +820,10 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		break;
 
 	case CFG_SET_POSITION:
-		rc = a_ctrl->func_tbl->actuator_set_position(a_ctrl,
-			&cdata->cfg.setpos);
+		if (a_ctrl->func_tbl &&
+			a_ctrl->func_tbl->actuator_set_position)
+			rc = a_ctrl->func_tbl->actuator_set_position(a_ctrl,
+				&cdata->cfg.setpos);
 		if (rc < 0)
 			pr_err("actuator_set_position failed %d\n", rc);
 		break;
@@ -861,7 +889,8 @@ static int msm_actuator_close(struct v4l2_subdev *sd,
 	int rc = 0;
 	struct msm_actuator_ctrl_t *a_ctrl =  v4l2_get_subdevdata(sd);
 	CDBG("Enter\n");
-	if (!a_ctrl) {
+	if (!a_ctrl || !a_ctrl->i2c_client.i2c_func_tbl) {
+		/* check to make sure that init happens before release */
 		pr_err("failed\n");
 		return -EINVAL;
 	}
@@ -869,7 +898,7 @@ static int msm_actuator_close(struct v4l2_subdev *sd,
 		rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_util(
 			&a_ctrl->i2c_client, MSM_CCI_RELEASE);
 		if (rc < 0)
-			pr_err("cci_init failed\n");
+			pr_err_ratelimited("cci_init failed\n");
 	}
 	kfree(a_ctrl->i2c_reg_tbl);
 	a_ctrl->i2c_reg_tbl = NULL;
@@ -897,8 +926,12 @@ static long msm_actuator_subdev_ioctl(struct v4l2_subdev *sd,
 	case MSM_SD_NOTIFY_FREEZE:
 		return 0;
 	case MSM_SD_SHUTDOWN:
-		msm_actuator_close(sd, NULL);
-		return 0;
+		if (!a_ctrl->i2c_client.i2c_func_tbl) {
+			pr_err("a_ctrl->i2c_client.i2c_func_tbl NULL\n");
+			return -EINVAL;
+		} else {
+			return msm_actuator_close(sd, NULL);
+		}
 	default:
 		return -ENOIOCTLCMD;
 	}
@@ -918,7 +951,6 @@ static long msm_actuator_subdev_do_ioctl(
 
 	switch (cmd) {
 	case VIDIOC_MSM_ACTUATOR_CFG32:
-		cmd = VIDIOC_MSM_ACTUATOR_CFG;
 		switch (u32->cfgtype) {
 		case CFG_SET_ACTUATOR_INFO:
 			actuator_data.cfgtype = u32->cfgtype;
@@ -1021,11 +1053,14 @@ static long msm_actuator_subdev_do_ioctl(
 		}
 	}
 
-	rc = msm_actuator_subdev_ioctl(sd, cmd, parg);
+	if (cmd == VIDIOC_MSM_ACTUATOR_CFG32)
+		rc = msm_actuator_subdev_ioctl(sd, VIDIOC_MSM_ACTUATOR_CFG, parg);
+	else
+		rc = msm_actuator_subdev_ioctl(sd, cmd, parg);
 
 	switch (cmd) {
 
-	case VIDIOC_MSM_ACTUATOR_CFG:
+	case VIDIOC_MSM_ACTUATOR_CFG32:
 
 		switch (u32->cfgtype) {
 

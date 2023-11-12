@@ -148,7 +148,7 @@ static int ext4_discard_partial_page_buffers_no_lock(handle_t *handle,
 /*
  * Test whether an inode is a fast symlink.
  */
-static int ext4_inode_is_fast_symlink(struct inode *inode)
+int ext4_inode_is_fast_symlink(struct inode *inode)
 {
 	int ea_blocks = EXT4_I(inode)->i_file_acl ?
 		(inode->i_sb->s_blocksize >> 9) : 0;
@@ -220,7 +220,7 @@ void ext4_evict_inode(struct inode *inode)
 			jbd2_complete_transaction(journal, commit_tid);
 			filemap_write_and_wait(&inode->i_data);
 		}
-		truncate_inode_pages(&inode->i_data, 0);
+		truncate_inode_pages_final(&inode->i_data);
 		ext4_ioend_shutdown(inode);
 		goto no_delete;
 	}
@@ -230,7 +230,7 @@ void ext4_evict_inode(struct inode *inode)
 
 	if (ext4_should_order_data(inode))
 		ext4_begin_ordered_truncate(inode, 0);
-	truncate_inode_pages(&inode->i_data, 0);
+		truncate_inode_pages_final(&inode->i_data);
 	ext4_ioend_shutdown(inode);
 
 	if (is_bad_inode(inode))
@@ -542,7 +542,7 @@ static void ext4_map_blocks_es_recheck(handle_t *handle,
 	if (es_map->m_lblk != map->m_lblk ||
 	    es_map->m_flags != map->m_flags ||
 	    es_map->m_pblk != map->m_pblk) {
-		printk("ES cache assertation failed for inode: %lu "
+		printk("ES cache assertion failed for inode: %lu "
 		       "es_cached ex [%d/%d/%llu/%x] != "
 		       "found ex [%d/%d/%llu/%x] retval %d flags %x\n",
 		       inode->i_ino, es_map->m_lblk, es_map->m_len,
@@ -593,6 +593,7 @@ int ext4_map_blocks(handle_t *handle, struct inode *inode,
 
 	/* Lookup extent status tree firstly */
 	if (ext4_es_lookup_extent(inode, map->m_lblk, &es)) {
+		ext4_es_lru_add(inode);
 		if (ext4_es_is_written(&es) || ext4_es_is_unwritten(&es)) {
 			map->m_pblk = ext4_es_pblock(&es) +
 					map->m_lblk - es.es_lblk;
@@ -633,7 +634,7 @@ int ext4_map_blocks(handle_t *handle, struct inode *inode,
 
 #ifdef ES_AGGRESSIVE_TEST
 		if (retval != map->m_len) {
-			printk("ES len assertation failed for inode: %lu "
+			printk("ES len assertion failed for inode: %lu "
 			       "retval %d != map->m_len %d "
 			       "in %s (lookup)\n", inode->i_ino, retval,
 			       map->m_len, __func__);
@@ -735,7 +736,7 @@ found:
 
 #ifdef ES_AGGRESSIVE_TEST
 		if (retval != map->m_len) {
-			printk("ES len assertation failed for inode: %lu "
+			printk("ES len assertion failed for inode: %lu "
 			       "retval %d != map->m_len %d "
 			       "in %s (allocation)\n", inode->i_ino, retval,
 			       map->m_len, __func__);
@@ -1004,6 +1005,95 @@ int do_journal_get_write_access(handle_t *handle,
 
 static int ext4_get_block_write_nolock(struct inode *inode, sector_t iblock,
 		   struct buffer_head *bh_result, int create);
+
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+static int ext4_block_write_begin(struct page *page, loff_t pos, unsigned len,
+				  get_block_t *get_block)
+{
+	unsigned from = pos & (PAGE_CACHE_SIZE - 1);
+	unsigned to = from + len;
+	struct inode *inode = page->mapping->host;
+	unsigned block_start, block_end;
+	sector_t block;
+	int err = 0;
+	unsigned blocksize = inode->i_sb->s_blocksize;
+	unsigned bbits;
+	struct buffer_head *bh, *head, *wait[2], **wait_bh = wait;
+	bool decrypt = false;
+
+	BUG_ON(!PageLocked(page));
+	BUG_ON(from > PAGE_CACHE_SIZE);
+	BUG_ON(to > PAGE_CACHE_SIZE);
+	BUG_ON(from > to);
+
+	if (!page_has_buffers(page))
+		create_empty_buffers(page, blocksize, 0);
+	head = page_buffers(page);
+	bbits = ilog2(blocksize);
+	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
+
+	for (bh = head, block_start = 0; bh != head || !block_start;
+	    block++, block_start = block_end, bh = bh->b_this_page) {
+		block_end = block_start + blocksize;
+		if (block_end <= from || block_start >= to) {
+			if (PageUptodate(page)) {
+				if (!buffer_uptodate(bh))
+					set_buffer_uptodate(bh);
+			}
+			continue;
+		}
+		if (buffer_new(bh))
+			clear_buffer_new(bh);
+		if (!buffer_mapped(bh)) {
+			WARN_ON(bh->b_size != blocksize);
+			err = get_block(inode, block, bh, 1);
+			if (err)
+				break;
+			if (buffer_new(bh)) {
+				unmap_underlying_metadata(bh->b_bdev,
+							  bh->b_blocknr);
+				if (PageUptodate(page)) {
+					clear_buffer_new(bh);
+					set_buffer_uptodate(bh);
+					mark_buffer_dirty(bh);
+					continue;
+				}
+				if (block_end > to || block_start < from)
+					zero_user_segments(page, to, block_end,
+							   block_start, from);
+				continue;
+			}
+		}
+		if (PageUptodate(page)) {
+			if (!buffer_uptodate(bh))
+				set_buffer_uptodate(bh);
+			continue;
+		}
+		if (!buffer_uptodate(bh) && !buffer_delay(bh) &&
+		    !buffer_unwritten(bh) &&
+		    (block_start < from || block_end > to)) {
+			ll_rw_block(READ, 1, &bh);
+			*wait_bh++ = bh;
+			decrypt = ext4_encrypted_inode(inode) &&
+				S_ISREG(inode->i_mode);
+		}
+	}
+	/*
+	 * If we issued read requests, let them complete.
+	 */
+	while (wait_bh > wait) {
+		wait_on_buffer(*--wait_bh);
+		if (!buffer_uptodate(*wait_bh))
+			err = -EIO;
+	}
+	if (unlikely(err))
+		page_zero_new_buffers(page, from, to);
+	else if (decrypt)
+		err = ext4_decrypt(page);
+	return err;
+}
+#endif
+
 static int ext4_write_begin(struct file *file, struct address_space *mapping,
 			    loff_t pos, unsigned len, unsigned flags,
 			    struct page **pagep, void **fsdata)
@@ -1066,11 +1156,19 @@ retry_journal:
 	/* In case writeback began while the page was unlocked */
 	wait_for_stable_page(page);
 
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+	if (ext4_should_dioread_nolock(inode))
+		ret = ext4_block_write_begin(page, pos, len,
+					     ext4_get_block_write);
+	else
+		ret = ext4_block_write_begin(page, pos, len,
+					     ext4_get_block);
+#else
 	if (ext4_should_dioread_nolock(inode))
 		ret = __block_write_begin(page, pos, len, ext4_get_block_write);
 	else
 		ret = __block_write_begin(page, pos, len, ext4_get_block);
-
+#endif
 	if (!ret && ext4_should_journal_data(inode)) {
 		ret = ext4_walk_page_buffers(handle, page_buffers(page),
 					     from, to, NULL,
@@ -1911,7 +2009,7 @@ static int ext4_da_map_blocks(struct inode *inode, sector_t iblock,
 
 	/* Lookup extent status tree firstly */
 	if (ext4_es_lookup_extent(inode, iblock, &es)) {
-
+		ext4_es_lru_add(inode);
 		if (ext4_es_is_hole(&es)) {
 			retval = 0;
 			down_read((&EXT4_I(inode)->i_data_sem));
@@ -2020,7 +2118,7 @@ add_delayed:
 
 #ifdef ES_AGGRESSIVE_TEST
 		if (retval != map->m_len) {
-			printk("ES len assertation failed for inode: %lu "
+			printk("ES len assertion failed for inode: %lu "
 			       "retval %d != map->m_len %d "
 			       "in %s (lookup)\n", inode->i_ino, retval,
 			       map->m_len, __func__);
@@ -2789,7 +2887,12 @@ retry_journal:
 	/* In case writeback began while the page was unlocked */
 	wait_for_stable_page(page);
 
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+	ret = ext4_block_write_begin(page, pos, len,
+				     ext4_da_get_block_prep);
+#else
 	ret = __block_write_begin(page, pos, len, ext4_da_get_block_prep);
+#endif
 	if (ret < 0) {
 		unlock_page(page);
 		ext4_journal_stop(handle);
@@ -3038,7 +3141,7 @@ static int ext4_readpage(struct file *file, struct page *page)
 		ret = ext4_readpage_inline(inode, page);
 
 	if (ret == -EAGAIN)
-		return mpage_readpage(page, ext4_get_block);
+		return ext4_mpage_readpages(page->mapping, NULL, page, 1);
 
 	return ret;
 }
@@ -3053,7 +3156,7 @@ ext4_readpages(struct file *file, struct address_space *mapping,
 	if (ext4_has_inline_data(inode))
 		return 0;
 
-	return mpage_readpages(mapping, pages, nr_pages, ext4_get_block);
+	return ext4_mpage_readpages(mapping, pages, NULL, nr_pages);
 }
 
 static void ext4_invalidatepage(struct page *page, unsigned long offset)
@@ -3256,6 +3359,9 @@ static ssize_t ext4_ext_direct_IO(int rw, struct kiocb *iocb,
 		get_block_func = ext4_get_block_write;
 		dio_flags = DIO_LOCKING;
 	}
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+	BUG_ON(ext4_encrypted_inode(inode) && S_ISREG(inode->i_mode));
+#endif
 	ret = __blockdev_direct_IO(rw, iocb, inode,
 				   inode->i_sb->s_bdev, iov,
 				   offset, nr_segs,
@@ -3315,6 +3421,11 @@ static ssize_t ext4_direct_IO(int rw, struct kiocb *iocb,
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
 	ssize_t ret;
+
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+	if (ext4_encrypted_inode(inode) && S_ISREG(inode->i_mode))
+		return 0;
+#endif
 
 	/*
 	 * If we are doing data journalling we don't support O_DIRECT
@@ -3438,6 +3549,11 @@ int ext4_discard_partial_page_buffers(handle_t *handle,
 	struct inode *inode = mapping->host;
 	struct page *page;
 	int err = 0;
+
+	/* If we are processing an encrypted inode during orphan list
+	 * handling */
+	if (ext4_encrypted_inode(inode) && !ext4_has_encryption_key(inode))
+		return 0;
 
 	page = find_or_create_page(mapping, from >> PAGE_CACHE_SHIFT,
 				   mapping_gfp_mask(mapping) & ~__GFP_FS);
@@ -3598,8 +3714,14 @@ static int ext4_discard_partial_page_buffers_no_lock(handle_t *handle,
 			/* Uhhuh. Read error. Complain and punt.*/
 			if (!buffer_uptodate(bh))
 				goto next;
+			if (S_ISREG(inode->i_mode) &&
+			ext4_encrypted_inode(inode)) {
+				/* We expect the key to be set. */
+				BUG_ON(!ext4_has_encryption_key(inode));
+				BUG_ON(blocksize != PAGE_CACHE_SIZE);
+				WARN_ON_ONCE(ext4_decrypt(page));
+			}
 		}
-
 		if (ext4_should_journal_data(inode)) {
 			BUFFER_TRACE(bh, "get write access");
 			err = ext4_journal_get_write_access(handle, bh);
@@ -3647,10 +3769,9 @@ int ext4_can_truncate(struct inode *inode)
  * Returns: 0 on success or negative on failure
  */
 
-int ext4_punch_hole(struct file *file, loff_t offset, loff_t length)
+int ext4_punch_hole(struct inode *inode, loff_t offset, loff_t length)
 {
-#if 0
-	struct inode *inode = file_inode(file);
+#ifdef CONFIG_EXT4_PUNCH_HOLE
 	struct super_block *sb = inode->i_sb;
 	ext4_lblk_t first_block, stop_block;
 	struct address_space *mapping = inode->i_mapping;
@@ -3704,6 +3825,18 @@ int ext4_punch_hole(struct file *file, loff_t offset, loff_t length)
 		length = inode->i_size +
 		   PAGE_CACHE_SIZE - (inode->i_size & (PAGE_CACHE_SIZE - 1)) -
 		   offset;
+	}
+
+	if (offset & (sb->s_blocksize - 1) ||
+	    (offset + length) & (sb->s_blocksize - 1)) {
+		/*
+		 * Attach jinode to inode for jbd2 if we do any zeroing of
+		 * partial block
+		 */
+		ret = ext4_inode_attach_jinode(inode);
+		if (ret < 0)
+			goto out_mutex;
+
 	}
 
 	first_page = (offset + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
@@ -3836,11 +3969,37 @@ out_mutex:
 	mutex_unlock(&inode->i_mutex);
 	return ret;
 #else
-   /*
+	/*
     * Disabled as per b/28760453
+    * and by user
     */
    return -EOPNOTSUPP;
 #endif
+}
+
+int ext4_inode_attach_jinode(struct inode *inode)
+{
+	struct ext4_inode_info *ei = EXT4_I(inode);
+	struct jbd2_inode *jinode;
+
+	if (ei->jinode || !EXT4_SB(inode->i_sb)->s_journal)
+		return 0;
+
+	jinode = jbd2_alloc_inode(GFP_KERNEL);
+	spin_lock(&inode->i_lock);
+	if (!ei->jinode) {
+		if (!jinode) {
+			spin_unlock(&inode->i_lock);
+			return -ENOMEM;
+		}
+		ei->jinode = jinode;
+		jbd2_journal_init_jbd_inode(ei->jinode, inode);
+		jinode = NULL;
+	}
+	spin_unlock(&inode->i_lock);
+	if (unlikely(jinode != NULL))
+		jbd2_free_inode(jinode);
+	return 0;
 }
 
 /*
@@ -3909,6 +4068,12 @@ void ext4_truncate(struct inode *inode)
 	 * converting any truncated blocks to initialized later
 	 */
 	ext4_flush_unwritten_io(inode);
+
+	/* If we zero-out tail of the page, we have to create jinode for jbd2 */
+	if (inode->i_size & (inode->i_sb->s_blocksize - 1)) {
+		if (ext4_inode_attach_jinode(inode) < 0)
+			return;
+	}
 
 	if (ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS))
 		credits = ext4_writepage_trans_blocks(inode);
@@ -3990,7 +4155,8 @@ static int __ext4_get_inode_loc(struct inode *inode,
 	int			inodes_per_block, inode_offset;
 
 	iloc->bh = NULL;
-	if (!ext4_valid_inum(sb, inode->i_ino))
+	if (inode->i_ino < EXT4_ROOT_INO ||
+	    inode->i_ino > le32_to_cpu(EXT4_SB(sb)->s_es->s_inodes_count))
 		return -EIO;
 
 	iloc->block_group = (inode->i_ino - 1) / EXT4_INODES_PER_GROUP(sb);
@@ -4204,6 +4370,14 @@ static inline void ext4_iget_extra_inode(struct inode *inode,
 		EXT4_I(inode)->i_inline_off = 0;
 }
 
+int ext4_get_projid(struct inode *inode, kprojid_t *projid)
+{
+	if (!EXT4_HAS_RO_COMPAT_FEATURE(inode->i_sb, EXT4_FEATURE_RO_COMPAT_PROJECT))
+		return -EOPNOTSUPP;
+	*projid = EXT4_I(inode)->i_projid;
+	return 0;
+}
+
 struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 {
 	struct ext4_iloc iloc;
@@ -4216,6 +4390,7 @@ struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 	int block;
 	uid_t i_uid;
 	gid_t i_gid;
+	projid_t i_projid;
 
 	inode = iget_locked(sb, ino);
 	if (!inode)
@@ -4230,6 +4405,12 @@ struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 	if (ret < 0)
 		goto bad_inode;
 	raw_inode = ext4_raw_inode(&iloc);
+
+	if ((ino == EXT4_ROOT_INO) && (raw_inode->i_links_count == 0)) {
+		EXT4_ERROR_INODE(inode, "root inode unallocated");
+		ret = -EIO;
+		goto bad_inode;
+	}
 
 	if (EXT4_INODE_SIZE(inode->i_sb) > EXT4_GOOD_OLD_INODE_SIZE) {
 		ei->i_extra_isize = le16_to_cpu(raw_inode->i_extra_isize);
@@ -4266,12 +4447,20 @@ struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 	inode->i_mode = le16_to_cpu(raw_inode->i_mode);
 	i_uid = (uid_t)le16_to_cpu(raw_inode->i_uid_low);
 	i_gid = (gid_t)le16_to_cpu(raw_inode->i_gid_low);
+	if (EXT4_HAS_RO_COMPAT_FEATURE(sb, EXT4_FEATURE_RO_COMPAT_PROJECT) &&
+	    EXT4_INODE_SIZE(sb) > EXT4_GOOD_OLD_INODE_SIZE &&
+	    EXT4_FITS_IN_INODE(raw_inode, ei, i_projid))
+		i_projid = (projid_t)le32_to_cpu(raw_inode->i_projid);
+	else
+		i_projid = EXT4_DEF_PROJID;
+
 	if (!(test_opt(inode->i_sb, NO_UID32))) {
 		i_uid |= le16_to_cpu(raw_inode->i_uid_high) << 16;
 		i_gid |= le16_to_cpu(raw_inode->i_gid_high) << 16;
 	}
 	i_uid_write(inode, i_uid);
 	i_gid_write(inode, i_gid);
+	ei->i_projid = make_kprojid(&init_user_ns, i_projid);
 	set_nlink(inode, le16_to_cpu(raw_inode->i_links_count));
 
 	ext4_clear_state_flags(ei);	/* Only relevant on 32-bit archs */
@@ -4404,7 +4593,8 @@ struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 		inode->i_op = &ext4_dir_inode_operations;
 		inode->i_fop = &ext4_dir_operations;
 	} else if (S_ISLNK(inode->i_mode)) {
-		if (ext4_inode_is_fast_symlink(inode)) {
+		if (ext4_inode_is_fast_symlink(inode) &&
+		    !ext4_encrypted_inode(inode)) {
 			inode->i_op = &ext4_fast_symlink_inode_operations;
 			nd_terminate_link(ei->i_data, inode->i_size,
 				sizeof(ei->i_data) - 1);
@@ -4412,6 +4602,7 @@ struct inode *ext4_iget(struct super_block *sb, unsigned long ino)
 			inode->i_op = &ext4_symlink_inode_operations;
 			ext4_set_aops(inode);
 		}
+		inode_nohighmem(inode);
 	} else if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode) ||
 	      S_ISFIFO(inode->i_mode) || S_ISSOCK(inode->i_mode)) {
 		inode->i_op = &ext4_special_inode_operations;
@@ -4485,6 +4676,70 @@ static int ext4_inode_blocks_set(handle_t *handle,
 	return 0;
 }
 
+struct other_inode {
+	unsigned long		orig_ino;
+	struct ext4_inode	*raw_inode;
+};
+
+static int other_inode_match(struct inode * inode, unsigned long ino,
+			     void *data)
+{
+	struct other_inode *oi = (struct other_inode *) data;
+
+	if ((inode->i_ino != ino) ||
+	    (inode->i_state & (I_FREEING | I_WILL_FREE | I_NEW |
+			       I_DIRTY_SYNC | I_DIRTY_DATASYNC)) ||
+	    ((inode->i_state & I_DIRTY_TIME) == 0))
+		return 0;
+	spin_lock(&inode->i_lock);
+	if (((inode->i_state & (I_FREEING | I_WILL_FREE | I_NEW |
+				I_DIRTY_SYNC | I_DIRTY_DATASYNC)) == 0) &&
+	    (inode->i_state & I_DIRTY_TIME)) {
+		struct ext4_inode_info	*ei = EXT4_I(inode);
+
+		inode->i_state &= ~(I_DIRTY_TIME | I_DIRTY_TIME_EXPIRED);
+		spin_unlock(&inode->i_lock);
+
+		spin_lock(&ei->i_raw_lock);
+		EXT4_INODE_SET_XTIME(i_ctime, inode, oi->raw_inode);
+		EXT4_INODE_SET_XTIME(i_mtime, inode, oi->raw_inode);
+		EXT4_INODE_SET_XTIME(i_atime, inode, oi->raw_inode);
+		ext4_inode_csum_set(inode, oi->raw_inode, ei);
+		spin_unlock(&ei->i_raw_lock);
+		trace_ext4_other_inode_update_time(inode, oi->orig_ino);
+		return -1;
+	}
+	spin_unlock(&inode->i_lock);
+	return -1;
+}
+
+/*
+ * Opportunistically update the other time fields for other inodes in
+ * the same inode table block.
+ */
+static void ext4_update_other_inodes_time(struct super_block *sb,
+					  unsigned long orig_ino, char *buf)
+{
+	struct other_inode oi;
+	unsigned long ino;
+	int i, inodes_per_block = EXT4_SB(sb)->s_inodes_per_block;
+	int inode_size = EXT4_INODE_SIZE(sb);
+
+	oi.orig_ino = orig_ino;
+	/*
+	 * Calculate the first inode in the inode table block.  Inode
+	 * numbers are one-based.  That is, the first inode in a block
+	 * (assuming 4k blocks and 256 byte inodes) is (n*16 + 1).
+	 */
+	ino = ((orig_ino - 1) & ~(inodes_per_block - 1)) + 1;
+	for (i = 0; i < inodes_per_block; i++, ino++, buf += inode_size) {
+		if (ino == orig_ino)
+			continue;
+		oi.raw_inode = (struct ext4_inode *) buf;
+		(void) find_inode_nowait(sb, ino, other_inode_match, &oi);
+	}
+}
+
 /*
  * Post the struct inode info into an on-disk inode location in the
  * buffer-cache.  This gobbles the caller's reference to the
@@ -4503,8 +4758,11 @@ static int ext4_do_update_inode(handle_t *handle,
 	int need_datasync = 0;
 	uid_t i_uid;
 	gid_t i_gid;
+	projid_t i_projid;
 
-	/* For fields not not tracking in the in-memory inode,
+	spin_lock(&ei->i_raw_lock);
+
+	/* For fields not tracked in the in-memory inode,
 	 * initialise them to zero for new inodes. */
 	if (ext4_test_inode_state(inode, EXT4_STATE_NEW))
 		memset(raw_inode, 0, EXT4_SB(inode->i_sb)->s_inode_size);
@@ -4513,6 +4771,7 @@ static int ext4_do_update_inode(handle_t *handle,
 	raw_inode->i_mode = cpu_to_le16(inode->i_mode);
 	i_uid = i_uid_read(inode);
 	i_gid = i_gid_read(inode);
+	i_projid = from_kprojid(&init_user_ns, ei->i_projid);
 	if (!(test_opt(inode->i_sb, NO_UID32))) {
 		raw_inode->i_uid_low = cpu_to_le16(low_16_bits(i_uid));
 		raw_inode->i_gid_low = cpu_to_le16(low_16_bits(i_gid));
@@ -4600,7 +4859,19 @@ static int ext4_do_update_inode(handle_t *handle,
 		raw_inode->i_extra_isize = cpu_to_le16(ei->i_extra_isize);
 	}
 
+	BUG_ON(!EXT4_HAS_RO_COMPAT_FEATURE(inode->i_sb,
+			EXT4_FEATURE_RO_COMPAT_PROJECT) &&
+	       i_projid != EXT4_DEF_PROJID);
+
+	if (EXT4_INODE_SIZE(inode->i_sb) > EXT4_GOOD_OLD_INODE_SIZE &&
+	    EXT4_FITS_IN_INODE(raw_inode, ei, i_projid))
+		raw_inode->i_projid = cpu_to_le32(i_projid);
+
 	ext4_inode_csum_set(inode, raw_inode, ei);
+
+	if (inode->i_sb->s_flags & MS_LAZYTIME)
+		ext4_update_other_inodes_time(inode->i_sb, inode->i_ino,
+					      bh->b_data);
 
 	BUFFER_TRACE(bh, "call ext4_handle_dirty_metadata");
 	rc = ext4_handle_dirty_metadata(handle, NULL, bh);
@@ -4610,6 +4881,7 @@ static int ext4_do_update_inode(handle_t *handle,
 
 	ext4_update_inode_fsync_trans(handle, inode, need_datasync);
 out_brelse:
+	spin_unlock(&ei->i_raw_lock);
 	brelse(bh);
 	ext4_std_error(inode->i_sb, err);
 	return err;
@@ -4664,7 +4936,12 @@ int ext4_write_inode(struct inode *inode, struct writeback_control *wbc)
 			return -EIO;
 		}
 
-		if (wbc->sync_mode != WB_SYNC_ALL)
+		/*
+		 * No need to force transaction in WB_SYNC_NONE mode. Also
+		 * ext4_sync_fs() will force the commit after everything is
+		 * written.
+		 */
+		if (wbc->sync_mode != WB_SYNC_ALL || wbc->for_sync)
 			return 0;
 
 		err = ext4_force_commit(inode->i_sb);
@@ -4674,7 +4951,11 @@ int ext4_write_inode(struct inode *inode, struct writeback_control *wbc)
 		err = __ext4_get_inode_loc(inode, &iloc, 0);
 		if (err)
 			return err;
-		if (wbc->sync_mode == WB_SYNC_ALL)
+		/*
+		 * sync(2) will flush the whole buffer cache. No need to do
+		 * it here separately for each inode.
+		 */
+		if (wbc->sync_mode == WB_SYNC_ALL && !wbc->for_sync)
 			sync_dirty_buffer(iloc.bh);
 		if (buffer_req(iloc.bh) && !buffer_uptodate(iloc.bh)) {
 			EXT4_ERROR_INODE_BLOCK(inode, iloc.bh->b_blocknr,
@@ -5156,11 +5437,17 @@ int ext4_mark_inode_dirty(handle_t *handle, struct inode *inode)
  * If the inode is marked synchronous, we don't honour that here - doing
  * so would cause a commit on atime updates, which we don't bother doing.
  * We handle synchronous inodes at the highest possible level.
+ *
+ * If only the I_DIRTY_TIME flag is set, we can skip everything.  If
+ * I_DIRTY_TIME and I_DIRTY_SYNC is set, the only inode fields we need
+ * to copy into the on-disk inode structure are the timestamp files.
  */
 void ext4_dirty_inode(struct inode *inode, int flags)
 {
 	handle_t *handle;
 
+	if (flags == I_DIRTY_TIME)
+		return;
 	handle = ext4_journal_start(inode, EXT4_HT_INODE, 2);
 	if (IS_ERR(handle))
 		goto out;

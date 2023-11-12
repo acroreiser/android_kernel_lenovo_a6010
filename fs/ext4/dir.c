@@ -79,6 +79,11 @@ int __ext4_check_dir_entry(const char *function, unsigned int line,
 		error_msg = "rec_len is too small for name_len";
 	else if (unlikely(((char *) de - buf) + rlen > size))
 		error_msg = "directory entry across range";
+	else if (unlikely(((char *) de - buf) + rlen >
+			  size - EXT4_DIR_REC_LEN(1) &&
+			  ((char *) de - buf) + rlen != size)) {
+		error_msg = "directory entry too close to block end";
+	}
 	else if (unlikely(le32_to_cpu(de->inode) >
 			le32_to_cpu(EXT4_SB(dir->i_sb)->s_es->s_inodes_count)))
 		error_msg = "inode out of bounds";
@@ -114,7 +119,15 @@ static int ext4_readdir(struct file *filp,
 	struct inode *inode = file_inode(filp);
 	struct super_block *sb = inode->i_sb;
 	int ret = 0;
+	struct buffer_head *bh = NULL;
 	int dir_has_error = 0;
+	struct ext4_str fname_crypto_str = {.name = NULL, .len = 0};
+
+	if (ext4_encrypted_inode(inode)) {
+		err = ext4_get_encryption_info(inode);
+		if (err && err != -ENOKEY)
+			return err;
+	}
 
 	if (is_dx_dir(inode)) {
 		err = ext4_dx_readdir(filp, dirent, filldir);
@@ -132,10 +145,17 @@ static int ext4_readdir(struct file *filp,
 
 	if (ext4_has_inline_data(inode)) {
 		int has_inline_data = 1;
-		ret = ext4_read_inline_dir(filp, dirent, filldir,
+		err = ext4_read_inline_dir(filp, dirent, filldir,
 					   &has_inline_data);
 		if (has_inline_data)
-			return ret;
+			return err;
+	}
+
+	if (ext4_encrypted_inode(inode)) {
+		err = ext4_fname_crypto_alloc_buffer(inode, EXT4_NAME_LEN,
+						     &fname_crypto_str);
+		if (err < 0)
+			return err;
 	}
 
 	stored = 0;
@@ -143,7 +163,6 @@ static int ext4_readdir(struct file *filp,
 
 	while (!error && !stored && filp->f_pos < inode->i_size) {
 		struct ext4_map_blocks map;
-		struct buffer_head *bh = NULL;
 
 		map.m_lblk = filp->f_pos >> EXT4_BLOCK_SIZE_BITS(sb);
 		map.m_len = 1;
@@ -188,6 +207,7 @@ static int ext4_readdir(struct file *filp,
 					(unsigned long long)filp->f_pos);
 			filp->f_pos += sb->s_blocksize - offset;
 			brelse(bh);
+			bh = NULL;
 			continue;
 		}
 		set_buffer_verified(bh);
@@ -246,13 +266,35 @@ revalidate:
 				 */
 				u64 version = filp->f_version;
 
-				error = filldir(dirent, de->name,
-						de->name_len,
-						filp->f_pos,
-						le32_to_cpu(de->inode),
-						get_dtype(sb, de->file_type));
-				if (error)
+				if (!ext4_encrypted_inode(inode)) {
+					error = filldir(dirent, de->name,
+							de->name_len,
+							filp->f_pos,
+							le32_to_cpu(de->inode),
+							get_dtype(sb, de->file_type));
+				
+				} else {
+					int save_len = fname_crypto_str.len;
+
+					/* Directory is encrypted */
+					err = ext4_fname_disk_to_usr(inode,
+						NULL, de, &fname_crypto_str);
+					fname_crypto_str.len = save_len;
+					if (err < 0) {
+						ret = err;
+						brelse(bh);
+						goto out;
+					}
+					error = filldir(dirent, fname_crypto_str.name,
+							err,
+							filp->f_pos,
+							le32_to_cpu(de->inode),
+							get_dtype(sb, de->file_type));
+				}
+
+				if(error)
 					break;
+
 				if (version != filp->f_version)
 					goto revalidate;
 				stored++;
@@ -264,6 +306,9 @@ revalidate:
 		brelse(bh);
 	}
 out:
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+	ext4_fname_crypto_free_buffer(&fname_crypto_str);
+#endif
 	return ret;
 }
 
@@ -429,10 +474,15 @@ void ext4_htree_free_dir_info(struct dir_private_info *p)
 
 /*
  * Given a directory entry, enter it into the fname rb tree.
+ *
+ * When filename encryption is enabled, the dirent will hold the
+ * encrypted filename, while the htree will hold decrypted filename.
+ * The decrypted filename is passed in via ent_name.  parameter.
  */
 int ext4_htree_store_dirent(struct file *dir_file, __u32 hash,
 			     __u32 minor_hash,
-			     struct ext4_dir_entry_2 *dirent)
+			    struct ext4_dir_entry_2 *dirent,
+			    struct ext4_str *ent_name)
 {
 	struct rb_node **p, *parent = NULL;
 	struct fname *fname, *new_fn;
@@ -443,17 +493,17 @@ int ext4_htree_store_dirent(struct file *dir_file, __u32 hash,
 	p = &info->root.rb_node;
 
 	/* Create and allocate the fname structure */
-	len = sizeof(struct fname) + dirent->name_len + 1;
+	len = sizeof(struct fname) + ent_name->len + 1;
 	new_fn = kzalloc(len, GFP_KERNEL);
 	if (!new_fn)
 		return -ENOMEM;
 	new_fn->hash = hash;
 	new_fn->minor_hash = minor_hash;
 	new_fn->inode = le32_to_cpu(dirent->inode);
-	new_fn->name_len = dirent->name_len;
+	new_fn->name_len = ent_name->len;
 	new_fn->file_type = dirent->file_type;
-	memcpy(new_fn->name, dirent->name, dirent->name_len);
-	new_fn->name[dirent->name_len] = 0;
+	memcpy(new_fn->name, ent_name->name, ent_name->len);
+	new_fn->name[ent_name->len] = 0;
 
 	while (*p) {
 		parent = *p;
@@ -613,6 +663,13 @@ finished:
 	return 0;
 }
 
+static int ext4_dir_open(struct inode * inode, struct file * filp)
+{
+	if (ext4_encrypted_inode(inode))
+		return ext4_get_encryption_info(inode) ? -EACCES : 0;
+	return 0;
+}
+
 static int ext4_release_dir(struct inode *inode, struct file *filp)
 {
 	if (filp->private_data)
@@ -630,5 +687,6 @@ const struct file_operations ext4_dir_operations = {
 	.compat_ioctl	= ext4_compat_ioctl,
 #endif
 	.fsync		= ext4_sync_file,
+	.open		= ext4_dir_open,
 	.release	= ext4_release_dir,
 };
