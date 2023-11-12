@@ -22,13 +22,6 @@
 #include <linux/delay.h>
 #include "vidc_hfi_api.h"
 
-/* dev-harsh1998: export streaming status */
-#include <linux/cpufreq.h>
-static bool wePlayin;
-bool StreamStatus(void) {
-	return wePlayin;
-}
-
 #define MAX_EVENTS 30
 
 static int get_poll_flags(void *instance)
@@ -1363,7 +1356,6 @@ void *msm_vidc_open(int core_id, int session_type)
 		goto fail_setup;
 	}
 
-	wePlayin = true;
 	return inst;
 
 fail_setup:
@@ -1494,7 +1486,6 @@ int msm_vidc_close(void *instance)
 			VIDC_MSG_PRIO2STRING(VIDC_INFO), inst);
 	kfree(inst);
 
-	wePlayin = false;
 	return 0;
 }
 EXPORT_SYMBOL(msm_vidc_close);

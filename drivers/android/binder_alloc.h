@@ -28,16 +28,16 @@ struct binder_transaction;
  * struct binder_buffer - buffer used for binder transactions
  * @entry:              entry alloc->buffers
  * @rb_node:            node for allocated_buffers/free_buffers rb trees
- * @free:               %true if buffer is free
- * @allow_user_free:    %true if user is allowed to free buffer
- * @async_transaction:  %true if buffer is in use for an async txn
- * @debug_id:           unique ID for debugging
- * @transaction:        pointer to associated struct binder_transaction
- * @target_node:        struct binder_node associated with this buffer
- * @data_size:          size of @transaction data
- * @offsets_size:       size of array of offsets
- * @extra_buffers_size: size of space for other objects (like sg lists)
- * @data:               pointer to base of buffer space
+ * @free:               true if buffer is free
+ * @allow_user_free:    describe the second member of struct blah,
+ * @async_transaction:  describe the second member of struct blah,
+ * @debug_id:           describe the second member of struct blah,
+ * @transaction:        describe the second member of struct blah,
+ * @target_node:        describe the second member of struct blah,
+ * @data_size:          describe the second member of struct blah,
+ * @offsets_size:       describe the second member of struct blah,
+ * @extra_buffers_size: describe the second member of struct blah,
+ * @data:i              describe the second member of struct blah,
  *
  * Bookkeeping structure for binder transaction buffers
  */
@@ -48,7 +48,8 @@ struct binder_buffer {
 	unsigned free:1;
 	unsigned allow_user_free:1;
 	unsigned async_transaction:1;
-	unsigned debug_id:29;
+	unsigned free_in_progress:1;
+	unsigned debug_id:28;
 
 	struct binder_transaction *transaction;
 
@@ -124,8 +125,6 @@ extern void binder_alloc_deferred_release(struct binder_alloc *alloc);
 extern int binder_alloc_get_allocated_count(struct binder_alloc *alloc);
 extern void binder_alloc_print_allocated(struct seq_file *m,
 					 struct binder_alloc *alloc);
-extern int binder_buffer_pool_create(void);
-extern void binder_buffer_pool_destroy(void);
 
 /**
  * binder_alloc_get_free_async_space() - get free space available for async

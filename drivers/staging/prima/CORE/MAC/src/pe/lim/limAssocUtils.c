@@ -2758,39 +2758,23 @@ limDelSta(
         pDelStaParams->respReqd = 0;
     else
     {
-        if (pStaDs->staType != STA_ENTRY_TDLS_PEER) {
-              /**
-               * when limDelSta is called from processSmeAssocCnf
-               * then mlmState is already set properly.
-               */
-              if(eLIM_MLM_WT_ASSOC_DEL_STA_RSP_STATE !=
-                 GET_LIM_STA_CONTEXT_MLM_STATE(pStaDs)) {
-                    MTRACE(macTrace
-                           (pMac, TRACE_CODE_MLM_STATE,
-                           psessionEntry->peSessionId,
-                           eLIM_MLM_WT_DEL_STA_RSP_STATE));
-                    SET_LIM_STA_CONTEXT_MLM_STATE(pStaDs,
-                           eLIM_MLM_WT_DEL_STA_RSP_STATE);
-              }
-             if ((eLIM_STA_ROLE ==
-                  GET_LIM_SYSTEM_ROLE(psessionEntry)) ||
-                 (eLIM_BT_AMP_STA_ROLE ==
-                  GET_LIM_SYSTEM_ROLE(psessionEntry))) {
-                       MTRACE(macTrace(pMac, TRACE_CODE_MLM_STATE,
-                                       psessionEntry->peSessionId,
-                                       eLIM_MLM_WT_DEL_STA_RSP_STATE));
-
-                       psessionEntry->limMlmState =
-                               eLIM_MLM_WT_DEL_STA_RSP_STATE;
-             }
-
+        //when limDelSta is called from processSmeAssocCnf then mlmState is already set properly.
+        if(eLIM_MLM_WT_ASSOC_DEL_STA_RSP_STATE != GET_LIM_STA_CONTEXT_MLM_STATE(pStaDs))
+        {
+            MTRACE(macTrace(pMac, TRACE_CODE_MLM_STATE, psessionEntry->peSessionId, eLIM_MLM_WT_DEL_STA_RSP_STATE));
+            SET_LIM_STA_CONTEXT_MLM_STATE(pStaDs, eLIM_MLM_WT_DEL_STA_RSP_STATE);
         }
-        /**
-         * we need to defer the message until we get the
-         * response back from HAL.
-         */
-        SET_LIM_PROCESS_DEFD_MESGS(pMac, false);
+        if ( (eLIM_STA_ROLE == GET_LIM_SYSTEM_ROLE(psessionEntry)) || 
+             (eLIM_BT_AMP_STA_ROLE == GET_LIM_SYSTEM_ROLE(psessionEntry)) )
+        {
+            MTRACE(macTrace(pMac, TRACE_CODE_MLM_STATE, psessionEntry->peSessionId, eLIM_MLM_WT_DEL_STA_RSP_STATE));
+
+            psessionEntry->limMlmState = eLIM_MLM_WT_DEL_STA_RSP_STATE; 
+    
+        }
         pDelStaParams->respReqd = 1;
+        //we need to defer the message until we get the response back from HAL.
+        SET_LIM_PROCESS_DEFD_MESGS(pMac, false);
     }
 
     /* Update PE session ID*/
@@ -4115,11 +4099,10 @@ tSirRetStatus limStaSendAddBssPreAssoc( tpAniSirGlobal pMac, tANI_U8 updateEntry
                             GET_IE_LEN_IN_BSS(bssDescription->length),
                             pBeaconStruct );
 
-    if(pMac->lim.gLimProtectionControl != WNI_CFG_FORCE_POLICY_PROTECTION_DISABLE) {
+    if(pMac->lim.gLimProtectionControl != WNI_CFG_FORCE_POLICY_PROTECTION_DISABLE)
         limDecideStaProtectionOnAssoc(pMac, pBeaconStruct, psessionEntry);
         vos_mem_copy(pAddBssParams->bssId, bssDescription->bssId,
                      sizeof(tSirMacAddr));
-    }
 
     // Fill in tAddBssParams selfMacAddr
     vos_mem_copy(pAddBssParams->selfMacAddr,

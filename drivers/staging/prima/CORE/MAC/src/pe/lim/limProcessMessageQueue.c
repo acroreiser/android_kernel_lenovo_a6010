@@ -229,7 +229,7 @@ __limHandleBeacon(tpAniSirGlobal pMac, tpSirMsgQ pMsg, tpPESession psessionEntry
      else
         limProcessBeaconFrame(pMac, pRxPacketInfo, psessionEntry);
 
-    return;
+        return;
 }
 
 
@@ -341,10 +341,7 @@ limHandleFramesInScanState(tpAniSirGlobal pMac, tpSirMsgQ limMsg, tANI_U8 *pRxPa
     }
     else if ((fc.type == SIR_MAC_MGMT_FRAME) && (fc.subType == SIR_MAC_MGMT_ACTION))
     {
-        if (psessionEntry != NULL)
-            limProcessActionFrame(pMac, pRxPacketInfo, psessionEntry);
-        else
-            limProcessActionFrameNoSession(pMac, pRxPacketInfo);
+       limProcessActionFrameNoSession( pMac, pRxPacketInfo);
     }
     else
     {

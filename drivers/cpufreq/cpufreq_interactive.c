@@ -143,13 +143,6 @@ struct cpufreq_interactive_tunables {
 	unsigned int max_freq_hysteresis;
 };
 
-/* dev-harsh1998: limit max bg freq to 800mhz if we're playing videos */
-static unsigned long InStreamFreq = CONFIG_CPU_INSTREAM_FREQ;
-static bool AreWeStreaming(void)
-{
-	return StreamStatus();
-}
-
 /* For cases where we have single governor instance for system */
 static struct cpufreq_interactive_tunables *common_tunables;
 
@@ -693,14 +686,6 @@ static int cpufreq_interactive_speedchange_task(void *data)
 				}
 			}
 
-			/* dev-harsh1998: check status and change max_freq
-			 * change the max_freq only if higher than last one
-			 */
-			if (AreWeStreaming() && InStreamFreq < max_freq) {
-				if (InStreamFreq > 0)
-					max_freq = InStreamFreq;
-			}
-
 			if (max_freq != pcpu->policy->cur) {
 				__cpufreq_driver_target(pcpu->policy,
 							max_freq,
@@ -806,7 +791,7 @@ static int cpufreq_interactive_notifier(
 	int cpu;
 	unsigned long flags;
 
-	if (val == CPUFREQ_PRECHANGE) {
+	if (val == CPUFREQ_POSTCHANGE) {
 		pcpu = &per_cpu(cpuinfo, freq->cpu);
 		if (!down_read_trylock(&pcpu->enable_sem))
 			return 0;
@@ -950,22 +935,13 @@ static ssize_t store_above_hispeed_delay(
 	struct cpufreq_interactive_tunables *tunables,
 	const char *buf, size_t count)
 {
-	int ntokens, i;
+	int ntokens;
 	unsigned int *new_above_hispeed_delay = NULL;
 	unsigned long flags;
 
 	new_above_hispeed_delay = get_tokenized_data(buf, &ntokens);
 	if (IS_ERR(new_above_hispeed_delay))
 		return PTR_RET(new_above_hispeed_delay);
-
-	/* Make sure frequencies are in ascending order. */
-	for (i = 3; i < ntokens; i += 2) {
-		if (new_above_hispeed_delay[i] <=
-		    new_above_hispeed_delay[i - 2]) {
-			kfree(new_above_hispeed_delay);
-			return -EINVAL;
-		}
-	}
 
 	spin_lock_irqsave(&tunables->above_hispeed_delay_lock, flags);
 	if (tunables->above_hispeed_delay != default_above_hispeed_delay)
@@ -1110,27 +1086,6 @@ static ssize_t store_timer_slack(struct cpufreq_interactive_tunables *tunables,
 		return ret;
 
 	tunables->timer_slack_val = val;
-	return count;
-}
-
-static ssize_t showStreamFreq(struct kobject *kobj, struct attribute *attr,
-			  char *buf)
-{
-	return sprintf(buf, "%lu\n", InStreamFreq);
-}
-
-static ssize_t storeStreamFreq(struct kobject *kobj, struct attribute *attr,
-			   const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
- 	ret = strict_strtoul(buf, 0, &val);
-
-	if (ret < 0)
-		return ret;
-
-	InStreamFreq = val < 0 ? CONFIG_CPU_INSTREAM_FREQ : val;
 	return count;
 }
 
@@ -1456,12 +1411,6 @@ static struct global_attr boostpulse_gov_sys =
 static struct freq_attr boostpulse_gov_pol =
 	__ATTR(boostpulse, 0200, NULL, store_boostpulse_gov_pol);
 
-static struct global_attr streamFreq_attr_sys = __ATTR(InStreamFreq, 0644,
-                showStreamFreq, storeStreamFreq);
-
-static struct global_attr streamFreq_attr_pol = __ATTR(InStreamFreq, 0644,
-                showStreamFreq, storeStreamFreq);
-
 /* One Governor instance for entire system */
 static struct attribute *interactive_attributes_gov_sys[] = {
 	&target_loads_gov_sys.attr,
@@ -1471,7 +1420,6 @@ static struct attribute *interactive_attributes_gov_sys[] = {
 	&min_sample_time_gov_sys.attr,
 	&timer_rate_gov_sys.attr,
 	&timer_slack_gov_sys.attr,
-	&streamFreq_attr_sys.attr,
 	&boost_gov_sys.attr,
 	&boostpulse_gov_sys.attr,
 	&boostpulse_duration_gov_sys.attr,
@@ -1497,7 +1445,6 @@ static struct attribute *interactive_attributes_gov_pol[] = {
 	&min_sample_time_gov_pol.attr,
 	&timer_rate_gov_pol.attr,
 	&timer_slack_gov_pol.attr,
-	&streamFreq_attr_pol.attr,
 	&boost_gov_pol.attr,
 	&boostpulse_gov_pol.attr,
 	&boostpulse_duration_gov_pol.attr,

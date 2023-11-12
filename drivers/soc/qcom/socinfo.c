@@ -15,7 +15,7 @@
  * SOC Info Routines
  *
  */
-#pragma GCC diagnostic ignored "-Wformat-truncation="
+
 #include <linux/export.h>
 #include <linux/module.h>
 #include <linux/err.h>

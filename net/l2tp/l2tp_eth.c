@@ -222,6 +222,12 @@ static int l2tp_eth_create(struct net *net, u32 tunnel_id, u32 session_id, u32 p
 		goto out;
 	}
 
+	session = l2tp_session_find(net, tunnel, session_id);
+	if (session) {
+		rc = -EEXIST;
+		goto out;
+	}
+
 	if (cfg->ifname) {
 		dev = dev_get_by_name(net, cfg->ifname);
 		if (dev) {
@@ -235,8 +241,8 @@ static int l2tp_eth_create(struct net *net, u32 tunnel_id, u32 session_id, u32 p
 
 	session = l2tp_session_create(sizeof(*spriv), tunnel, session_id,
 				      peer_session_id, cfg);
-	if (IS_ERR(session)) {
-		rc = PTR_ERR(session);
+	if (!session) {
+		rc = -ENOMEM;
 		goto out;
 	}
 

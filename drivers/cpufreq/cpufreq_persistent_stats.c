@@ -10,7 +10,6 @@
  * GNU General Public License for more details.
  */
 
-#pragma GCC diagnostic ignored "-Wformat-truncation="
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/cpu.h>

@@ -220,11 +220,9 @@ int mmc_gpio_request_cd(struct mmc_host *host, unsigned int gpio)
 
 	ret = mmc_gpio_get_status(host);
 	if (ret < 0)
-		/* HACK: REMOVE RETURN TO BYPASS SECOND SIM STATUS */
-		// return ret;
-		pr_debug("%s: failed to init second host\n", mmc_hostname(host));
-        else
-		ctx->status = ret;
+		return ret;
+
+	ctx->status = ret;
 
 	if (irq >= 0) {
 		ret = devm_request_threaded_irq(&host->class_dev, irq,

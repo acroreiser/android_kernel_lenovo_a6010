@@ -191,7 +191,7 @@ __limFreshScanReqd(tpAniSirGlobal pMac, tANI_U8 returnFreshResults)
    if( (validState) && (returnFreshResults & SIR_BG_SCAN_RETURN_FRESH_RESULTS))
     return TRUE;
 
-   return FALSE;
+    return FALSE;
 }
 
 
@@ -426,7 +426,6 @@ static tANI_BOOLEAN
 __limProcessSmeSysReadyInd(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
 {
     tSirMsgQ msg;
-    tSirSmeReadyReq *ready_req = (tSirSmeReadyReq *) pMsgBuf;
     
     msg.type = WDA_SYS_READY_IND;
     msg.reserved = 0;
@@ -436,7 +435,6 @@ __limProcessSmeSysReadyInd(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
     if (pMac->gDriverType != eDRIVER_TYPE_MFG)
     {
         peRegisterTLHandle(pMac);
-        pMac->lim.sme_msg_callback = ready_req->sme_msg_cb;
     }
     PELOGW(limLog(pMac, LOGW, FL("sending WDA_SYS_READY_IND msg to HAL"));)
     MTRACE(macTraceMsgTx(pMac, NO_SESSION, msg.type));
@@ -1123,8 +1121,6 @@ static eHalStatus limSendHalStartScanOffloadReq(tpAniSirGlobal pMac,
     tSirMsgQ msg;
     tANI_U16 i, len;
     tSirRetStatus rc = eSIR_SUCCESS;
-    if (pScanReq->channelList.numChannels > SIR_ESE_MAX_MEAS_IE_REQS)
-        pScanReq->channelList.numChannels = SIR_ESE_MAX_MEAS_IE_REQS;
 
     /* The tSirScanOffloadReq will reserve the space for first channel,
        so allocate the memory for (numChannels - 1) and uIEFieldLen */
@@ -2096,7 +2092,7 @@ __limProcessSmeJoinReq(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
                                      TX_POWER_DEFAULT);
             psessionEntry->maxTxPower = TX_POWER_DEFAULT;
         }
-        psessionEntry->def_max_tx_pwr = psessionEntry->maxTxPower;
+
         VOS_TRACE(VOS_MODULE_ID_PE, VOS_TRACE_LEVEL_INFO,
                         "Regulatory max = %d, local power constraint = %d,"
                         " max tx = %d", regMax, localPowerConstraint,
@@ -3854,7 +3850,7 @@ __limHandleSmeStopBssRequest(tpAniSirGlobal pMac, tANI_U32 *pMsgBuf)
        )
     {
         tSirMacAddr   bcAddr = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-        if (stopBssReq.reasonCode == eSIR_SME_MIC_COUNTER_MEASURES)
+        if ((stopBssReq.reasonCode == eSIR_SME_MIC_COUNTER_MEASURES))
             // Send disassoc all stations associated thru TKIP
             __limCounterMeasures(pMac,psessionEntry);
         else
@@ -4145,11 +4141,6 @@ __lim_process_sme_assoc_offload_cnf(tpAniSirGlobal pmac,
         limDeactivateAndChangePerStaIdTimer(pmac,
                 eLIM_CNF_WAIT_TIMER,
                 aid);
-    }
-    else
-    {
-      limLog(pmac, LOGE, FL("NULL sta_ds"));
-      goto end;
     }
     if (assoc_cnf.statusCode == eSIR_SME_SUCCESS)
     {
@@ -5795,7 +5786,7 @@ static void lim_process_sme_channel_change_request(tpAniSirGlobal mac_ctx,
    max_tx_pwr = cfgGetRegulatoryMaxTransmitPower(mac_ctx,
                      ch_change_req->new_chan);
 
-   if (max_tx_pwr == WDA_MAX_TXPOWER_INVALID) {
+   if ((max_tx_pwr == WDA_MAX_TXPOWER_INVALID)) {
        limLog(mac_ctx, LOGE, FL("Invalid Request/max_tx_pwr"));
        return;
    }

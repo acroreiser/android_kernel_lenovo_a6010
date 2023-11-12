@@ -422,14 +422,6 @@ config TASK_IO_ACCOUNTING
 
 endmenu # "CPU/Task time and stats accounting"
 
-config DEFAULT_ROOTWAIT_POLL
-	int "configureable option for changing rootwait polling time"
-	default 100
-	help
-		For several devices, the rootwait time is sensitive because
-		it directly affects booting time. The above config could be 
-		used configure it via device config.
-
 menu "RCU Subsystem"
 
 choice

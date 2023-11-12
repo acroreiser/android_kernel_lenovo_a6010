@@ -10,7 +10,6 @@
  * GNU General Public License for more details.
  */
 
-#pragma GCC diagnostic ignored "-Wint-in-bool-context"
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/firmware.h>

@@ -504,10 +504,9 @@ __krait_proc_info:
 	/*
 	 * Some Krait processors don't indicate support for SDIV and UDIV
 	 * instructions in the ARM instruction set, even though they actually
-	 * do support them. They also don't indicate support for fused multiply
-	 * instructions even though they actually do support them.
+	 * do support them.
 	 */
-	__v7_proc __v7_setup, hwcaps = HWCAP_IDIV | HWCAP_VFPv4
+	__v7_proc __v7_setup, hwcaps = HWCAP_IDIV
 	.size	__krait_proc_info, . - __krait_proc_info
 
 	/*

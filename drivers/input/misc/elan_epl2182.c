@@ -1168,9 +1168,9 @@ static long elan_ps_ioctl(struct file *file, unsigned int cmd,
 		buf[0] = gRawData.ps_ch1_raw;
 		buf[1] = gRawData.ps_state;
 		//if (copy_to_user(argp, &gRawData.ps_ch1_raw, sizeof(gRawData.ps_ch1_raw)))
-		if (copy_to_user(argp, buf, sizeof(buf))){
+		if (copy_to_user(argp, buf, sizeof(buf)))
 			return -EFAULT;
-		}
+			
 			break;
 
 	default:

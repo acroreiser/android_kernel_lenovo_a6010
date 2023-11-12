@@ -189,7 +189,6 @@ tSirRetStatus macStop(tHalHandle hHal, tHalStopType stopType)
 tSirRetStatus macOpen(tHalHandle *pHalHandle, tHddHandle hHdd, tMacOpenParameters *pMacOpenParms)
 {
     tpAniSirGlobal pMac = NULL;
-    tSirRetStatus status = eSIR_SUCCESS;
 
     if(pHalHandle == NULL)
         return eSIR_FAILURE;
@@ -240,12 +239,7 @@ tSirRetStatus macOpen(tHalHandle *pHalHandle, tHddHandle hHdd, tMacOpenParameter
     }
 
 
-    status = peOpen(pMac, pMacOpenParms);
-    if (eSIR_SUCCESS != status) {
-           sysLog(pMac, LOGE, FL("peOpen() failure"));
-           vos_mem_vfree(pMac);
-    }
-    return status;
+    return peOpen(pMac, pMacOpenParms);
 }
 
 /** -------------------------------------------------------------

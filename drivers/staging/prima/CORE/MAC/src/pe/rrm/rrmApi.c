@@ -222,7 +222,7 @@ rrmSetMaxTxPowerRsp ( tpAniSirGlobal pMac, tpSirMsgQ limMsgQ )
    {
       for (i =0;i < pMac->lim.maxBssId;i++)
       {
-         if ( pMac->lim.gpSession[i].valid == TRUE )
+         if ( (pMac->lim.gpSession[i].valid == TRUE ))
          {
             pSessionEntry = &pMac->lim.gpSession[i];
             rrmCacheMgmtTxPower ( pMac, pMaxTxParams->power, pSessionEntry );
@@ -282,7 +282,7 @@ rrmProcessLinkMeasurementRequest( tpAniSirGlobal pMac,
       return eSIR_FAILURE;
    }
    pHdr = WDA_GET_RX_MAC_HEADER( pRxPacketInfo );
-   LinkReport.txPower = limGetMaxTxPower (pSessionEntry->def_max_tx_pwr,
+   LinkReport.txPower = limGetMaxTxPower (pSessionEntry->maxTxPower,
        pLinkReq->MaxTxPower.maxTxPower,
        pMac->roam.configParam.nTxPowerCap);
 

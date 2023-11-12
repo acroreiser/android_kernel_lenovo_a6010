@@ -1375,13 +1375,6 @@ REG_TABLE_ENTRY g_registry_table[] =
                  CFG_REORDER_TIME_VO_MIN,
                  CFG_REORDER_TIME_VO_MAX ),
 
-   REG_VARIABLE( CFG_ENABLE_PN_REPLAY_NAME , WLAN_PARAM_Integer,
-                 hdd_config_t, enablePNReplay,
-                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
-                 CFG_ENABLE_PN_REPLAY_DEFAULT,
-                 CFG_ENABLE_PN_REPLAY_MIN,
-                 CFG_ENABLE_PN_REPLAY_MAX ),
-
    REG_VARIABLE_STRING( CFG_WOWL_PATTERN_NAME, WLAN_PARAM_String,
                         hdd_config_t, wowlPattern,
                         VAR_FLAGS_OPTIONAL,
@@ -3952,14 +3945,6 @@ REG_VARIABLE( CFG_EXTSCAN_ENABLE, WLAN_PARAM_Integer,
                CFG_STA_AUTH_RETRIES_FOR_CODE17_MIN,
                CFG_STA_AUTH_RETRIES_FOR_CODE17_MAX ),
 
-  REG_VARIABLE( CFG_INDOOR_CHANNEL_SUPPORT_NAME, WLAN_PARAM_Integer,
-               hdd_config_t, indoor_channel_support,
-               VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
-               CFG_INDOOR_CHANNEL_SUPPORT_DEFAULT,
-               CFG_INDOOR_CHANNEL_SUPPORT_MIN,
-               CFG_INDOOR_CHANNEL_SUPPORT_MAX),
-
-
   REG_VARIABLE( CFG_TRIGGER_NULLFRAME_BEFORE_HB_NAME, WLAN_PARAM_Integer,
                 hdd_config_t, trigger_nullframe_before_hb,
                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
@@ -3999,42 +3984,6 @@ REG_VARIABLE( CFG_EXTSCAN_ENABLE, WLAN_PARAM_Integer,
                 CFG_ENABLE_POWERSAVE_OFFLOAD_DEFAULT,
                 CFG_ENABLE_POWERSAVE_OFFLOAD_MIN,
                 CFG_ENABLE_POWERSAVE_OFFLOAD_MAX),
-
-  REG_VARIABLE(CFG_BTC_2M_DYN_LONG_WLAN_LEN_NAME, WLAN_PARAM_Integer,
-                hdd_config_t, btc_dyn_wlan_len,
-                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
-                CFG_BTC_2M_DYN_LONG_WLAN_LEN_DEFAULT,
-                CFG_BTC_2M_DYN_LONG_WLAN_LEN_MIN,
-                CFG_BTC_2M_DYN_LONG_WLAN_LEN_MAX),
-
-  REG_VARIABLE(CFG_BTC_2M_DYN_LONG_BT_LEN_NAME, WLAN_PARAM_Integer,
-                hdd_config_t, btc_dyn_bt_len,
-                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
-                CFG_BTC_2M_DYN_LONG_BT_LEN_DEFAULT,
-                CFG_BTC_2M_DYN_LONG_BT_LEN_MIN,
-                CFG_BTC_2M_DYN_LONG_BT_LEN_MAX),
-
-  REG_VARIABLE(CFG_BTC_2M_DYN_LONG_BT_EXT_LEN_NAME, WLAN_PARAM_Integer,
-                hdd_config_t, btc_dyn_bt_ext_len,
-                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
-                CFG_BTC_2M_DYN_LONG_BT_EXT_LEN_DEFAULT,
-                CFG_BTC_2M_DYN_LONG_BT_EXT_LEN_MIN,
-                CFG_BTC_2M_DYN_LONG_BT_EXT_LEN_MAX),
-
-  REG_VARIABLE(CFG_BTC_2M_DYN_LONG_NUM_BT_EXT_NAME, WLAN_PARAM_Integer,
-                hdd_config_t, btc_dyn_num_bt_ext,
-                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
-                CFG_BTC_2M_DYN_LONG_NUM_BT_EXT_DEFAULT,
-                CFG_BTC_2M_DYN_LONG_NUM_BT_EXT_MIN,
-                CFG_BTC_2M_DYN_LONG_NUM_BT_EXT_MAX),
-
-  REG_VARIABLE(CFG_FORCE_RSNE_OVERRIDE_NAME, WLAN_PARAM_Integer,
-                hdd_config_t, force_rsne_override,
-                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
-                CFG_FORCE_RSNE_OVERRIDE_DEFAULT,
-                CFG_FORCE_RSNE_OVERRIDE_MIN,
-                CFG_FORCE_RSNE_OVERRIDE_MAX),
-
 };
 
 /*
@@ -4094,8 +4043,8 @@ static char *i_trim(char *str)
 
    /* Find the first non white-space*/
    for (ptr = str; i_isspace(*ptr); ptr++);
-   if (*ptr == '\0')
-      return str;
+      if (*ptr == '\0')
+         return str;
 
    /* This is the new start of the string*/
    str = ptr;
@@ -4103,8 +4052,8 @@ static char *i_trim(char *str)
    /* Find the last non white-space */
    ptr += strlen(ptr) - 1;
    for (; ptr != str && i_isspace(*ptr); ptr--);
-   /* Null terminate the following character */
-   ptr[1] = '\0';
+      /* Null terminate the following character */
+      ptr[1] = '\0';
 
    return str;
 }
@@ -4116,133 +4065,6 @@ typedef struct
    char *name;
    char *value;
 }tCfgIniEntry;
-
-
-/* convert string to 6 bytes mac address
- * 00AA00BB00CC -> 0x00 0xAA 0x00 0xBB 0x00 0xCC
- */
-static void update_mac_from_string(hdd_context_t *pHddCtx, tCfgIniEntry *macTable, int num)
-{
-   int i = 0, j = 0, res = 0;
-   char *candidate = NULL;
-   v_MACADDR_t macaddr[VOS_MAX_CONCURRENCY_PERSONA];
-
-   memset(macaddr, 0, sizeof(macaddr));
-
-   for (i = 0; i < num; i++)
-   {
-      candidate = macTable[i].value;
-      for (j = 0; j < VOS_MAC_ADDR_SIZE; j++) {
-         res = hex2bin(&macaddr[i].bytes[j], &candidate[(j<<1)], 1);
-         if (res < 0)
-            break;
-      }
-      if (res == 0 && !vos_is_macaddr_zero(&macaddr[i])) {
-         vos_mem_copy((v_U8_t *)&pHddCtx->cfg_ini->intfMacAddr[i].bytes[0],
-                      (v_U8_t *)&macaddr[i].bytes[0], VOS_MAC_ADDR_SIZE);
-      }
-   }
-}
-
-/*
- * This function tries to update mac address from cfg file.
- * It overwrites the MAC address if config file exist.
- */
-VOS_STATUS hdd_update_mac_config(hdd_context_t *pHddCtx)
-{
-   int status, i = 0, j = 0;
-   char * buf;
-   const struct firmware *fw = NULL;
-   const char prefix[] = "Intf";
-   const char suffix[] = "MacAddress";
-   tCfgIniEntry macTable[VOS_MAX_CONCURRENCY_PERSONA];
-   VOS_STATUS vos_status = VOS_STATUS_SUCCESS;
-
-   // make sure all pointers in macTable are NULL, so an early jump to config_exit will not crash
-   memset(macTable, 0, sizeof(macTable));
-
-   status = request_firmware(&fw, WLAN_MAC_FILE, pHddCtx->parent_dev);
-
-   if (status)
-   {
-      hddLog(VOS_TRACE_LEVEL_WARN, "%s: request_firmware failed %d",
-             __func__, status);
-      return VOS_STATUS_E_FAILURE;
-   }
-   if (fw == NULL || fw->data == NULL || fw->size < (VOS_MAX_CONCURRENCY_PERSONA * NV_FIELD_MAC_ADDR_SIZE))
-   {
-      hddLog(VOS_TRACE_LEVEL_FATAL, "%s: invalid firmware", __func__);
-      release_firmware(fw);
-      return VOS_STATUS_E_INVAL;
-   }
-
-   /* data format:
-    * 00AA00BB00CA00AA00BB00CB00AA00BB00CC00AA00BB00CD
-    */
-
-   for (i = 0; i < VOS_MAX_CONCURRENCY_PERSONA; i++)
-   {
-      int lenPersona = snprintf(NULL, 0, "%d", i);
-
-      char *persona = (char*)vos_mem_vmalloc(lenPersona + 1);
-      if (NULL == persona) {
-         hddLog(VOS_TRACE_LEVEL_FATAL, "%s: kmalloc failure", __func__);
-         vos_status = VOS_STATUS_E_FAILURE;
-         goto config_exit;
-      }
-
-      macTable[i].name = (char*)vos_mem_vmalloc((sizeof(prefix) - 1) + lenPersona + (sizeof(suffix) - 1) + 1);
-      if (NULL == macTable[i].name) {
-         hddLog(VOS_TRACE_LEVEL_FATAL, "%s: kmalloc failure", __func__);
-         vos_status = VOS_STATUS_E_FAILURE;
-         vos_mem_vfree(persona);
-         goto config_exit;
-      }
-
-      macTable[i].value = (char*)vos_mem_vmalloc(NV_FIELD_MAC_ADDR_SIZE * 2 + 1);
-      if (NULL == macTable[i].value) {
-         hddLog(VOS_TRACE_LEVEL_FATAL, "%s: kmalloc failure", __func__);
-         vos_status = VOS_STATUS_E_FAILURE;
-         vos_mem_vfree(persona);
-         goto config_exit;
-      }
-
-      sprintf(persona, "%d", i);
-
-      strcpy(macTable[i].name, prefix);
-      strcat(macTable[i].name, persona);
-      strcat(macTable[i].name, suffix);
-
-      buf = macTable[i].value;
-      for (j = 0; j < NV_FIELD_MAC_ADDR_SIZE; j++)
-      {
-         buf += sprintf(buf, "%02X", fw->data[NV_FIELD_MAC_ADDR_SIZE * i + j]);
-      }
-
-      vos_mem_vfree(persona);
-   }
-
-   if (i <= VOS_MAX_CONCURRENCY_PERSONA) {
-      hddLog(VOS_TRACE_LEVEL_INFO, "%s: %d MAC addresses provided", __func__, i);
-   }
-   else {
-      hddLog(VOS_TRACE_LEVEL_ERROR, "%s: invalid number of MAC address provided, nMac = %d",
-             __func__, i);
-      vos_status = VOS_STATUS_E_INVAL;
-      goto config_exit;
-   }
-
-   update_mac_from_string(pHddCtx, &macTable[0], i);
-
-config_exit:
-   for(i = 0; i < VOS_MAX_CONCURRENCY_PERSONA; i++)
-   {
-      vos_mem_vfree(macTable[i].name);
-      vos_mem_vfree(macTable[i].value);
-   }
-   release_firmware(fw);
-   return vos_status;
-}
 
 static VOS_STATUS hdd_apply_cfg_ini( hdd_context_t * pHddCtx,
     tCfgIniEntry* iniTable, unsigned long entries);
@@ -4830,11 +4652,6 @@ static void print_hdd_cfg(hdd_context_t *pHddCtx)
             "Name = [%s] Value = [%u] ",
             CFG_ENABLE_POWERSAVE_OFFLOAD_NAME,
             pHddCtx->cfg_ini->enable_power_save_offload);
-
-    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO_HIGH,
-            "Name = [%s] Value = [%u] ",
-            CFG_FORCE_RSNE_OVERRIDE_NAME,
-            pHddCtx->cfg_ini->force_rsne_override);
 }
 
 
@@ -4994,7 +4811,6 @@ static VOS_STATUS hdd_apply_cfg_ini( hdd_context_t *pHddCtx, tCfgIniEntry* iniTa
    {
       hddLog(LOGE, "%s: MAX_CFG_INI_ITEMS too small, must be at least %ld",
              __func__, cRegTableEntries);
-      VOS_ASSERT(1);
    }
 
    for ( idx = 0; idx < cRegTableEntries; idx++, pRegEntry++ )
@@ -5746,10 +5562,6 @@ v_BOOL_t hdd_update_config_dat( hdd_context_t *pHddCtx )
 
     if (ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_MCAST_BCAST_FILTER_SETTING, pConfig->mcastBcastFilterSetting,
                      NULL, eANI_BOOLEAN_FALSE)==eHAL_STATUS_FAILURE)
-    {
-       fStatus = FALSE;
-       hddLog(LOGE,"Failure: Could not pass on WNI_CFG_MCAST_BCAST_FILTER_SETTING configuration info to CCM");
-    }
 #endif
 
      if (ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_SINGLE_TID_RC, pConfig->bSingleTidRc,
@@ -6537,43 +6349,6 @@ v_BOOL_t hdd_update_config_dat( hdd_context_t *pHddCtx )
       fStatus = FALSE;
       hddLog(LOGE, "Couldn't pass WNI_CFG_ENABLE_POWERSAVE_OFFLOAD to CCM");
    }
-
-   if(ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_BTC_2M_DYN_LONG_WLAN_LEN,
-                   pConfig->btc_dyn_wlan_len, NULL,
-                   eANI_BOOLEAN_FALSE)
-       ==eHAL_STATUS_FAILURE)
-   {
-      fStatus = FALSE;
-      hddLog(LOGE, "Couldn't pass WNI_CFG_BTC_2M_DYN_LONG_WLAN_LEN to CCM");
-   }
-
-   if(ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_BTC_2M_DYN_LONG_BT_LEN,
-                   pConfig->btc_dyn_bt_len, NULL,
-                   eANI_BOOLEAN_FALSE)
-       ==eHAL_STATUS_FAILURE)
-   {
-      fStatus = FALSE;
-      hddLog(LOGE, "Couldn't pass WNI_CFG_BTC_2M_DYN_LONG_BT_LEN to CCM");
-   }
-   if(ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_BTC_2M_DYN_LONG_BT_EXT_LEN,
-                   pConfig->btc_dyn_bt_ext_len, NULL,
-                   eANI_BOOLEAN_FALSE)
-       ==eHAL_STATUS_FAILURE)
-   {
-      fStatus = FALSE;
-      hddLog(LOGE, "Couldn't pass WNI_CFG_BTC_2M_DYN_LONG_BT_EXT_LEN to CCM");
-   }
-   if(ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_BTC_2M_DYN_LONG_NUM_BT_EXT,
-                   pConfig->btc_dyn_num_bt_ext, NULL,
-                   eANI_BOOLEAN_FALSE)
-       ==eHAL_STATUS_FAILURE)
-   {
-      fStatus = FALSE;
-      hddLog(LOGE, "Couldn't pass WNI_CFG_BTC_2M_DYN_LONG_NUM_BT_EXT to CCM");
-   }
-
-
-
    return fStatus;
 }
 
@@ -6901,9 +6676,6 @@ VOS_STATUS hdd_set_sme_config( hdd_context_t *pHddCtx )
        true) != VOS_STATUS_SUCCESS)
        vos_mem_set(smeConfig->csrConfig.agg_btc_sco_oui, VENDOR_AP_OUI_SIZE, 0);
 
-   /* Disable aggrigation if value is 0 or 1 (CFG_NUM_BUFF_BTC_SCO_INVALID) */
-   if (pHddCtx->cfg_ini->num_buff_aggr_btc_sco == CFG_NUM_BUFF_BTC_SCO_INVALID)
-       pHddCtx->cfg_ini->num_buff_aggr_btc_sco = CFG_NUM_BUFF_BTC_SCO_MIN;
    smeConfig->csrConfig.num_ba_buff_btc_sco =
                         pHddCtx->cfg_ini->num_buff_aggr_btc_sco;
    smeConfig->csrConfig.num_ba_buff =

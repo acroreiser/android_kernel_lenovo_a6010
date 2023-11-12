@@ -290,7 +290,7 @@
 		red {
 			gpios = <&msm_gpio 8 0>;
 			label = "red";
-			linux,default-trigger = "none";
+			linux,default-trigger = "battery-red";
 			default-state = "off";
 			retain-state-suspended;
 		};
@@ -298,38 +298,32 @@
 		green {
 			gpios = <&msm_gpio 9 0>;
 			label = "green";
-			linux,default-trigger = "none";
+			linux,default-trigger = "battery-green";
 			default-state = "off";
 			retain-state-suspended;
-		};
-
-		blue {
-			gpios = <&msm_gpio 10 0>;
-			label = "blue";
-			linux,default-trigger = "none";
-			default-state = "off";
 		};
 	};
 
 	sound {
 		compatible = "qcom,msm8x16-audio-codec";
-		qcom,model = "msm8x16-skui-snd-card";
+		qcom,model = "msm8x16-skuh-snd-card";
 		qcom,msm-snd-card-id = <0>;
 		qcom,msm-ext-pa = "primary";
 		qcom,msm-codec-type = "internal";
 		qcom,msm-mbhc-hphl-swh = <1>;
 		qcom,msm-mbhc-gnd-swh = <0>;
-		qcom,msm-hs-micbias-type = "internal";
+		qcom,msm-hs-micbias-type = "internel";
+		qcom,msm-micbias1-ext-cap;
 		qcom,audio-routing =
-			"RX_BIAS", "MCLK",
-			"SPK_RX_BIAS", "MCLK",
-			"INT_LDO_H", "MCLK",
-			"MIC BIAS Internal1", "Handset Mic",
-			"MIC BIAS Internal2", "Headset Mic",
-			"MIC BIAS Internal1", "Secondary Mic",
-			"AMIC1", "MIC BIAS Internal1",
-			"AMIC2", "MIC BIAS Internal2",
-			"AMIC3", "MIC BIAS Internal1";
+				"RX_BIAS", "MCLK",
+				"SPK_RX_BIAS", "MCLK",
+				"INT_LDO_H", "MCLK",
+				"MIC BIAS External", "Handset Mic",
+				"MIC BIAS Internal2", "Headset Mic",
+				"MIC BIAS External", "Secondary Mic",
+				"AMIC1", "MIC BIAS External",
+				"AMIC2", "MIC BIAS Internal2",
+				"AMIC3", "MIC BIAS External";
 		pinctrl-names = "cdc_lines_act",
 				"cdc_lines_sus";
 		pinctrl-0 = <&cdc_pdm_lines_act>;
@@ -422,17 +416,6 @@
 		qcom,y-offset = <0>;
 	};
 
-        ramoops {
-                compatible = "ramoops";
-                status = "ok";
- 
-                android,ramoops-buffer-start = <0x9ff00000>;
-                android,ramoops-buffer-size = <0x100000>;
-		android,ramoops-console-size = <0x40000>;
-		android,ramoops-pmsg-size = <0x40000>;
-                android,ramoops-record-size = <0x20000>;
-                android,ramoops-dump-oops = <0x1>;
-        };
 };
 
 &sdhc_2 {

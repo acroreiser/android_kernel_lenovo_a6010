@@ -725,9 +725,7 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 void smp_send_reschedule(int cpu)
 {
-	if (WARN_ON(cpu_is_offline(cpu))) {
-		return;
-	}
+	BUG_ON(cpu_is_offline(cpu));
 	smp_cross_call_common(cpumask_of(cpu), IPI_RESCHEDULE);
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012,2014-2015,2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012,2014-2015,2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -389,13 +389,13 @@ wpt_status wpalRivaSubystemRestart(void)
     wpalWlanReload -  Initiate WLAN Driver reload
 
     Param:
-       reason: hang reason
+       None
     Return:
        NONE
 ---------------------------------------------------------------------------*/
-void wpalWlanReload(enum vos_hang_reason reason)
+void wpalWlanReload(void)
 {
-   vos_wlanRestart(reason);
+   vos_wlanRestart();
    return;
 }
 

@@ -190,4 +190,7 @@ source "drivers/firmware/Kconfig"
 
 source "drivers/android/Kconfig"
 
+source "drivers/cpuquiet/Kconfig"
+
+
 endmenu

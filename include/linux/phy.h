@@ -18,7 +18,6 @@
 #ifndef __PHY_H
 #define __PHY_H
 
-#pragma GCC diagnostic ignored "-Wformat-truncation="
 #include <linux/spinlock.h>
 #include <linux/ethtool.h>
 #include <linux/mii.h>

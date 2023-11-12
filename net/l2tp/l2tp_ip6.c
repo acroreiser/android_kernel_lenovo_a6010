@@ -153,19 +153,19 @@ static int l2tp_ip6_recv(struct sk_buff *skb)
 	}
 
 	/* Ok, this is a data packet. Lookup the session. */
-	session = l2tp_session_get(&init_net, NULL, session_id, true);
-	if (!session)
+	session = l2tp_session_find(&init_net, NULL, session_id);
+	if (session == NULL)
 		goto discard;
 
 	tunnel = session->tunnel;
-	if (!tunnel)
-		goto discard_sess;
+	if (tunnel == NULL)
+		goto discard;
 
 	/* Trace packet contents, if enabled */
 	if (tunnel->debug & L2TP_MSG_DATA) {
 		length = min(32u, skb->len);
 		if (!pskb_may_pull(skb, length))
-			goto discard_sess;
+			goto discard;
 
 		/* Point to L2TP header */
 		optr = ptr = skb->data;
@@ -176,8 +176,6 @@ static int l2tp_ip6_recv(struct sk_buff *skb)
 
 	l2tp_recv_common(session, skb, ptr, optr, 0, skb->len,
 			 tunnel->recv_payload_hook);
-	l2tp_session_dec_refcount(session);
-
 	return 0;
 
 pass_up:
@@ -212,12 +210,6 @@ pass_up:
 	nf_reset(skb);
 
 	return sk_receive_skb(sk, skb, 1);
-
-discard_sess:
-	if (session->deref)
-		session->deref(session);
-	l2tp_session_dec_refcount(session);
-	goto discard;
 
 discard_put:
 	sock_put(sk);

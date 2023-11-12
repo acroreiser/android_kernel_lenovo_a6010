@@ -442,8 +442,8 @@ EXPORT_SYMBOL(cfg80211_reg_can_beacon);
 int cfg80211_set_monitor_channel(struct cfg80211_registered_device *rdev,
 				 struct cfg80211_chan_def *chandef)
 {
-	if (!rdev->ops->set_monitor_channel)
-		return -EOPNOTSUPP;
+//	if (!rdev->ops->set_monitor_channel)
+//		return -EOPNOTSUPP;
 	if (!cfg80211_has_monitors_only(rdev))
 		return -EBUSY;
 

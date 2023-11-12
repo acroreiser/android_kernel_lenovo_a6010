@@ -36,11 +36,11 @@
 
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
-				qcom,support-reset = <1>;
+				qcom,support-reset = <0>;
 				qcom,pull-up = <1>;
 				qcom,s1-timer = <10256>;
 				qcom,s2-timer = <2000>;
-				qcom,s2-type = <1>;
+				qcom,s2-type = <7>;
 				linux,code = <116>;
 			};
 
@@ -207,24 +207,25 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			qcom,vddmax-mv = <4200>;
-			qcom,vddsafe-mv = <4200>;
-			qcom,vinmin-mv = <4308>;
-			qcom,ibatsafe-ma = <1440>;
-			qcom,thermal-mitigation = <1440 720 630 0>;
-			qcom,cool-bat-decidegc = <100>;
-			qcom,warm-bat-decidegc = <450>;
-			qcom,cool-bat-mv = <4100>;
-			qcom,warm-bat-mv = <4100>;
-			qcom,ibatmax-warm-ma = <360>;
-			qcom,ibatmax-cool-ma = <360>;
-			qcom,batt-hot-percentage = <25>;
-			qcom,batt-cold-percentage = <80>;
-			qcom,tchg-mins = <232>;
+			qcom,vddmax-mv = <4350>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,vddsafe-mv = <4350>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,vinmin-mv = <4470>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,ibatsafe-ma = <1440>; //NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,thermal-mitigation = <1440 1150 460 0>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,cool-bat-decidegc = <150>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,warm-bat-decidegc = <450>; //NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,cool-bat-mv = <4350>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,warm-bat-mv = <4350>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,ibatmax-warm-ma = <1150>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,ibatmax-cool-ma = <460>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,batt-hot-percentage = <35>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,batt-cold-percentage = <70>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,tchg-mins = <512>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,resume-soc = <99>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
 			qcom,chg-vadc = <&pm8916_vadc>;
 			qcom,chg-adc_tm = <&pm8916_adc_tm>;
 
-			status = "disabled";
+			status = "ok";
 
 			qcom,chgr@1000 {
 				reg = <0x1000 0x100>;
@@ -266,10 +267,10 @@
 			compatible = "qcom,qpnp-vm-bms";
 			#address-cells = <1>;
 			#size-cells = <1>;
-			status = "disabled";
+			status = "ok";
 
 			qcom,v-cutoff-uv = <3400000>;
-			qcom,max-voltage-uv = <4200000>;
+			qcom,max-voltage-uv = <4350000>;
 			qcom,r-conn-mohm = <0>;
 			qcom,shutdown-soc-valid-limit = <100>;
 			qcom,low-soc-calculate-soc-threshold = <15>;
@@ -541,6 +542,7 @@
 			reg-names = "qpnp-lpg-channel-base";
 			qcom,channel-id = <0>;
 			qcom,supported-sizes = <6>, <9>;
+			qcom,force-pwm-size = <9>;
 			#pwm-cells = <2>;
 		};
 
@@ -548,7 +550,7 @@
 			compatible = "qcom,qpnp-vibrator";
 			reg = <0xc000 0x100>;
 			label = "vibrator";
-			status = "disabled";
+			status = "okay";
 		};
 
 		pm8916_tombak_dig: msm8x16_wcd_codec@f000{

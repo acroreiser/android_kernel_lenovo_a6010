@@ -171,11 +171,10 @@ void limRemovePBCSessions(tpAniSirGlobal pMac, tSirMacAddr pRemoveMac,tpPESessio
         if (vos_mem_compare((tANI_U8 *)pbc->addr,
                             (tANI_U8 *)pRemoveMac, sizeof(tSirMacAddr))) {
           prev->next = pbc->next;
-          if (pbc == psessionEntry->pAPWPSPBCSession) {
+          if (pbc == psessionEntry->pAPWPSPBCSession)
             psessionEntry->pAPWPSPBCSession = pbc->next;
             vos_mem_free(pbc);
             return;
-          }
         }
         prev = pbc;
         pbc = pbc->next;
@@ -499,7 +498,7 @@ limProcessProbeReqFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo,tpPESession 
                         return;
                     }
                 }
-                if (psessionEntry->limSystemRole == eLIM_AP_ROLE)
+                if ((psessionEntry->limSystemRole == eLIM_AP_ROLE))
                 {
                   
                     if ( (psessionEntry->APWPSIEs.SirWPSProbeRspIE.FieldPresent &

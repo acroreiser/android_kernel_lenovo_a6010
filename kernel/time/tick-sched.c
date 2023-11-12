@@ -121,9 +121,6 @@ static void tick_do_update_jiffies64(ktime_t now)
 
 		/* Keep the tick_next_period variable up to date */
 		tick_next_period = ktime_add(last_jiffies_update, tick_period);
-	} else {
-		write_sequnlock(&jiffies_lock);
-		return;
 	}
 	write_sequnlock(&jiffies_lock);
 }
@@ -575,7 +572,7 @@ EXPORT_SYMBOL_GPL(get_cpu_iowait_time_us);
 
 static inline bool local_timer_softirq_pending(void)
 {
-	return local_softirq_pending() & BIT(TIMER_SOFTIRQ);
+	return local_softirq_pending() & TIMER_SOFTIRQ;
 }
 
 static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
@@ -1044,8 +1041,11 @@ static void tick_nohz_switch_to_nohz(void)
 	if (!tick_nohz_enabled)
 		return;
 
-	if (tick_switch_to_oneshot(tick_nohz_handler))
+	local_irq_disable();
+	if (tick_switch_to_oneshot(tick_nohz_handler)) {
+		local_irq_enable();
 		return;
+	}
 
 	ts->nohz_mode = NOHZ_MODE_LOWRES;
 
@@ -1063,6 +1063,7 @@ static void tick_nohz_switch_to_nohz(void)
 			break;
 		next = ktime_add(next, tick_period);
 	}
+	local_irq_enable();
 }
 
 /*
@@ -1208,10 +1209,6 @@ static enum hrtimer_restart tick_sched_timer(struct hrtimer *timer)
 		}
 	}
 
-	/* No need to reprogram if we are in idle or full dynticks mode */
-	if (unlikely(ts->tick_stopped))
-		return HRTIMER_NORESTART;
-
 	hrtimer_forward(timer, now, tick_period);
 
 	return HRTIMER_RESTART;
@@ -1321,7 +1318,7 @@ void tick_oneshot_notify(void)
  * Called cyclic from the hrtimer softirq (driven by the timer
  * softirq) allow_nohz signals, that we can switch into low-res nohz
  * mode, because high resolution timers are disabled (either compile
- * or runtime). Called with interrupts disabled.
+ * or runtime).
  */
 int tick_check_oneshot_change(int allow_nohz)
 {

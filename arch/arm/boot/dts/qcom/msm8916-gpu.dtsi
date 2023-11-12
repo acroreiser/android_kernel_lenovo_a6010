@@ -29,7 +29,7 @@
 
 		qcom,initial-pwrlevel = <1>;
 
-		qcom,idle-timeout = <64>; //msec
+		qcom,idle-timeout = <80>; //msec
 		qcom,strtstp-sleepwake;
 
 		/*
@@ -91,19 +91,19 @@
 			qcom,gpu-pwrlevel@1 {
 				reg = <1>;
 				qcom,gpu-freq = <310000000>;
-				qcom,bus-freq = <3>;
+				qcom,bus-freq = <2>;
 			};
 
 			qcom,gpu-pwrlevel@2 {
 				reg = <2>;
 				qcom,gpu-freq = <200000000>;
-				qcom,bus-freq = <2>;
+				qcom,bus-freq = <1>;
 			};
 
 			qcom,gpu-pwrlevel@3 {
 				reg = <3>;
 				qcom,gpu-freq = <19200000>;
-				qcom,bus-freq = <1>;
+				qcom,bus-freq = <0>;
 			};
 		};
 		/* Speed levels */

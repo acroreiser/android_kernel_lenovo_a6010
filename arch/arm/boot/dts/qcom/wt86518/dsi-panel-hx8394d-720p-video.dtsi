@@ -42,7 +42,6 @@
 		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
 		qcom,mdss-dsi-underflow-color = <0xff>;
 		qcom,mdss-dsi-border-color = <0>;
-		qcom,ulps-enabled;
 		qcom,mdss-dsi-on-command = [39 01 00 00 00 00 04 B9 FF 83 94
 				39 01 00 00 00 00 07 BA 33 83 20 65 B2 09
 				39 01 00 00 00 00 10 B1 6c 11 11 37 04 11 F1 80 df 94 23 80 C0 D2 18
@@ -90,9 +89,6 @@
 		qcom,mdss-dsi-reset-sequence = <1 50>, <0 20>, <1 5>;
 		qcom,mdss-pan-physical-width-dimension = <59>;
 		qcom,mdss-pan-physical-height-dimension = <104>;
-		qcom,mdss-dsi-pan-enable-dynamic-fps;
-		qcom,mdss-dsi-pan-fps-update = "dfps_immediate_porch_mode";
-		qcom,mdss-dsi-min-refresh-rate = <30>;
-		qcom,mdss-dsi-idle-refresh-rate = <48>;
+
 	};
 };

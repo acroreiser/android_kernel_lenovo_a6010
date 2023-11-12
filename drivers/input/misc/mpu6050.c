@@ -14,7 +14,7 @@
  *
  */
 
-#pragma GCC diagnostic ignored "-Wformat-truncation="
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -3478,9 +3478,8 @@ static long gyro_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	
 	case GYRO_REC_DATA_FOR_CALI:
 
-		if (copy_from_user(&calidata, argp, sizeof(calidata))) {
+		if (copy_from_user(&calidata, argp, sizeof(calidata)))
 			return -EFAULT;
-		}
 			if(calidata.rx < MPU6050_GYRO_MIN_VALUE || calidata.rx > MPU6050_GYRO_MAX_VALUE)
 				calidata.rx = 0;
 			if(calidata.ry < MPU6050_GYRO_MIN_VALUE || calidata.ry > MPU6050_GYRO_MAX_VALUE)

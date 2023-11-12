@@ -20,7 +20,22 @@
 	model = "Qualcomm Technologies, Inc. MSM 8916 QRD WT86518";
 	compatible = "qcom,msm8916-qrd-wt86518", "qcom,msm8916-qrd", "qcom,msm8916", "qcom,qrd";
 	qcom,board-id = <0x1010b 8>;          
-                                                                
+ 
+};
+
+&soc {
+	i2c@78b8000 {
+		fan54015_otg_supply: fan54015-chg@6A {
+			compatible = "freescale,fan54015-chg";
+			reg = <0x6A>;
+			pinctrl-names = "otg_pin_high","otg_pin_low";
+			pinctrl-0 = <&otg_pin_high>;
+			pinctrl-1 = <&otg_pin_low>;        
+
+		        regulator-name = "fan54015_otg_vreg";
+			qcom,bms-controlled-charging;
+		};
+	};
 
 };
 
@@ -69,14 +84,10 @@
 	qcom,battery-data = <&qrd_batterydata>;
 };                                                                                             
                                                                                            
-&soc {
-	qcom,ipc_router_modem_xprt {
-		/delete-property/ qcom,disable-pil-loading;
-	};
-
-	qcom,smem@86300000 {
-		qcom,smd-modem {
-			/delete-property/ qcom,not-loadable;
-		};
-	};
-}; 
+&usb_otg {
+	qcom,hsusb-otg-mode = <3>;
+	qcom,usbid-gpio = <&msm_gpio 110 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usbid_default>;
+	vbus_otg-supply = <&fan54015_otg_supply>;
+};
