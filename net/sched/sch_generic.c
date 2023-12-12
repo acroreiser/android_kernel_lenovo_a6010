@@ -703,17 +703,9 @@ static void attach_default_qdiscs(struct net_device *dev)
 
 	txq = netdev_get_tx_queue(dev, 0);
 
-	if (!netif_is_multiqueue(dev) || dev->tx_queue_len == 0) {
-		netdev_for_each_tx_queue(dev, attach_one_default_qdisc, NULL);
-		dev->qdisc = txq->qdisc_sleeping;
-		atomic_inc(&dev->qdisc->refcnt);
-	} else {
-		qdisc = qdisc_create_dflt(txq, &mq_qdisc_ops, TC_H_ROOT);
-		if (qdisc) {
-			qdisc->ops->attach(qdisc);
-			dev->qdisc = qdisc;
-		}
-	}
+	netdev_for_each_tx_queue(dev, attach_one_default_qdisc, NULL);
+	dev->qdisc = txq->qdisc_sleeping;
+	atomic_inc(&dev->qdisc->refcnt);
 }
 
 static void transition_one_qdisc(struct net_device *dev,
