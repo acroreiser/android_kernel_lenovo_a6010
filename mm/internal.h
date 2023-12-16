@@ -13,6 +13,8 @@
 
 #include <linux/mm.h>
 
+void page_writeback_init(void);
+
 void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *start_vma,
 		unsigned long floor, unsigned long ceiling);
 
