@@ -63,6 +63,7 @@ static void __page_cache_release(struct page *page)
 		del_page_from_lru_list(page, lruvec, page_off_lru(page));
 		spin_unlock_irqrestore(&zone->lru_lock, flags);
 	}
+	__ClearPageWaiters(page);
 }
 
 static void __put_single_page(struct page *page)
@@ -827,6 +828,7 @@ void release_pages(struct page **pages, int nr, int cold)
 
 		/* Clear Active bit in case of parallel mark_page_accessed */
 		ClearPageActive(page);
+		__ClearPageWaiters(page);
 
 		list_add(&page->lru, &pages_to_free);
 	}
