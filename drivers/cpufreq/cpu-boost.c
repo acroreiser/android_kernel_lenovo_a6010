@@ -65,6 +65,18 @@ static struct kthread_work input_boost_work;
 static struct kthread_worker cpu_boost_worker;
 static struct task_struct *cpu_boost_worker_thread;
 
+/*
+ * Returns true when the work could not be queued at the moment.
+ * It happens when it is already pending in a worker list.
+ */
+static inline bool queuing_blocked(struct kthread_worker *worker,
+                                  struct kthread_work *work)
+{
+       lockdep_assert_held(&worker->lock);
+
+       return !list_empty(&work->node);
+}
+
 static int set_input_boost_freq(const char *buf, const struct kernel_param *kp)
 {
 	int ntokens = 0;
