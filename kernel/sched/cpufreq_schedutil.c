@@ -24,6 +24,8 @@
 struct sugov_tunables {
 	unsigned int up_rate_limit_us;
 	unsigned int down_rate_limit_us;
+	unsigned long hispeed_freq;
+	unsigned int hispeed_load;
 };
 
 struct sugov_policy {
@@ -148,8 +150,23 @@ static unsigned int get_next_freq(struct cpufreq_policy *policy,
 {
 	unsigned int freq = arch_scale_freq_invariant() ?
 				policy->cpuinfo.max_freq : policy->cur;
+	struct sugov_policy *sg_policy = policy->governor_data;
+	unsigned long hs_util;
+	unsigned long target_freq = (freq + (freq >> 2)) * util / max;
 
-	return (freq + (freq >> 2)) * util / max;
+	if(sg_policy->tunables->hispeed_freq == 0 ||
+		sg_policy->tunables->hispeed_load == 0)
+		return target_freq;
+
+	hs_util = mult_frac(max,
+					   sg_policy->tunables->hispeed_load,
+					   100);
+
+	if (util >= hs_util &&
+		sg_policy->tunables->hispeed_freq > target_freq)
+		return sg_policy->tunables->hispeed_freq;
+	else
+		return target_freq;
 }
 
 #ifdef CONFIG_NO_HZ_COMMON
@@ -407,6 +424,125 @@ static ssize_t store_down_rate_limit_us(struct sugov_policy *sg_policy, const ch
 	return count;
 }
 
+static ssize_t show_sys_hispeed_freq(struct sugov_tunables *tunables, char *buf)
+{
+	return sprintf(buf, "%lu\n", tunables->hispeed_freq);
+}
+
+static ssize_t store_sys_hispeed_freq(struct sugov_tunables *tunables, const char *buf,
+				   size_t count)
+{
+	long unsigned int hispeed_freq;
+	int cpu;
+
+	if (kstrtoul(buf, 0, &hispeed_freq))
+		return -EINVAL;
+
+	for_each_present_cpu(cpu) {
+		struct sugov_cpu *sugov_cpu_i = &per_cpu(sugov_cpu, cpu);
+		struct sugov_policy *sg_policy_cpu = sugov_cpu_i->sg_policy;
+
+
+		if (hispeed_freq != 0 && hispeed_freq < sg_policy_cpu->policy->cpuinfo.min_freq)
+			hispeed_freq = sg_policy_cpu->policy->cpuinfo.min_freq;
+		else if (hispeed_freq > sg_policy_cpu->policy->cpuinfo.max_freq)
+			hispeed_freq = sg_policy_cpu->policy->cpuinfo.max_freq;
+
+		sg_policy_cpu->tunables->hispeed_freq = hispeed_freq;
+	}
+	tunables->hispeed_freq = hispeed_freq;
+
+	return count;
+}
+
+static ssize_t show_hispeed_freq(struct sugov_policy *sg_policy, char *buf)
+{
+	struct sugov_tunables *tunables = sg_policy->tunables;
+	return sprintf(buf, "%lu\n", tunables->hispeed_freq);
+}
+
+static ssize_t store_hispeed_freq(struct sugov_policy *sg_policy, const char *buf,
+				   size_t count)
+{
+	struct sugov_tunables *tunables = sg_policy->tunables;
+	struct sugov_cpu *sugov_cpu_i = &per_cpu(sugov_cpu, 0);
+	long unsigned int hispeed_freq;
+	int cpu;
+
+	if (kstrtoul(buf, 0, &hispeed_freq))
+		return -EINVAL;
+
+
+	if (hispeed_freq == 0)
+	{
+		tunables->hispeed_freq = 0;
+		return count;
+	}
+
+	if (hispeed_freq < sg_policy->policy->cpuinfo.min_freq)
+		hispeed_freq = sg_policy->policy->cpuinfo.min_freq;
+
+	if (hispeed_freq > sg_policy->policy->cpuinfo.max_freq)
+		hispeed_freq = sg_policy->policy->cpuinfo.max_freq;
+
+	tunables->hispeed_freq = hispeed_freq;
+
+	return count;
+}
+
+static ssize_t show_sys_hispeed_load(struct sugov_tunables *tunables, char *buf)
+{
+	return sprintf(buf, "%u\n", tunables->hispeed_load);
+}
+
+static ssize_t store_sys_hispeed_load(struct sugov_tunables *tunables, const char *buf,
+				   size_t count)
+{
+	unsigned int hispeed_load;
+	int cpu;
+
+	if (kstrtouint(buf, 0, &hispeed_load))
+		return -EINVAL;
+
+	if (hispeed_load > 100 || hispeed_load < 5)
+		return -EINVAL;
+
+	for_each_present_cpu(cpu) {
+		struct sugov_cpu *sugov_cpu_i = &per_cpu(sugov_cpu, cpu);
+		struct sugov_policy *sg_policy_cpu = sugov_cpu_i->sg_policy;
+
+		sg_policy_cpu->tunables->hispeed_load = hispeed_load;
+	}
+	tunables->hispeed_load = hispeed_load;
+
+	return count;
+}
+
+static ssize_t show_hispeed_load(struct sugov_policy *sg_policy, char *buf)
+{
+	struct sugov_tunables *tunables = sg_policy->tunables;
+	return sprintf(buf, "%u\n", tunables->hispeed_load);
+}
+
+static ssize_t store_hispeed_load(struct sugov_policy *sg_policy, const char *buf,
+				   size_t count)
+{
+	struct sugov_tunables *tunables = sg_policy->tunables;
+	struct sugov_cpu *sugov_cpu_i = &per_cpu(sugov_cpu, 0);
+	unsigned int hispeed_load;
+	int cpu;
+
+	if (kstrtouint(buf, 0, &hispeed_load))
+		return -EINVAL;
+
+	if (hispeed_load > 100 || hispeed_load < 5)
+		return -EINVAL;
+
+	tunables->hispeed_load = hispeed_load;
+
+	return count;
+}
+
 /*
  * Create show/store routines
  * - sys: One governor instance for complete SYSTEM
@@ -445,6 +581,8 @@ store_gov_pol_sys(file_name)
 
 show_store_gov_pol_sys(up_rate_limit_us);
 show_store_gov_pol_sys(down_rate_limit_us);
+show_store_gov_pol_sys(hispeed_freq);
+show_store_gov_pol_sys(hispeed_load);
 
 #define gov_sys_pol_attr_rw(_name)					\
 	gov_sys_attr_rw(_name);						\
@@ -452,12 +590,15 @@ show_store_gov_pol_sys(down_rate_limit_us);
 
 gov_sys_pol_attr_rw(up_rate_limit_us);
 gov_sys_pol_attr_rw(down_rate_limit_us);
-
+gov_sys_pol_attr_rw(hispeed_freq);
+gov_sys_pol_attr_rw(hispeed_load);
 
 /* One Governor instance for entire system */
 static struct attribute *sugov_attributes_gov_sys[] = {
 	&up_rate_limit_us_gov_sys.attr,
 	&down_rate_limit_us_gov_sys.attr,
+	&hispeed_freq_gov_sys.attr,
+	&hispeed_load_gov_sys.attr,
 	NULL
 };
 
@@ -470,6 +611,8 @@ static struct attribute_group sugov_attr_group_gov_sys = {
 static struct attribute *sugov_attributes_gov_pol[] = {
 	&up_rate_limit_us_gov_pol.attr,
 	&down_rate_limit_us_gov_pol.attr,
+	&hispeed_freq_gov_pol.attr,
+	&hispeed_load_gov_pol.attr,
 	NULL
 };
 
@@ -619,6 +762,9 @@ static int sugov_init(struct cpufreq_policy *policy)
                         tunables->down_rate_limit_us *= lat;
                 }
 	}
+
+	tunables->hispeed_freq = policy->max;
+	tunables->hispeed_load = 85;
 
 	policy->governor_data = sg_policy;
 	sg_policy->tunables = tunables;
