@@ -440,7 +440,7 @@ static void kgsl_mmu_trace_gpu_mem_pagetable(struct kgsl_pagetable *pagetable)
 		return;
 
 	trace_gpu_mem_total(0, pagetable->name,
-			(u64)atomic_long_read(&pagetable->stats.mapped));
+			(u64)pagetable->stats.mapped);
 }
 #else
 static void kgsl_mmu_trace_gpu_mem_pagetable(struct kgsl_pagetable *pagetable)
