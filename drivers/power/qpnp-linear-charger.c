@@ -26,6 +26,8 @@
 #include <linux/leds.h>
 #include <linux/debugfs.h>
 
+extern unsigned int cpufreq_battery_capacity;
+
 #define CREATE_MASK(NUM_BITS, POS) \
 	((unsigned char) (((1 << (NUM_BITS)) - 1) << (POS)))
 #define LBC_MASK(MSB_BIT, LSB_BIT) \
@@ -1320,12 +1322,18 @@ static int get_prop_capacity(struct qpnp_lbc_chip *chip)
 {
 	union power_supply_propval ret = {0,};
 	int soc;
+	unsigned int capacity = DEFAULT_CAPACITY;
 
 	if (chip->fake_battery_soc >= 0)
-		return chip->fake_battery_soc;
+	{
+		capacity = chip->fake_battery_soc;
+		goto out;
+	}
 
-	if (chip->cfg_use_fake_battery || !get_prop_batt_present(chip))
-		return DEFAULT_CAPACITY;
+	if (chip->cfg_use_fake_battery || !get_prop_batt_present(chip)){
+		capacity = DEFAULT_CAPACITY;
+		goto out;
+	}
 
 	if (chip->bms_psy) {
 		chip->bms_psy->get_property(chip->bms_psy,
@@ -1335,17 +1343,21 @@ static int get_prop_capacity(struct qpnp_lbc_chip *chip)
 			if (!qpnp_lbc_is_usb_chg_plugged_in(chip))
 				pr_warn_ratelimited("Batt 0, CHG absent\n");
 		}
-		return soc;
+		capacity = soc;
 	} else {
 		pr_debug("No BMS supply registered return %d\n",
 							DEFAULT_CAPACITY);
 	}
 
+out:
+	if(!strcmp(chip->batt_psy.name, "battery"))
+		cpufreq_battery_capacity = capacity;
+
 	/*
-	 * Return default capacity to avoid userspace
+	 * Will return default capacity to avoid userspace
 	 * from shutting down unecessarily
 	 */
-	return DEFAULT_CAPACITY;
+	return capacity;
 }
 
 #define DEFAULT_TEMP		250

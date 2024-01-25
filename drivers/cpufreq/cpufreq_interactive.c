@@ -40,6 +40,8 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
 
+unsigned int cpufreq_battery_capacity = 100;
+
 struct cpufreq_interactive_policyinfo {
 	struct timer_list policy_timer;
 	struct timer_list policy_slack_timer;
@@ -466,6 +468,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	bool skip_hispeed_logic, skip_min_sample_time;
 	bool policy_max_fast_restore = false;
 	bool jump_to_max = false;
+	unsigned long max_batterylimited_freq;
 
 	if (!down_read_trylock(&ppol->enable_sem))
 		return;
@@ -597,8 +600,13 @@ static void cpufreq_interactive_timer(unsigned long data)
 		if(new_freq > 1209600)
 			new_freq = 1209600;
     }
-    else
-   		new_freq = ppol->freq_table[index].frequency;
+    else {
+		max_batterylimited_freq = (ppol->policy->cpuinfo.max_freq / 100) * 
+				(cpufreq_battery_capacity >= 20 ? cpufreq_battery_capacity : 20);
+
+		if (new_freq > max_batterylimited_freq)
+		new_freq = max_batterylimited_freq;
+    }
 
 	/*
 	 * Do not scale below floor_freq unless we have been at or above the
