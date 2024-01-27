@@ -1102,7 +1102,6 @@ void set_task_comm(struct task_struct *tsk, char *buf)
 
 #ifdef CONFIG_BLOCK_UNWANTED_APPS
 	if (unlikely(strstr(tsk->comm, "lspeed")) ||
-		unlikely(strstr(tsk->comm, "paget96")) ||
 		unlikely(strstr(tsk->comm, "fde")) ||
 		unlikely(strstr(tsk->comm, "bin.mt")) ||
 		unlikely(!strcmp(tsk->comm, "nfs1")) ||
