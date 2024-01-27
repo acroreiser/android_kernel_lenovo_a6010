@@ -34,9 +34,6 @@
 #include <linux/kernel_stat.h>
 #include <asm/cputime.h>
 
-// Battery saver
-#include <linux/battery_saver.h>
-
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
 
@@ -588,17 +585,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 		goto rearm;
 	}
 
-	if (is_battery_saver_on()) {
-		if (index > 1)
-			new_freq = ppol->freq_table[index - 1].frequency;
-		else
-			new_freq = ppol->freq_table[index].frequency;
-		
-		if(new_freq > 1209600)
-			new_freq = 1209600;
-    }
-    else
-   		new_freq = ppol->freq_table[index].frequency;
+	new_freq = ppol->freq_table[index].frequency;
 
 	/*
 	 * Do not scale below floor_freq unless we have been at or above the
