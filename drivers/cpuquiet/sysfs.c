@@ -159,7 +159,7 @@ static ssize_t store_nr_min_cpus(struct cpuquiet_attribute *cattr,
 }
 
 static ssize_t store_nr_max_cpus(struct cpuquiet_attribute *cattr,
-					const char *buf, size_t count)
+					const char *buf, size_t count, bool thermal)
 {
 	ssize_t ret = 0;
 	unsigned int new_max_cpus;
