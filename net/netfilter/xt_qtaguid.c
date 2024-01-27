@@ -675,7 +675,7 @@ static void pp_iface_stat_header(struct seq_file *m)
 }
 
 static void pp_iface_stat_line(struct seq_file *m,
-			       struct iface_stat *iface_entry, struct rtnl_link_stats64 *stats)
+			       struct iface_stat *iface_entry)
 {
 	struct data_counters *cnts;
 	int cnt_set = 0;   /* We only use one set for the device */
@@ -683,10 +683,10 @@ static void pp_iface_stat_line(struct seq_file *m,
 	seq_printf(m, "%s %llu %llu %llu %llu %llu %llu %llu %llu "
 		   "%llu %llu %llu %llu %llu %llu %llu %llu\n",
 		   iface_entry->ifname,
-		   stats->rx_bytes,
-		   stats->rx_packets,
-		   stats->tx_bytes,
-		   stats->tx_packets,
+		   dc_sum_bytes(cnts, cnt_set, IFS_RX),
+		   dc_sum_packets(cnts, cnt_set, IFS_RX),
+		   dc_sum_bytes(cnts, cnt_set, IFS_TX),
+		   dc_sum_packets(cnts, cnt_set, IFS_TX),
 		   cnts->bpc[cnt_set][IFS_RX][IFS_TCP].bytes,
 		   cnts->bpc[cnt_set][IFS_RX][IFS_TCP].packets,
 		   cnts->bpc[cnt_set][IFS_RX][IFS_UDP].bytes,
@@ -770,7 +770,7 @@ static int iface_stat_fmt_proc_show(struct seq_file *m, void *v)
 			   stats->tx_bytes, stats->tx_packets
 			   );
 	} else {
-		pp_iface_stat_line(m, iface_entry, stats);
+		pp_iface_stat_line(m, iface_entry);
 	}
 	return 0;
 }
