@@ -97,11 +97,6 @@ config CPU_FREQ_DEFAULT_GOV_ONDEMAND
 	  governor. If unsure have a look at the help section of the
 	  driver. Fallback governor will be the performance governor.
 
-config CPU_FREQ_DEFAULT_GOV_DARKNESSV5
-        bool "darknessv5"
-        select CPU_FREQ_GOV_DARKNESSV5
-        help
-
 config CPU_FREQ_DEFAULT_GOV_CONSERVATIVE
 	bool "conservative"
 	select CPU_FREQ_GOV_CONSERVATIVE
@@ -132,10 +127,6 @@ config CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 	  loading your cpufreq low-level hardware driver, using the
 	  'interactive' governor for latency-sensitive workloads.
 
-config CPU_FREQ_DEFAULT_GOV_ALUCARD
- 	bool "alucard"
-	select CPU_FREQ_GOV_ALUCARD
-
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -148,14 +139,6 @@ config CPU_FREQ_GOV_PERFORMANCE
 	  module will be called cpufreq_performance.
 
 	  If in doubt, say Y.
-
-config CPU_FREQ_GOV_ALUCARD
- 	tristate "'alucard' cpufreq governor"
-	depends on CPU_FREQ
-
-config CPU_FREQ_GOV_DARKNESSV5
-	tristate "'darknessv5' cpufreq governor"
-        depends on CPU_FREQ
 
 config CPU_FREQ_GOV_POWERSAVE
 	tristate "'powersave' governor"
@@ -241,9 +224,6 @@ config CPU_FREQ_GOV_CONSERVATIVE
 	  For details, take a look at linux/Documentation/cpu-freq.
 
 	  If in doubt, say N.
-
-config CPU_FREQ_GOV_WAVE
-	tristate "'wave' cpufreq governor"
 
 config CPU_FREQ_GOV_SCHEDUTIL
 	tristate "'schedutil' cpufreq policy governor"
