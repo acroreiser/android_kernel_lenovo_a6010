@@ -169,7 +169,7 @@ static int msm_cpufreq_limit_start(void)
 	int ret = 0;
 
 	limiter_wq =
-	    alloc_workqueue("msm_limiter_wq", WQ_HIGHPRI | 	WQ_POWER_EFFICIENT | WQ_FREEZABLE, 0);
+	    alloc_workqueue("msm_limiter_wq", WQ_HIGHPRI | WQ_FREEZABLE, 0);
 	if (!limiter_wq) {
 		pr_err("%s: Failed to allocate limiter workqueue\n",
 		       MSM_LIMIT);
