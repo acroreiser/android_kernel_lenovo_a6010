@@ -2517,7 +2517,6 @@ static struct attribute_group ksm_attr_group = {
 static int __init ksm_init(void)
 {
 	struct task_struct *ksm_thread;
-	struct sched_param scheduler_params = {0};
 	int err;
 
 	err = ksm_slab_init();
@@ -2529,10 +2528,6 @@ static int __init ksm_init(void)
 		printk(KERN_ERR "ksm: creating kthread failed\n");
 		err = PTR_ERR(ksm_thread);
 		goto out_free;
-	}
-	else
-	{
-		sched_setscheduler(ksm_thread, SCHED_IDLE, &scheduler_params);
 	}
 
 #ifdef CONFIG_SYSFS
