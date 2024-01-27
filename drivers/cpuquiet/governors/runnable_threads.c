@@ -222,17 +222,17 @@ static void runnables_stop(void)
 	runnables_enabled = false;
 	del_timer_sync(&runnables_timer);
 	cancel_work_sync(&runnables_work);
-	//runnables_sysfs_exit();
+	runnables_sysfs_exit();
 }
 
 static int runnables_start(void)
 {
 	int i, err, arch_specific_sample_rate;
 
-/*	err = runnables_sysfs_init();
+	err = runnables_sysfs_init();
 	if (err)
 		return err;
-*/
+
 	INIT_WORK(&runnables_work, runnables_work_func);
 
 	init_timer(&runnables_timer);
