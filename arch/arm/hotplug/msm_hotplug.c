@@ -28,9 +28,6 @@
 #include <linux/kernel_stat.h>
 #include <linux/tick.h>
 
-// Battery saver
-#include <linux/battery_saver.h>
-
 #define MSM_HOTPLUG			"msm_hotplug"
 #define HOTPLUG_ENABLED			1
 #define DEFAULT_UPDATE_RATE		HZ / 10
@@ -450,15 +447,10 @@ static void msm_hotplug_work(struct work_struct *work)
 		}
 	}
 
-	if (!is_battery_saver_on())
+	if (target > hotplug.max_cpus_online)
 		target = hotplug.max_cpus_online;
-	else
-	{
-		if (target > hotplug.max_cpus_online)
-			target = hotplug.max_cpus_online;
-		else if (target < hotplug.min_cpus_online)
-			target = hotplug.min_cpus_online;
-	}
+	else if (target < hotplug.min_cpus_online)
+		target = hotplug.min_cpus_online;
 
 	if (stats.online_cpus != target) {
 		if (target > stats.online_cpus)
