@@ -894,5 +894,6 @@ void packagelist_exit(void)
 {
 	configfs_sdcardfs_exit();
 	packagelist_destroy();
-	kmem_cache_destroy(hashtable_entry_cachep);
+	if (hashtable_entry_cachep)
+		kmem_cache_destroy(hashtable_entry_cachep);
 }
