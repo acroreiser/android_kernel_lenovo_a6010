@@ -453,7 +453,7 @@ static struct platform_driver armbw_pm_driver = {
 
 static int __init armbw_pm_init(void)
 {
-	bw_wq = alloc_workqueue("armbw-pm-bwmon", WQ_POWER_EFFICIENT | WQ_HIGHPRI, 2);
+	bw_wq = alloc_workqueue("armbw-pm-bwmon", WQ_HIGHPRI, 2);
 	return platform_driver_register(&armbw_pm_driver);
 }
 module_init(armbw_pm_init);

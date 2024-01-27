@@ -3124,7 +3124,7 @@ static int tsens_tm_probe(struct platform_device *pdev)
 		return -ENODEV;
 
 	tmdev->pdev = pdev;
-	tmdev->tsens_wq = alloc_workqueue("tsens_wq", WQ_POWER_EFFICIENT | WQ_HIGHPRI, 0);
+	tmdev->tsens_wq = alloc_workqueue("tsens_wq", WQ_HIGHPRI, 0);
 	if (!tmdev->tsens_wq) {
 		rc = -ENOMEM;
 		goto fail;

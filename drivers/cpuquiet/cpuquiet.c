@@ -323,7 +323,7 @@ static int __init cpuquiet_probe(struct platform_device *pdev)
 	 * task, single-threaded, freezable.
 	 */
 	cpuquiet_wq = alloc_workqueue(
-		"cpuquiet", WQ_POWER_EFFICIENT | WQ_FREEZABLE, 1);
+		"cpuquiet", WQ_FREEZABLE, 1);
 
 	if (!cpuquiet_wq)
 		return -ENOMEM;

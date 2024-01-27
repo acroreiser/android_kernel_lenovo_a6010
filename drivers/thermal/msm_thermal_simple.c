@@ -473,7 +473,7 @@ static struct thermal_policy *alloc_thermal_policy(void)
 	if (!t)
 		return NULL;
 
-	t->wq = alloc_workqueue("msm_thermal_wq", WQ_POWER_EFFICIENT | WQ_HIGHPRI, 0);
+	t->wq = alloc_workqueue("msm_thermal_wq", WQ_HIGHPRI, 0);
 	if (!t->wq) {
 		pr_err("Failed to allocate workqueue\n");
 		goto free_t;

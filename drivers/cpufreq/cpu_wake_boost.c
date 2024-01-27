@@ -118,7 +118,7 @@ static int __init cpu_wake_boost_init(void)
 	if (!w)
 		return -ENOMEM;
 
-	w->wq = alloc_workqueue("wake_boost_wq", WQ_POWER_EFFICIENT | WQ_HIGHPRI, 0);
+	w->wq = alloc_workqueue("wake_boost_wq", WQ_HIGHPRI, 0);
 	if (!w->wq) {
 		kfree(w);
 		return -ENOMEM;
