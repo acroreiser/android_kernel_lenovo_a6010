@@ -10,7 +10,6 @@
 static bool enabled = false;
 extern bool wq_power_efficient;
 extern bool backlight_dimmer;
-extern unsigned int __read_mostly sysctl_sched_prefer_idle;
 extern void set_mmc_scale_down_in_low_wr_load(bool value);
 
 // returns whether battery saver is enabled or disabled
@@ -49,12 +48,6 @@ static int set_enabled(const char *val, const struct kernel_param *kp)
 	wq_power_efficient = enabled;
 	backlight_dimmer = enabled;
 	set_mmc_scale_down_in_low_wr_load(enabled);
-
-	if (enabled)
-		sysctl_sched_prefer_idle = 0;
-	else
-		sysctl_sched_prefer_idle = 1;
-
 	return 0;
 }
 
