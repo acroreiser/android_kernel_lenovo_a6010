@@ -13,7 +13,6 @@ obj-$(CONFIG_MSM_BAM_DMUX) += bam_dmux.o
 obj-$(CONFIG_MSM_EVENT_TIMER) += event_timer.o
 obj-$(CONFIG_MSM_IPC_ROUTER_HSIC_XPRT) += ipc_router_hsic_xprt.o
 obj-$(CONFIG_MSM_IPC_ROUTER_SMD_XPRT) += ipc_router_smd_xprt.o
-obj-$(CONFIG_MSM_LIMITER) += msm_limiter.o
 obj-$(CONFIG_MSM_MEMORY_DUMP) += memory_dump.o
 obj-$(CONFIG_MSM_MEMORY_DUMP_V2) += memory_dump_v2.o
 obj-$(CONFIG_MSM_DDR_HEALTH) += ddr-health.o
