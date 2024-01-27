@@ -54,12 +54,6 @@ SUBSYS(hugetlb)
 
 /* */
 
-//#if IS_SUBSYS_ENABLED(CONFIG_CGROUP_BFQIO)
-//SUBSYS(bfqio)
-//#endif
-
-/* */
-
 /*
  * Subsystems that implement the can_fork() family of callbacks.
  */
