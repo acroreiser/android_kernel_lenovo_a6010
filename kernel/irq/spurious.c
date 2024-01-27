@@ -422,7 +422,7 @@ void note_interrupt(unsigned int irq, struct irq_desc *desc,
 	desc->irqs_unhandled = 0;
 }
 
-bool noirqdebug __read_mostly = true;
+bool noirqdebug __read_mostly;
 
 int noirqdebug_setup(char *str)
 {
