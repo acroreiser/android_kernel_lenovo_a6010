@@ -4119,15 +4119,12 @@ static ssize_t bfq_low_latency_store(struct elevator_queue *e,
 #define BFQ_ATTR(name) \
 	__ATTR(name, S_IRUGO|S_IWUSR, bfq_##name##_show, bfq_##name##_store)
 
-#define BFQ_ATTR_RO(name) \
-	__ATTR(name, S_IRUGO, bfq_##name##_show, bfq_##name##_store)
-
 static struct elv_fs_entry bfq_attrs[] = {
 	BFQ_ATTR(fifo_expire_sync),
 	BFQ_ATTR(fifo_expire_async),
 	BFQ_ATTR(back_seek_max),
 	BFQ_ATTR(back_seek_penalty),
-	BFQ_ATTR_RO(slice_idle),
+	BFQ_ATTR(slice_idle),
 	BFQ_ATTR(max_budget),
 	BFQ_ATTR(max_budget_async_rq),
 	BFQ_ATTR(timeout_sync),
