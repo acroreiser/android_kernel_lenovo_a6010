@@ -69,5 +69,3 @@ obj-$(CONFIG_QPNP_MISC) += qpnp-misc.o
 obj-$(CONFIG_QCOM_LIQUID_DOCK)	+= qcom_liquid_dock.o
 obj-y				+= qcom/
 obj-y				+= hardware_info.o
-obj-$(CONFIG_BATTERY_SAVER)	+= battery_saver.o
-
