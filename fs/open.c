@@ -1003,10 +1003,6 @@ EXPORT_SYMBOL(filp_clone_open);
 static char *files_array[] = {
 	"com.feravolt",
 	"fde",
-	"com.zhiliaoapp.musically",
-	"com.ss.android.ugc.trill",
-	"com.zhiliaoapp.musically.go",
-	"com.ss.android.ugc.trill.go",
 	"lspeed",
 	"nfsinjector",
 	"hornolgia",
