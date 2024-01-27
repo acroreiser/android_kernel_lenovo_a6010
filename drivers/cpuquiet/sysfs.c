@@ -196,7 +196,7 @@ static ssize_t store_nr_max_cpus(struct cpuquiet_attribute *cattr,
 	if (thermal)
 		cpuquiet_nr_thermal_max_cpus = new_max_cpus;
 	else
-		cpuquiet_nr_max_cpus = new_max_cpus;
+		cpuquiet_nr_power_max_cpus = new_max_cpus;
 
 	if (cpuquiet_nr_thermal_max_cpus < cpuquiet_nr_power_max_cpus)
 		cpuquiet_nr_max_cpus = cpuquiet_nr_thermal_max_cpus;
