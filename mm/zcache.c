@@ -71,8 +71,6 @@ static u64 zcache_inactive_pages_refused;
 static u64 zcache_reclaim_fail;
 static atomic_t zcache_stored_pages = ATOMIC_INIT(0);
 
-#define GFP_ZCACHE \
-	(__GFP_FS | __GFP_NORETRY | __GFP_NOWARN | __GFP_NOMEMALLOC)
 /*
  * Zcache receives pages for compression through the Cleancache API and is able
  * to evict pages from its own compressed pool on an LRU basis in the case that
@@ -408,8 +406,7 @@ static int zcache_store_zaddr(struct zcache_pool *zpool,
 	rbnode = zcache_find_get_rbnode(zpool, zhandle->rb_index);
 	if (!rbnode) {
 		/* alloc and init a new rbnode */
-		rbnode = kmem_cache_alloc(zcache_rbnode_cache,
-			GFP_ZCACHE);
+		rbnode = kmem_cache_alloc(zcache_rbnode_cache, GFP_KERNEL);
 		if (!rbnode)
 			return -ENOMEM;
 
@@ -538,7 +535,7 @@ static void zcache_store_page(int pool_id, struct cleancache_filekey key,
 
 	/* store zcache handle together with compressed page data */
 	ret = zbud_alloc(zpool->pool, zlen + sizeof(struct zcache_ra_handle),
-			GFP_ZCACHE, &zaddr);
+			__GFP_NORETRY | __GFP_NOWARN, &zaddr);
 	if (ret) {
 		zcache_zbud_alloc_fail++;
 		put_cpu_var(zcache_dstmem);
