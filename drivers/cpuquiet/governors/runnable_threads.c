@@ -42,7 +42,7 @@ static unsigned int default_thresholds[] = {
 };
 
 static unsigned int nr_run_last;
-static unsigned int nr_run_hysteresis = 1;	     /* 1 / 2 thread */
+static unsigned int nr_run_hysteresis = 2;	     /* 1 / 2 thread */
 static unsigned int default_threshold_level = 4;	/* 1 / 4 thread */
 static unsigned int nr_run_thresholds[NR_CPUS];
 
