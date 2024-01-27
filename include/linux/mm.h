@@ -65,9 +65,6 @@ extern int mmap_rnd_compat_bits __read_mostly;
 #include <asm/pgtable.h>
 #include <asm/processor.h>
 
-extern unsigned long sysctl_clean_low_kbytes;
-extern unsigned long sysctl_clean_min_kbytes;
-
 extern unsigned long sysctl_user_reserve_kbytes;
 extern unsigned long sysctl_admin_reserve_kbytes;
 
