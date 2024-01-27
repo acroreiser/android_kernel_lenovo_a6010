@@ -4104,7 +4104,7 @@ no_journal:
 	 * concurrency isn't really necessary.  Limit it to 1.
 	 */
 	EXT4_SB(sb)->dio_unwritten_wq =
-		alloc_workqueue("ext4-dio-unwritten", WQ_MEM_RECLAIM | WQ_POWER_EFFICIENT | WQ_UNBOUND, 1);
+		alloc_workqueue("ext4-dio-unwritten", WQ_MEM_RECLAIM | WQ_UNBOUND, 1);
 	if (!EXT4_SB(sb)->dio_unwritten_wq) {
 		printk(KERN_ERR "EXT4-fs: failed to create DIO workqueue\n");
 		ret = -ENOMEM;
