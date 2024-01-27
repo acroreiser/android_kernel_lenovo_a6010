@@ -70,11 +70,7 @@ static long ratelimit_pages = 32;
 /*
  * Start background writeback (via writeback threads) at this percentage
  */
-#ifdef CONFIG_DECREASE_DIRTY_RATIO
-int dirty_background_ratio = 1;
-#else
-int dirty_background_ratio = 5;
-#endif
+int dirty_background_ratio = 10;
 
 /*
  * dirty_background_bytes starts at 0 (disabled) so that it is a function of
@@ -91,11 +87,7 @@ int vm_highmem_is_dirtyable;
 /*
  * The generator of dirty data starts writeback at this percentage
  */
-#ifdef CONFIG_DECREASE_DIRTY_RATIO
-int vm_dirty_ratio = 2;
-#else
-int vm_dirty_ratio = 10;
-#endif
+int vm_dirty_ratio = 20;
 
 /*
  * vm_dirty_bytes starts at 0 (disabled) so that it is a function of
@@ -366,13 +358,10 @@ int dirty_background_ratio_handler(struct ctl_table *table, int write,
 		loff_t *ppos)
 {
 	int ret;
-#ifndef CONFIG_DIRTY_RATIO_HARDCODE
+
 	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
 	if (ret == 0 && write)
 		dirty_background_bytes = 0;
-#else
-	ret = proc_dointvec_minmax(table, 0, buffer, lenp, ppos);
-#endif
 	return ret;
 }
 
@@ -381,13 +370,10 @@ int dirty_background_bytes_handler(struct ctl_table *table, int write,
 		loff_t *ppos)
 {
 	int ret;
-#ifndef CONFIG_DIRTY_RATIO_HARDCODE
+
 	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos);
 	if (ret == 0 && write)
 		dirty_background_ratio = 0;
-#else
-	ret = proc_doulongvec_minmax(table, 0, buffer, lenp, ppos);
-#endif
 	return ret;
 }
 
@@ -395,17 +381,14 @@ int dirty_ratio_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp,
 		loff_t *ppos)
 {
-	int ret;
-#ifndef CONFIG_DIRTY_RATIO_HARDCODE
 	int old_ratio = vm_dirty_ratio;
+	int ret;
+
 	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
 	if (ret == 0 && write && vm_dirty_ratio != old_ratio) {
 		writeback_set_ratelimit();
 		vm_dirty_bytes = 0;
 	}
-#else
-	ret = proc_dointvec_minmax(table, 0, buffer, lenp, ppos);
-#endif
 	return ret;
 }
 
@@ -413,17 +396,14 @@ int dirty_bytes_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp,
 		loff_t *ppos)
 {
-	int ret;
-#ifndef CONFIG_DIRTY_RATIO_HARDCODE
 	unsigned long old_bytes = vm_dirty_bytes;
+	int ret;
+
 	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos);
 	if (ret == 0 && write && vm_dirty_bytes != old_bytes) {
 		writeback_set_ratelimit();
 		vm_dirty_ratio = 0;
 	}
-#else
-	ret = proc_doulongvec_minmax(table, 0, buffer, lenp, ppos);
-#endif
 	return ret;
 }
 
