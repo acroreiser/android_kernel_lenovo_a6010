@@ -60,8 +60,6 @@ void get_derived_permission_new(struct dentry *parent, struct dentry *dentry,
 	struct sdcardfs_inode_info *info = SDCARDFS_I(dentry->d_inode);
 	struct sdcardfs_inode_info *parent_info = SDCARDFS_I(parent->d_inode);
 	appid_t appid;
-	unsigned long user_num;
-	int err;
 	struct qstr q_Android = QSTR_LITERAL("Android");
 	struct qstr q_data = QSTR_LITERAL("data");
 	struct qstr q_obb = QSTR_LITERAL("obb");
@@ -90,11 +88,7 @@ void get_derived_permission_new(struct dentry *parent, struct dentry *dentry,
 	case PERM_PRE_ROOT:
 		/* Legacy internal layout places users at top level */
 		info->perm = PERM_ROOT;
-		err = kstrtoul(name->name, 10, &user_num);
-		if (err)
-			info->userid = 0;
-		else
-			info->userid = user_num;
+		info->userid = simple_strtoul(name->name, NULL, 10);
 		set_top(info, &info->vfs_inode);
 		break;
 	case PERM_ROOT:
