@@ -30,8 +30,8 @@
 #define DEFAULT_AVG_HOTPLUG_LATENCY_MS	2
 #define DEFAULT_HOTPLUG_TIMEOUT_MS	100
 
-unsigned int cpuquiet_nr_max_cpus = NR_CPUS;
-unsigned int cpuquiet_nr_min_cpus = 1;
+unsigned int cpuquiet_nr_max_cpus;
+unsigned int cpuquiet_nr_min_cpus;
 
 DEFINE_MUTEX(cpuquiet_lock);
 static DEFINE_MUTEX(cpuquiet_cpu_lock);
@@ -159,7 +159,8 @@ static void __cpuinit cpuquiet_work_func(struct work_struct *work)
 	mutex_lock(&cpuquiet_min_max_cpus_lock);
 
 	max_cpus = min_t(unsigned int,
-				pm_qos_request(PM_QOS_MAX_ONLINE_CPUS),
+				pm_qos_request(PM_QOS_MAX_ONLINE_CPUS) ? :
+							num_present_cpus(),
 				cpuquiet_nr_max_cpus);
 	min_cpus = max_t(unsigned int,
 				pm_qos_request(PM_QOS_MIN_ONLINE_CPUS),
