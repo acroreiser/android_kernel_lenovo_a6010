@@ -254,46 +254,40 @@ static int needs_fixup(perm_t perm) {
 	return 0;
 }
 
-static void __fixup_perms_recursive(struct dentry *dentry, struct limit_search *limit, int depth) {
+void fixup_perms_recursive(struct dentry *dentry, struct limit_search *limit) {
 	struct dentry *child;
 	struct sdcardfs_inode_info *info;
-
-	/*
-	 * All paths will terminate their recursion on hitting PERM_ANDROID_OBB,
-	 * PERM_ANDROID_MEDIA, or PERM_ANDROID_DATA. This happens at a depth of
-	 * at most 3.
-	 */
-	WARN(depth > 3, "%s: Max expected depth exceeded!\n", __func__);
-	spin_lock_nested(&dentry->d_lock, depth);
+	if (!dget(dentry))
+		return;
 	if (!dentry->d_inode) {
-		spin_unlock(&dentry->d_lock);
+		dput(dentry);
 		return;
 	}
 	info = SDCARDFS_I(dentry->d_inode);
 
 	if (needs_fixup(info->perm)) {
+		spin_lock(&dentry->d_lock);
 		list_for_each_entry(child, &dentry->d_subdirs, d_u.d_child) {
-			spin_lock_nested(&child->d_lock, depth + 1);
+			dget(child);
 			if (!(limit->flags & BY_NAME) || !strncasecmp(child->d_name.name, limit->name, limit->length)) {
 				if (child->d_inode) {
 					get_derived_permission(dentry, child);
 					fixup_tmp_permissions(child->d_inode);
-					spin_unlock(&child->d_lock);
+					dput(child);
 					break;
 				}
 			}
-			spin_unlock(&child->d_lock);
+			dput(child);
 		}
+		spin_unlock(&dentry->d_lock);
 	} else 	if (descendant_may_need_fixup(info, limit)) {
+		spin_lock(&dentry->d_lock);
 		list_for_each_entry(child, &dentry->d_subdirs, d_u.d_child) {
-				__fixup_perms_recursive(child, limit, depth + 1);
+				fixup_perms_recursive(child, limit);
 		}
+		spin_unlock(&dentry->d_lock);
 	}
-	spin_unlock(&dentry->d_lock);
-}
-
-void fixup_perms_recursive(struct dentry *dentry, struct limit_search *limit) {
-	__fixup_perms_recursive(dentry, limit, 0);
+	dput(dentry);
 }
 
 void drop_recursive(struct dentry *parent) {
