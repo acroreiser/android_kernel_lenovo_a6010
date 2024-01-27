@@ -32,9 +32,6 @@
 #include "core.h"
 #include "host.h"
 
-struct mmc_host *mmc0 = NULL;
-struct mmc_host *mmc1 = NULL;
-
 static void mmc_host_classdev_release(struct device *dev)
 {
 	struct mmc_host *host = cls_dev_to_mmc_host(dev);
@@ -722,15 +719,6 @@ static ssize_t store_scale_down_in_low_wr_load(struct device *dev,
 	return count;
 }
 
-void set_mmc_scale_down_in_low_wr_load(bool value)
-{
-	if(mmc0 != NULL)
-		mmc0->clk_scaling.scale_down_in_low_wr_load = value;
-	
-	if (mmc1 != NULL)
-		mmc1->clk_scaling.scale_down_in_low_wr_load = value;	
-}
-
 static ssize_t show_up_threshold(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -939,12 +927,7 @@ int mmc_add_host(struct mmc_host *host)
 	host->clk_scaling.up_threshold = 35;
 	host->clk_scaling.down_threshold = 5;
 	host->clk_scaling.polling_delay_ms = 100;
-	host->clk_scaling.scale_down_in_low_wr_load = false;
-
-	if(mmc0 == NULL)
-		mmc0 = host;
-	else if (mmc1 == NULL)
-		mmc1 = host;
+	host->clk_scaling.scale_down_in_low_wr_load = true;
 
 	err = sysfs_create_group(&host->class_dev.kobj, &clk_scaling_attr_grp);
 	if (err)
