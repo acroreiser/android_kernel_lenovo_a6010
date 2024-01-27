@@ -743,7 +743,7 @@ static int __init cpufreq_gov_alucard_init(void)
 		this_alucard_cpuinfo->pump_dec_step_at_min_freq = PUMP_DEC_STEP_AT_MIN_FREQ;
 	}
 
-	alucard_wq = alloc_workqueue("alucard_wq", WQ_HIGHPRI|WQ_POWER_EFFICIENT, 0);
+	alucard_wq = alloc_workqueue("alucard_wq", WQ_HIGHPRI, 0);
 	if (!alucard_wq) {
 		printk(KERN_ERR "Failed to create alucard_wq workqueue\n");
 		return -EFAULT;

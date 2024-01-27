@@ -2182,7 +2182,7 @@ int hci_register_dev(struct hci_dev *hdev)
 	list_add(&hdev->list, &hci_dev_list);
 	write_unlock(&hci_dev_list_lock);
 
-	hdev->workqueue = alloc_workqueue(hdev->name, WQ_HIGHPRI | WQ_POWER_EFFICIENT | WQ_UNBOUND |
+	hdev->workqueue = alloc_workqueue(hdev->name, WQ_HIGHPRI | WQ_UNBOUND |
 					  WQ_MEM_RECLAIM, 1);
 	if (!hdev->workqueue) {
 		error = -ENOMEM;
@@ -2190,7 +2190,7 @@ int hci_register_dev(struct hci_dev *hdev)
 	}
 
 	hdev->req_workqueue = alloc_workqueue(hdev->name,
-					      WQ_HIGHPRI | WQ_POWER_EFFICIENT | WQ_UNBOUND |
+					      WQ_HIGHPRI | WQ_UNBOUND |
 					      WQ_MEM_RECLAIM, 1);
 	if (!hdev->req_workqueue) {
 		destroy_workqueue(hdev->workqueue);

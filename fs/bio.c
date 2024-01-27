@@ -1915,7 +1915,7 @@ struct bio_set *bioset_create(unsigned int pool_size, unsigned int front_pad)
 	if (!bs->bvec_pool)
 		goto bad;
 
-	bs->rescue_workqueue = alloc_workqueue("bioset", WQ_POWER_EFFICIENT | WQ_MEM_RECLAIM, 0);
+	bs->rescue_workqueue = alloc_workqueue("bioset", WQ_MEM_RECLAIM, 0);
 	if (!bs->rescue_workqueue)
 		goto bad;
 
