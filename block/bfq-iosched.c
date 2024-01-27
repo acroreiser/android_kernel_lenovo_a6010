@@ -1120,7 +1120,7 @@ static int bfq_merge(struct request_queue *q, struct request **req,
 	struct request *__rq;
 
 	__rq = bfq_find_rq_fmerge(bfqd, bio);
-	if (__rq != NULL && elv_bio_merge_ok(__rq, bio)) {
+	if (__rq != NULL && elv_rq_merge_ok(__rq, bio)) {
 		*req = __rq;
 		return ELEVATOR_FRONT_MERGE;
 	}
@@ -1584,7 +1584,7 @@ static inline void bfq_bfqq_increase_failed_cooperations(struct bfq_queue *bfqq)
 	}
 }
 
-static int bfq_allow_bio_merge(struct request_queue *q, struct request *rq,
+static int bfq_allow_merge(struct request_queue *q, struct request *rq,
 			   struct bio *bio)
 {
 	struct bfq_data *bfqd = q->elevator->elevator_data;
@@ -1626,12 +1626,6 @@ static int bfq_allow_bio_merge(struct request_queue *q, struct request *rq,
 	}
 
 	return bfqq == RQ_BFQQ(rq);
-}
-
-static int bfq_allow_rq_merge(struct request_queue *q, struct request *rq,
-                             struct request *next)
-{
-       return RQ_BFQQ(rq) == RQ_BFQQ(next);
 }
 
 static void __bfq_set_in_service_queue(struct bfq_data *bfqd,
@@ -4154,8 +4148,7 @@ static struct elevator_type iosched_bfq = {
 		.elevator_merge_fn =		bfq_merge,
 		.elevator_merged_fn =		bfq_merged_request,
 		.elevator_merge_req_fn =	bfq_merged_requests,
-		.elevator_allow_bio_merge_fn =	bfq_allow_bio_merge,
-		.elevator_allow_rq_merge_fn =	bfq_allow_rq_merge,
+		.elevator_allow_merge_fn =	bfq_allow_merge,
 		.elevator_dispatch_fn =		bfq_dispatch_requests,
 		.elevator_add_req_fn =		bfq_insert_request,
 		.elevator_activate_req_fn =	bfq_activate_request,
