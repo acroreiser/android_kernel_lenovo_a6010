@@ -222,7 +222,8 @@ int sdcardfs_init_inode_cache(void)
 /* sdcardfs inode cache destructor */
 void sdcardfs_destroy_inode_cache(void)
 {
-	kmem_cache_destroy(sdcardfs_inode_cachep);
+	if (sdcardfs_inode_cachep)
+		kmem_cache_destroy(sdcardfs_inode_cachep);
 }
 
 /*
