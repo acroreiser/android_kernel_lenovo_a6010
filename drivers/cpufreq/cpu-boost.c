@@ -76,7 +76,7 @@ static inline bool queuing_blocked(struct kthread_worker *worker,
 
 static int set_input_boost_freq(const char *buf, const struct kernel_param *kp)
 {
-	int ntokens = 0;
+	int i, ntokens = 0;
 	unsigned int val, cpu;
 	const char *cp = buf;
 	bool enabled = false;
