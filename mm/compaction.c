@@ -1334,7 +1334,7 @@ void compaction_unregister_node(struct node *node)
 
 static int  __init mem_compaction_init(void)
 {
-	struct sched_param param = { .sched_priority = 1 };
+	struct sched_param param = { .sched_priority = 0 };
 
 	init_timer_deferrable(&compact_thread.timer);
 	compact_thread.timer.function = compact_thread_timer_func;
@@ -1342,7 +1342,7 @@ static int  __init mem_compaction_init(void)
 	compact_thread.task = kthread_run(compact_thread_func, NULL,
 				"%s", "kcompact");
 	if (!IS_ERR(compact_thread.task))
-		sched_setscheduler(compact_thread.task, SCHED_FIFO, &param);
+		sched_setscheduler(compact_thread.task, SCHED_IDLE, &param);
 
 	fb_register_client(&compact_notifier_block);
 	return 0;
