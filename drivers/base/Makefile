@@ -25,4 +25,3 @@ obj-$(CONFIG_PINCTRL) += pinctrl.o
 
 ccflags-$(CONFIG_DEBUG_DRIVER) := -DDEBUG
 
-obj-$(CONFIG_ASSISTED_SUPERUSER) += superuser.o
