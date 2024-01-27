@@ -281,12 +281,6 @@ source "fs/dlm/Kconfig"
 
 endmenu
 
-config REBOOT_AUTO_FSYNC
-	bool "Automatic file sync on reboot/panic"
-	default y
-	help
-	  Force automatic file sync on power off, reboot, panic/freeze
-
 config SWITCH_NOATIME
 	bool "Config option to switch mnt flag default to noatime"
 	default y
