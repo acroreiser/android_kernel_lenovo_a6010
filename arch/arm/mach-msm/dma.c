@@ -828,7 +828,7 @@ static int msm_dmov_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	snprintf(wq_name, sizeof(wq_name), "dmov%d_wq", adm);
-	dmov_conf[adm].cmd_wq = alloc_workqueue(wq_name, WQ_POWER_EFFICIENT | WQ_CPU_INTENSIVE, 1);
+	dmov_conf[adm].cmd_wq = alloc_workqueue(wq_name, WQ_CPU_INTENSIVE, 1);
 	if (!dmov_conf[adm].cmd_wq) {
 		PRINT_ERROR("Couldn't allocate ADM%d workqueue.\n", adm);
 		ret = -ENOMEM;

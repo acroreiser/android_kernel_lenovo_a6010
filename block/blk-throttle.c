@@ -1258,7 +1258,7 @@ void blk_throtl_exit(struct request_queue *q)
 
 static int __init throtl_init(void)
 {
-	kthrotld_workqueue = alloc_workqueue("kthrotld", WQ_POWER_EFFICIENT | WQ_MEM_RECLAIM, 0);
+	kthrotld_workqueue = alloc_workqueue("kthrotld", WQ_MEM_RECLAIM, 0);
 	if (!kthrotld_workqueue)
 		panic("Failed to create kthrotld\n");
 

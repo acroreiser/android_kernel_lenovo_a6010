@@ -111,7 +111,7 @@ static int __init fscache_init(void)
 			  fscache_object_max_active, WQ_UNBOUND_MAX_ACTIVE);
 
 	ret = -ENOMEM;
-	fscache_object_wq = alloc_workqueue("fscache_object", WQ_POWER_EFFICIENT | WQ_UNBOUND,
+	fscache_object_wq = alloc_workqueue("fscache_object", WQ_UNBOUND,
 					    fscache_object_max_active);
 	if (!fscache_object_wq)
 		goto error_object_wq;
@@ -121,7 +121,7 @@ static int __init fscache_init(void)
 			  fscache_op_max_active, WQ_UNBOUND_MAX_ACTIVE);
 
 	ret = -ENOMEM;
-	fscache_op_wq = alloc_workqueue("fscache_operation", WQ_POWER_EFFICIENT | WQ_UNBOUND,
+	fscache_op_wq = alloc_workqueue("fscache_operation", WQ_UNBOUND,
 					fscache_op_max_active);
 	if (!fscache_op_wq)
 		goto error_op_wq;

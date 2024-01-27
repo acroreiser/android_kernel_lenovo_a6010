@@ -754,7 +754,7 @@ static int msm_hsic_probe(struct platform_device *pdev)
 		goto error;
 	}
 
-	mhsic->wq = alloc_workqueue("mhsic_wq", WQ_POWER_EFFICIENT | WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+	mhsic->wq = alloc_workqueue("mhsic_wq", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
 	if (!mhsic->wq) {
 		pr_err("%s: Unable to create workqueue mhsic wq\n",
 				__func__);

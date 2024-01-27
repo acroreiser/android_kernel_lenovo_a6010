@@ -276,7 +276,7 @@ static int lpm_wa_probe(struct platform_device *pdev)
 	INIT_WORK(&lpm_wa_work, process_lpm_workarounds);
 
 	lpm_wa_wq = alloc_workqueue("lpm-wa",
-			WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_POWER_EFFICIENT | WQ_HIGHPRI, 1);
+			WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_HIGHPRI, 1);
 	if (IS_ERR_OR_NULL(lpm_wa_wq)) {
 		ret = PTR_ERR(lpm_wa_wq);
 		pr_err("%s: Failed to allocate workqueue\n", __func__);

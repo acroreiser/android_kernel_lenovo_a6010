@@ -904,7 +904,7 @@ static int rqbalance_start(void)
 		return err;
 
 	rqbalance_wq = alloc_workqueue("cpuquiet-rqbalance",
-			WQ_UNBOUND | WQ_POWER_EFFICIENT | WQ_FREEZABLE, 1);
+			WQ_UNBOUND | WQ_FREEZABLE, 1);
 	if (!rqbalance_wq)
 		return -ENOMEM;
 

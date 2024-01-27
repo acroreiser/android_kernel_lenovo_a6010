@@ -457,7 +457,7 @@ static int pcrypt_init_padata(struct padata_pcrypt *pcrypt,
 	get_online_cpus();
 
 	pcrypt->wq = alloc_workqueue(name,
-				     WQ_MEM_RECLAIM | WQ_POWER_EFFICIENT | WQ_CPU_INTENSIVE, 1);
+				     WQ_MEM_RECLAIM | WQ_CPU_INTENSIVE, 1);
 	if (!pcrypt->wq)
 		goto err;
 
