@@ -1323,9 +1323,8 @@ static sector_t __calc_hidden_sect(struct super_block *sb)
 	hidden = bdev->bd_part->start_sect;
 	/* a disk device, not a partition */
 	if (!hidden) {
-		if (bdev != bdev->bd_contains)
-			sdfat_log_msg(sb, KERN_WARNING,
-				"hidden(0), but disk has a partition table");
+		ASSERT(bdev == bdev->bd_contains);
+		ASSERT(!bdev->bd_part->partno);
 		goto out;
 	}
 
@@ -1335,8 +1334,8 @@ static sector_t __calc_hidden_sect(struct super_block *sb)
 	}
 
 out:
-	sdfat_log_msg(sb, KERN_INFO, "start_sect of part(%d)    : %lld",
-		bdev ? bdev->bd_part->partno : -1, (s64)hidden);
+	sdfat_log_msg(sb, KERN_INFO, "start_sect of partition  : %lld",
+		(s64)hidden);
 	return hidden;
 
 }
