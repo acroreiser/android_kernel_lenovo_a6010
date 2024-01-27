@@ -94,11 +94,7 @@ static inline void __sdfat_submit_bio_write2(int flags, struct bio *bio)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
 static void  mpage_write_end_io(struct bio *bio)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
-	__sdfat_writepage_end_io(bio, bio->bi_status);
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) */
-	__sdfat_writepage_end_io(bio, bio->bi_error);
-#endif
+	__mpage_write_end_io(bio, bio->bi_error);
 }
 #else /* LINUX_VERSION_CODE < KERNEL_VERSION(4,3,0) */
 static void mpage_write_end_io(struct bio *bio, int err)
@@ -281,11 +277,7 @@ mpage_alloc(struct block_device *bdev,
 	}
 
 	if (bio) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
-		bio_set_dev(bio, bdev);
-#else
 		bio->bi_bdev = bdev;
-#endif
 		__sdfat_set_bio_sector(bio, first_sector);
 	}
 	return bio;
@@ -612,3 +604,4 @@ int sdfat_mpage_writepages(struct address_space *mapping,
 }
 
 #endif /* CONFIG_SDFAT_ALIGNED_MPAGE_WRITE */
+
