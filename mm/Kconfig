@@ -320,13 +320,13 @@ config KSM
 config DIRTY_RATIO_HARDCODE
 	bool "Hardcode default dirty_ratio and dirty_background_ratio values"
 	help
-	  Prevent vm.dirty_ratio and vm.dirty_background_ratio from changing bu userspace.
+	  "Prevent vm.dirty_ratio and vm.dirty_background_ratio from change."
 
-config DECREASE_DIRTY_BACKGROUND_RATIO
-	bool "Decrease default dirty_background_ratio"
+config DECREASE_DIRTY_RATIO
+	bool "Decrease default dirty_ratio"
 	help
-	  The default dirty_background_ratio is chosen to be a compromise between throughput and 
-	  overall system latency. On a phone or desktop, if an application writes to disk a lot,
+	  The default dirty ratio is chosen to be a compromise between throughput and 
+	  overall system latency. On a desktop, if an application writes to disk a lot,
 	  that application should be the one to slow down rather than the desktop as a
 	  whole. At higher dirty ratio settings, an application could write a lot to
 	  disk and then happily use lots of CPU time after that while the rest of the
@@ -337,8 +337,11 @@ config DECREASE_DIRTY_BACKGROUND_RATIO
 	  being responsible for their own actions and they're the ones that slow down
 	  rather than the system in general.
 
-	  This *may* decrease overall write throughput, but to the benefit of the latency
+	  This does decrease overall write throughput, but to the benefit of the latency
 	  of the system as a whole with disk writes.
+
+	  Other checks may well round this up to 10 still at startup.
+
 
 config ZCACHE
        bool "Compressed cache for file pages (EXPERIMENTAL)"
