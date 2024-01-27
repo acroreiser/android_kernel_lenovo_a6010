@@ -225,7 +225,7 @@ static unsigned int ksm_thread_pages_to_scan = 100;
 static unsigned int ksm_thread_sleep_millisecs = CONFIG_KSM_THREAD_SLEEPMS;
 
 /* Boolean to indicate whether to use deferred timer or not */
-static bool use_deferred_timer = true;
+static bool use_deferred_timer;
 
 #ifdef CONFIG_NUMA
 /* Zeroed when merging across nodes is not allowed */
