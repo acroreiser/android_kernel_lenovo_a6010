@@ -68,19 +68,13 @@
 
 #define AID_PACKAGE_INFO  1027
 
-
-/*
- * Permissions are handled by our permission function.
- * We don't want anyone who happens to look at our inode value to prematurely
- * block access, so store more permissive values. These are probably never
- * used.
- */
-#define fixup_tmp_permissions(x)	\
+#define fix_derived_permission(x)	\
 	do {						\
 		(x)->i_uid = SDCARDFS_I(x)->d_uid;	\
-		(x)->i_gid = AID_SDCARD_RW;	\
-		(x)->i_mode = ((x)->i_mode & S_IFMT) | 0775;\
+		(x)->i_gid = get_gid(SDCARDFS_I(x));	\
+		(x)->i_mode = ((x)->i_mode & S_IFMT) | get_mode(SDCARDFS_I(x));\
 	} while (0)
+
 
 /* OVERRIDE_CRED() and REVERT_CRED()
  * 	OVERRID_CRED()
@@ -193,6 +187,8 @@ struct sdcardfs_mount_options {
 	uid_t fs_low_uid;
 	gid_t fs_low_gid;
 	userid_t fs_user_id;
+	gid_t gid;
+	mode_t mask;
 	bool multiuser;
 	unsigned int reserved_mb;
 };
@@ -364,10 +360,9 @@ static inline void release_top(struct sdcardfs_inode_info *info)
 	iput(info->top);
 }
 
-static inline int get_gid(struct vfsmount *mnt, struct sdcardfs_inode_info *info) {
-	struct sdcardfs_vfsmount_options *opts = mnt->data;
-
-	if (opts->gid == AID_SDCARD_RW) {
+static inline int get_gid(struct sdcardfs_inode_info *info) {
+	struct sdcardfs_sb_info *sb_info = SDCARDFS_SB(info->vfs_inode.i_sb);
+	if (sb_info->options.gid == AID_SDCARD_RW) {
 		/* As an optimization, certain trusted system components only run
 		 * as owner but operate across all users. Since we're now handing
 		 * out the sdcard_rw GID only to trusted apps, we're okay relaxing
@@ -375,15 +370,14 @@ static inline int get_gid(struct vfsmount *mnt, struct sdcardfs_inode_info *info
 		 * assigned to app directories are still multiuser aware. */
 		return AID_SDCARD_RW;
 	} else {
-		return multiuser_get_uid(info->userid, opts->gid);
+		return multiuser_get_uid(info->userid, sb_info->options.gid);
 	}
 }
-static inline int get_mode(struct vfsmount *mnt, struct sdcardfs_inode_info *info) {
+static inline int get_mode(struct sdcardfs_inode_info *info) {
 	int owner_mode;
 	int filtered_mode;
-	struct sdcardfs_vfsmount_options *opts = mnt->data;
-	int visible_mode = 0775 & ~opts->mask;
-
+	struct sdcardfs_sb_info * sb_info = SDCARDFS_SB(info->vfs_inode.i_sb);
+	int visible_mode = 0775 & ~sb_info->options.mask;
 
 	if (info->perm == PERM_PRE_ROOT) {
 		/* Top of multi-user view should always be visible to ensure
@@ -393,7 +387,7 @@ static inline int get_mode(struct vfsmount *mnt, struct sdcardfs_inode_info *inf
 		/* Block "other" access to Android directories, since only apps
 		* belonging to a specific user should be in there; we still
 		* leave +x open for the default view. */
-		if (opts->gid == AID_SDCARD_RW) {
+		if (sb_info->options.gid == AID_SDCARD_RW) {
 			visible_mode = visible_mode & ~0006;
 		} else {
 			visible_mode = visible_mode & ~0007;
@@ -559,17 +553,12 @@ static inline int check_min_free_space(struct dentry *dentry, size_t size, int d
 		return 1;
 }
 
-/*
- * Copies attrs and maintains sdcardfs managed attrs
- * Since our permission check handles all special permissions, set those to be open
- */
+/* Copies attrs and maintains sdcardfs managed attrs */
 static inline void sdcardfs_copy_and_fix_attrs(struct inode *dest, const struct inode *src)
 {
-
-	dest->i_mode = (src->i_mode  & S_IFMT) | S_IRWXU | S_IRWXG |
-			S_IROTH | S_IXOTH; /* 0775 */
+	dest->i_mode = (src->i_mode  & S_IFMT) | get_mode(SDCARDFS_I(dest));
 	dest->i_uid = SDCARDFS_I(dest)->d_uid;
-	dest->i_gid = AID_SDCARD_RW;
+	dest->i_gid = get_gid(SDCARDFS_I(dest));
 	dest->i_rdev = src->i_rdev;
 	dest->i_atime = src->i_atime;
 	dest->i_mtime = src->i_mtime;
