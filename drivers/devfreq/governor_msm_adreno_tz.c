@@ -25,9 +25,6 @@
 #include <linux/powersuspend.h>
 #include "governor.h"
 
-// Battery saver
-#include <linux/battery_saver.h>
-
 static bool power_suspended;
 
 static DEFINE_SPINLOCK(tz_lock);
@@ -268,10 +265,6 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq,
 	}
 
 	*freq = devfreq->profile->freq_table[level];
-
-	if (is_battery_saver_on() && *freq > 400000000)
-		*freq = 400000000;
-
 	return 0;
 }
 
