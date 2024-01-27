@@ -156,7 +156,6 @@ invalid_option:
 	return 0;
 }
 
-#if 0
 /*
  * our custom d_alloc_root work-alike
  *
@@ -182,7 +181,6 @@ static struct dentry *sdcardfs_d_alloc_root(struct super_block *sb)
 	}
 	return ret;
 }
-#endif
 
 /*
  * There is no need to lock the sdcardfs_super_info's rwsem as there is no
@@ -197,7 +195,6 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 	struct path lower_path;
 	struct sdcardfs_sb_info *sb_info;
 	void *pkgl_id;
-	struct inode *inode;
 
 	printk(KERN_INFO "sdcardfs version 2.0\n");
 
@@ -262,18 +259,12 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 	sb->s_magic = SDCARDFS_SUPER_MAGIC;
 	sb->s_op = &sdcardfs_sops;
 
-	/* get a new inode and allocate our root dentry */
-	inode = sdcardfs_iget(sb, lower_path.dentry->d_inode);
-	if (IS_ERR(inode)) {
-		err = PTR_ERR(inode);
-		goto out_sput;
-	}
-	sb->s_root = d_make_root(inode);
+	/* see comment next to the definition of sdcardfs_d_alloc_root */
+	sb->s_root = sdcardfs_d_alloc_root(sb);
 	if (!sb->s_root) {
 		err = -ENOMEM;
-		goto out_iput;
+		goto out_sput;
 	}
-	d_set_d_op(sb->s_root, &sdcardfs_ci_dops);
 
 	/* link the upper and lower dentries */
 	sb->s_root->d_fsdata = NULL;
@@ -284,60 +275,56 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 	/* set the lower dentries for s_root */
 	sdcardfs_set_lower_path(sb->s_root, &lower_path);
 
-	/*
-	 * No need to call interpose because we already have a positive
-	 * dentry, which was instantiated by d_make_root.  Just need to
-	 * d_rehash it.
-	 */
-	d_rehash(sb->s_root);
-
-	/* setup permission policy */
-	switch(sb_info->options.derive) {
-		case DERIVE_NONE:
-			setup_derived_state(sb->s_root->d_inode,
+	/* call interpose to create the upper level inode */
+	err = sdcardfs_interpose(sb->s_root, sb, &lower_path);
+	if (!err) {
+		/* setup permission policy */
+		switch(sb_info->options.derive) {
+			case DERIVE_NONE:
+				setup_derived_state(sb->s_root->d_inode,
 					PERM_ROOT, 0, AID_ROOT, AID_SDCARD_RW, 00775);
-			sb_info->obbpath_s = NULL;
-			break;
-		case DERIVE_LEGACY:
-			/* Legacy behavior used to support internal multiuser layout which
-			 * places user_id at the top directory level, with the actual roots
-			 * just below that. Shared OBB path is also at top level. */
-			setup_derived_state(sb->s_root->d_inode,
-					PERM_LEGACY_PRE_ROOT, 0, AID_ROOT, AID_SDCARD_R, 00771);
-			/* initialize the obbpath string and lookup the path
-			 * sb_info->obb_path will be deactivated by path_put
-			 * on sdcardfs_put_super */
-			sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
-			snprintf(sb_info->obbpath_s, PATH_MAX, "%s/obb", dev_name);
-			err =  prepare_dir(sb_info->obbpath_s,
-					sb_info->options.fs_low_uid,
-					sb_info->options.fs_low_gid, 00755);
-			if(err)
-				printk(KERN_ERR "sdcardfs: %s: %d, error on creating %s\n",
-						__func__,__LINE__, sb_info->obbpath_s);
-			break;
-		case DERIVE_UNIFIED:
-			/* Unified multiuser layout which places secondary user_id under
-			 * /Android/user and shared OBB path under /Android/obb. */
-			setup_derived_state(sb->s_root->d_inode,
-					PERM_ROOT, 0, AID_ROOT, AID_SDCARD_R, 00771);
+				sb_info->obbpath_s = NULL;
+				break;
+			case DERIVE_LEGACY:
+				/* Legacy behavior used to support internal multiuser layout which
+				 * places user_id at the top directory level, with the actual roots
+				 * just below that. Shared OBB path is also at top level. */
+				setup_derived_state(sb->s_root->d_inode,
+				        PERM_LEGACY_PRE_ROOT, 0, AID_ROOT, AID_SDCARD_R, 00771);
+				/* initialize the obbpath string and lookup the path
+				 * sb_info->obb_path will be deactivated by path_put
+				 * on sdcardfs_put_super */
+				sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
+				snprintf(sb_info->obbpath_s, PATH_MAX, "%s/obb", dev_name);
+				err =  prepare_dir(sb_info->obbpath_s,
+							sb_info->options.fs_low_uid,
+							sb_info->options.fs_low_gid, 00755);
+				if(err)
+					printk(KERN_ERR "sdcardfs: %s: %d, error on creating %s\n",
+							__func__,__LINE__, sb_info->obbpath_s);
+				break;
+			case DERIVE_UNIFIED:
+				/* Unified multiuser layout which places secondary user_id under
+				 * /Android/user and shared OBB path under /Android/obb. */
+				setup_derived_state(sb->s_root->d_inode,
+						PERM_ROOT, 0, AID_ROOT, AID_SDCARD_R, 00771);
 
-			sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
-			snprintf(sb_info->obbpath_s, PATH_MAX, "%s/Android/obb", dev_name);
-			break;
+				sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
+				snprintf(sb_info->obbpath_s, PATH_MAX, "%s/Android/obb", dev_name);
+				break;
+		}
+		fix_derived_permission(sb->s_root->d_inode);
+
+		if (!silent)
+			printk(KERN_INFO "sdcardfs: mounted on top of %s type %s\n",
+						dev_name, lower_sb->s_type->name);
+		goto out;
 	}
-	fix_derived_permission(sb->s_root->d_inode);
+	/* else error: fall through */
 
-	if (!silent)
-		printk(KERN_INFO "sdcardfs: mounted on top of %s type %s\n",
-				dev_name, lower_sb->s_type->name);
-	goto out; /* all is well */
-
-	/* no longer needed: free_dentry_private_data(sb->s_root); */
+	free_dentry_private_data(sb->s_root);
 out_freeroot:
 	dput(sb->s_root);
-out_iput:
-	iput(inode);
 out_sput:
 	/* drop refs we took earlier */
 	atomic_dec(&lower_sb->s_active);
@@ -359,7 +346,7 @@ static struct dentry *mount_nodev_with_options(struct file_system_type *fs_type,
 
 {
 	int error;
-	struct super_block *s = sget(fs_type, NULL, set_anon_super, flags, NULL);
+	struct super_block *s = sget(fs_type, NULL, set_anon_super, NULL);
 
 	if (IS_ERR(s))
 		return ERR_CAST(s);
@@ -391,7 +378,7 @@ static struct file_system_type sdcardfs_fs_type = {
 	.name		= SDCARDFS_NAME,
 	.mount		= sdcardfs_mount,
 	.kill_sb	= generic_shutdown_super,
-	.fs_flags	= 0,
+	.fs_flags	= FS_REVAL_DOT,
 };
 
 static int __init init_sdcardfs_fs(void)
