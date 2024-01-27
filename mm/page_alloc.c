@@ -63,7 +63,6 @@
 #include <linux/sched/rt.h>
 #include <linux/nmi.h>
 #include <linux/random.h>
-#include <linux/cpu_boost.h>
 #include <linux/psi.h>
 
 #include <asm/sections.h>
@@ -2872,9 +2871,6 @@ rebalance:
 			goto restart;
 		}
 	}
-
-	/* Boost when memory is low so allocation latency doesn't get too bad */
-	do_input_boost_max();
 
 	/* Check if we should retry the allocation */
 	pages_reclaimed += did_some_progress;
