@@ -103,7 +103,7 @@ void get_derived_permission_new(struct dentry *parent, struct dentry *dentry, st
 		case PERM_ANDROID_OBB:
 		case PERM_ANDROID_MEDIA:
 			appid = get_appid(newdentry->d_name.name);
-			if (appid != 0 && !is_excluded(newdentry->d_name.name, parent_info->userid)) {
+			if (appid != 0) {
 				info->d_uid = multiuser_get_uid(parent_info->userid, appid);
 			}
 			set_top(info, &info->vfs_inode);
@@ -116,10 +116,8 @@ void get_derived_permission(struct dentry *parent, struct dentry *dentry)
 	get_derived_permission_new(parent, dentry, dentry);
 }
 
-static int descendant_may_need_fixup(struct sdcardfs_inode_info *info, struct limit_search *limit) {
-	if (info->perm == PERM_ROOT)
-		return (limit->flags & BY_USERID)?info->userid == limit->userid:1;
-	if (info->perm == PERM_PRE_ROOT || info->perm == PERM_ANDROID)
+static int descendant_may_need_fixup(perm_t perm) {
+	if (perm == PERM_PRE_ROOT || perm == PERM_ROOT || perm == PERM_ANDROID)
 		return 1;
 	return 0;
 }
@@ -131,7 +129,7 @@ static int needs_fixup(perm_t perm) {
 	return 0;
 }
 
-void fixup_perms_recursive(struct dentry *dentry, struct limit_search *limit) {
+void fixup_perms_recursive(struct dentry *dentry, const char* name, size_t len) {
 	struct dentry *child;
 	struct sdcardfs_inode_info *info;
 	if (!dget(dentry))
@@ -145,22 +143,22 @@ void fixup_perms_recursive(struct dentry *dentry, struct limit_search *limit) {
 	if (needs_fixup(info->perm)) {
 		spin_lock(&dentry->d_lock);
 		list_for_each_entry(child, &dentry->d_subdirs, d_u.d_child) {
-			dget(child);
-			if (!(limit->flags & BY_NAME) || !strncasecmp(child->d_name.name, limit->name, limit->length)) {
-				if (child->d_inode) {
-					get_derived_permission(dentry, child);
-					fixup_tmp_permissions(child->d_inode);
-					dput(child);
-					break;
+				dget(child);
+				if (!strncasecmp(child->d_name.name, name, len)) {
+					if (child->d_inode) {
+						get_derived_permission(dentry, child);
+						fixup_tmp_permissions(child->d_inode);
+						dput(child);
+						break;
+					}
 				}
-			}
-			dput(child);
+				dput(child);
 		}
 		spin_unlock(&dentry->d_lock);
-	} else 	if (descendant_may_need_fixup(info, limit)) {
+	} else 	if (descendant_may_need_fixup(info->perm)) {
 		spin_lock(&dentry->d_lock);
 		list_for_each_entry(child, &dentry->d_subdirs, d_u.d_child) {
-				fixup_perms_recursive(child, limit);
+				fixup_perms_recursive(child, name, len);
 		}
 		spin_unlock(&dentry->d_lock);
 	}
