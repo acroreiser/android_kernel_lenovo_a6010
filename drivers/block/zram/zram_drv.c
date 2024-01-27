@@ -36,7 +36,7 @@
 
 #include "zram_drv.h"
 
-size_t max_zpage_size = PAGE_SIZE/3;
+size_t max_zpage_size = PAGE_SIZE / 10 * 9;
 module_param(max_zpage_size, uint, 0644);
 
 /* Globals */
@@ -547,21 +547,12 @@ static inline void update_used_max(struct zram *zram,
 	} while (old_max != cur_max);
 }
 
-static unsigned char page_chunk[PAGE_SIZE / 8];
-static unsigned int debug = 0, discarded_total = 0, compressed = 0, discarded_useful = 0;
-
-module_param(debug, uint, 0644);
-module_param(discarded_total, uint, 0644);
-module_param(compressed, uint, 0644);
-module_param(discarded_useful, uint, 0644);
-
 static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 			   int offset)
 {
 	int ret = 0;
 	unsigned int clen;
 	unsigned long handle = 0;
-	size_t chunk_clen;
 	struct page *page;
 	unsigned char *user_mem, *cmem, *src, *uncmem = NULL;
 	struct zram_meta *meta = zram->meta;
@@ -610,29 +601,7 @@ compress_again:
 	}
 
 	zstrm = zcomp_strm_find(zram->comp);
-
-	memset(page_chunk, 0, PAGE_SIZE / 8);
-	memcpy(page_chunk, uncmem, PAGE_SIZE / 8);
-
-	ret = zcomp_compress(zstrm, page_chunk, &chunk_clen);
-
-	if (chunk_clen * 8 <= max_zpage_size || debug) {
-		ret = zcomp_compress(zstrm, uncmem, &clen);
-	} else {
-		clen = PAGE_SIZE;
-	}
-
-	if (unlikely(debug)) {
-		if (chunk_clen * 8 > max_zpage_size) {
-			discarded_total++;
-			if (clen > max_zpage_size)
-				discarded_useful++;
-		} else
-			compressed++;
-
-		pr_err("[zram] chunk_clen=%d, approx=%d, real=%d\n", chunk_clen, chunk_clen * 8, clen);
-	}
-
+	ret = zcomp_compress(zstrm, uncmem, &clen);
 	if (!is_partial_io(bvec)) {
 		kunmap_atomic(user_mem);
 		user_mem = NULL;
