@@ -251,7 +251,7 @@ static int sdcardfs_show_options(struct vfsmount *mnt, struct seq_file *m,
 	if (vfsopts->gid != 0)
 		seq_printf(m, ",gid=%u", vfsopts->gid);
 	if (opts->multiuser)
-		seq_puts(m, ",multiuser");
+		seq_printf(m, ",multiuser");
 	if (vfsopts->mask)
 		seq_printf(m, ",mask=%u", vfsopts->mask);
 	if (opts->fs_user_id)
