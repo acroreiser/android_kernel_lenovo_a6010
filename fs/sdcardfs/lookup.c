@@ -219,8 +219,9 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 	struct vfsmount *lower_dir_mnt;
 	struct dentry *lower_dir_dentry = NULL;
 	struct dentry *lower_dentry;
-	const struct qstr *name;
+	const char *name;
 	struct path lower_path;
+	struct qstr this;
 	struct sdcardfs_sb_info *sbi;
 
 	sbi = SDCARDFS_SB(dentry->d_sb);
@@ -230,14 +231,14 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 	if (IS_ROOT(dentry))
 		goto out;
 
-	name = &dentry->d_name;
+	name = dentry->d_name.name;
 
 	/* now start the actual lookup procedure */
 	lower_dir_dentry = lower_parent_path->dentry;
 	lower_dir_mnt = lower_parent_path->mnt;
 
 	/* Use vfs_path_lookup to check if the dentry exists or not */
-	err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name->name, 0,
+	err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name, 0,
 				&lower_path);
 	/* check for other cases */
 	if (err == -ENOENT) {
@@ -247,7 +248,7 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 		spin_lock(&lower_dir_dentry->d_lock);
 		list_for_each_entry(child, &lower_dir_dentry->d_subdirs, d_u.d_child) {
 			if (child && child->d_inode) {
-				if (qstr_case_eq(&child->d_name, name)) {
+				if (strcasecmp(child->d_name.name, name)==0) {
 					match = dget(child);
 					break;
 				}
@@ -306,11 +307,14 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 		goto out;
 
 	/* instatiate a new negative dentry */
-	lower_dentry = d_lookup(lower_dir_dentry, name);
+	this.name = name;
+	this.len = strlen(name);
+	this.hash = full_name_hash(this.name, this.len);
+	lower_dentry = d_lookup(lower_dir_dentry, &this);
 	if (lower_dentry)
 		goto setup_lower;
 
-	lower_dentry = d_alloc(lower_dir_dentry, name);
+	lower_dentry = d_alloc(lower_dir_dentry, &this);
 	if (!lower_dentry) {
 		err = -ENOMEM;
 		goto out;
@@ -355,7 +359,7 @@ struct dentry *sdcardfs_lookup(struct inode *dir, struct dentry *dentry,
 
 	parent = dget_parent(dentry);
 
-	if(!check_caller_access_to_name(parent->d_inode, &dentry->d_name)) {
+	if(!check_caller_access_to_name(parent->d_inode, dentry->d_name.name)) {
 		ret = ERR_PTR(-EACCES);
 		printk(KERN_INFO "%s: need to check the caller's gid in packages.list\n"
                          "	dentry: %s, task:%s\n",
