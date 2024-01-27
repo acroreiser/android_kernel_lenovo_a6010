@@ -8,7 +8,6 @@
 #include <linux/battery_saver.h>
 
 static bool enabled = false;
-extern bool wq_power_efficient;
 
 // returns whether battery saver is enabled or disabled
 bool is_battery_saver_on(void)
@@ -43,7 +42,6 @@ static int set_enabled(const char *val, const struct kernel_param *kp)
 		printk(KERN_INFO "Leaving battery saving mode\n");
 
 	enabled = state;
-	wq_power_efficient = state;
 	return 0;
 }
 
