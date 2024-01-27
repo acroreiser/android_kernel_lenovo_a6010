@@ -40,14 +40,6 @@ config CPU_QUIET_GOVERNOR_RQBALANCE
 
 	 If in doubt, say Y.
 
-config CPU_QUIET_GOVERNOR_PERFORMANCE
-	bool "'performance' governor"
-	default y
-	help
-	 Performance-oriented modification of 'runnable_threads'
-
-	 If in doubt say Y.
-
 choice
 	prompt "Default CPUQuiet governor"
 	default CPU_QUIET_DEFAULT_GOV_USERSPACE
@@ -72,12 +64,6 @@ config CPU_QUIET_DEFAULT_GOV_RQBALANCE
 	select CPU_QUIET_GOVERNOR_RQBALANCE
 	help
 	 Use the CPUQuiet governor 'rqbalance' as default.
-
-config CPU_QUIET_DEFAULT_GOV_PERFORMANCE
-	bool "performance"
-	select CPU_QUIET_GOVERNOR_PERFORMANCE
-	help
-	 Use the CPUQuiet governor 'performance' as default.
 endchoice
 
 config CPU_QUIET_MSM
