@@ -589,9 +589,6 @@ else
 KBUILD_CFLAGS	+= -O2 -mcpu=cortex-a53 --param l2-cache-size=512 --param l1-cache-size=32 --param l1-cache-line-size=64 -Wno-misleading-indentation -flive-range-shrinkage -fsched-pressure
 endif
 
-# Fix gcc10 performance regression
-#KBUILD_CFLAGS += --param=max-inline-insns-auto=1000
-
 include $(srctree)/arch/$(SRCARCH)/Makefile
 
 # Tell gcc to never replace conditional load with a non-conditional one
