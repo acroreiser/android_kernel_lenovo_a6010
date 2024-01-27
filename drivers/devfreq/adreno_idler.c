@@ -31,9 +31,6 @@
 #include <linux/devfreq.h>
 #include <linux/msm_adreno_devfreq.h>
 
-// Battery saver
-#include <linux/battery_saver.h>
-
 #define ADRENO_IDLER_MAJOR_VERSION 1
 #define ADRENO_IDLER_MINOR_VERSION 1
 
@@ -66,8 +63,8 @@ static unsigned int idlecount = 0;
 int adreno_idler(struct devfreq_dev_status stats, struct devfreq *devfreq,
 		 unsigned long *freq)
 {
-	if (!adreno_idler_active && !is_battery_saver_on())
-			return 0;
+	if (!adreno_idler_active)
+		return 0;
 
 	if (stats.busy_time < idleworkload) {
 		/* busy_time >= idleworkload should be considered as a non-idle workload. */
