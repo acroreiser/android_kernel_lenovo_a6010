@@ -32,7 +32,7 @@ static struct timer_list perfo_timer;
 
 static bool perfo_enabled;
 /* configurable parameters */
-static unsigned int sample_rate = 80;	  /* msec */
+static unsigned int sample_rate = 200;	  /* msec */
 
 #define NR_FSHIFT_EXP  3
 #define NR_FSHIFT      (1 << NR_FSHIFT_EXP)
