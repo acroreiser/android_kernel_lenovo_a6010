@@ -106,10 +106,6 @@ config DEVFREQ_GOV_MSM_GPUBW_MON
 	  and select bus frequency votes using an "on-demand" alorithm..
 	  This governor is unlikely to be useful for non-MSM devices.
 
-config TRIM_BW_VBIF
-	bool "Disable gpubw_mon and bw_vbif governors"
-	depends on DEVFREQ_GOV_MSM_GPUBW_MON
-
 config DEVFREQ_GOV_MSM_BW_HWMON
 	tristate "HW monitor based governor for device BW"
 	depends on ARCH_MSM_KRAIT || MSM_BIMC_BWMON
