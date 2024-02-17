@@ -626,8 +626,6 @@ static struct attribute_group *get_sysfs_attr(void)
 
 /********************** cpufreq governor interface *********************/
 
-static struct cpufreq_governor schedutil_gov;
-
 static struct sugov_policy *sugov_policy_alloc(struct cpufreq_policy *policy)
 {
 	struct sugov_policy *sg_policy;
@@ -902,7 +900,10 @@ int sugov_governor(struct cpufreq_policy *policy, unsigned int event)
 	return -EINVAL;
 }
 
-static struct cpufreq_governor schedutil_gov = {
+#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
+static
+#endif
+ struct cpufreq_governor schedutil_gov = {
 	.name = "schedutil",
 	.governor = sugov_governor,
 	.owner = THIS_MODULE,
@@ -923,11 +924,6 @@ MODULE_DESCRIPTION("Utilization-based CPU frequency selection");
 MODULE_LICENSE("GPL");
 
 #ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
-struct cpufreq_governor *cpufreq_default_governor(void)
-{
-	return &schedutil_gov;
-}
-
 fs_initcall(sugov_module_init);
 #else
 module_init(sugov_module_init);
