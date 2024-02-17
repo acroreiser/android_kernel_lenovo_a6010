@@ -112,6 +112,7 @@ config CPU_FREQ_DEFAULT_GOV_CONSERVATIVE
 config CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
 	bool "schedutil"
 	select CPU_FREQ_GOV_SCHEDUTIL
+	depends on !SCHED_HMP_DEFAULT_DISABLED
 	help
 	  Use the 'schedutil' CPUFreq governor by default. If unsure,
 	  have a look at the help section of that governor.
@@ -226,6 +227,7 @@ config CPU_FREQ_GOV_CONSERVATIVE
 config CPU_FREQ_GOV_SCHEDUTIL
 	tristate "'schedutil' cpufreq policy governor"
 	depends on CPU_FREQ
+	depends on !SCHED_HMP_DEFAULT_DISABLED
 	select CPU_FREQ_GOV_ATTR_SET
 	select IRQ_WORK
 	help

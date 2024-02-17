@@ -1124,7 +1124,7 @@ void register_task_migration_notifier(struct notifier_block *n)
 }
 
 #ifdef CONFIG_SCHED_HMP
-
+#ifdef CONFIG_SCHED_HMP_DEFAULT_DISABLED
 static int __init set_sched_enable_hmp(char *str)
 {
 	int enable_hmp = 0;
@@ -1137,6 +1137,7 @@ static int __init set_sched_enable_hmp(char *str)
 }
 
 early_param("sched_enable_hmp", set_sched_enable_hmp);
+#endif
 
 static int __init set_sched_enable_power_aware(char *str)
 {

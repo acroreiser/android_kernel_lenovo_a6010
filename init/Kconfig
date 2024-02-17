@@ -1147,6 +1147,15 @@ config SCHED_HMP
 	  in their instructions per-cycle capability or the maximum
 	  frequency they can attain.
 
+config SCHED_HMP_DEFAULT_DISABLED
+	bool "Require boot parameter to enable HMP task placement"
+	default n
+	depends on SCHED_HMP
+	help
+	  If set, scheduler support for heterogenous multi-processor systems will be disabled
+	  per default but can be enabled through passing sched_enable_hmp=1
+	  on the kernel commandline during boot.
+
 config CHECKPOINT_RESTORE
 	bool "Checkpoint/restore support" if EXPERT
 	default n
