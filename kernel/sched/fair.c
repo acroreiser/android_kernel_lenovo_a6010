@@ -1259,7 +1259,11 @@ unsigned int max_task_load(void)
 }
 
 /* Use this knob to turn on or off HMP-aware task placement logic */
+#ifdef CONFIG_SCHED_HMP_DEFAULT_DISABLED
 unsigned int __read_mostly sched_enable_hmp = 0;
+#else
+unsigned int __read_mostly sched_enable_hmp = 1;
+#endif
 
 /* A cpu can no longer accomodate more tasks if:
  *
