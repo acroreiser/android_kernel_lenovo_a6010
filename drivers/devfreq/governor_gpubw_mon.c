@@ -206,17 +206,12 @@ static struct devfreq_governor devfreq_gpubw = {
 
 static int __init devfreq_gpubw_init(void)
 {
-#ifdef CONFIG_TRIM_BW_VBIF
-	return 0;
-#else
 	return devfreq_add_governor(&devfreq_gpubw);
-#endif
 }
 subsys_initcall(devfreq_gpubw_init);
 
 static void __exit devfreq_gpubw_exit(void)
 {
-#ifndef CONFIG_TRIM_BW_VBIF
 	int ret;
 
 	ret = devfreq_remove_governor(&devfreq_gpubw);
@@ -224,7 +219,6 @@ static void __exit devfreq_gpubw_exit(void)
 		pr_err("%s: failed remove governor %d\n", __func__, ret);
 
 	return;
-#endif
 }
 module_exit(devfreq_gpubw_exit);
 
