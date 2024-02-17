@@ -202,6 +202,18 @@ out_unlock:
 }
 EXPORT_SYMBOL_GPL(gov_queue_work);
 
+static inline void gov_cancel_work(struct dbs_data *dbs_data,
+		struct cpufreq_policy *policy)
+{
+	struct cpu_dbs_common_info *cdbs;
+	int i;
+
+	for_each_cpu(i, policy->cpus) {
+		cdbs = dbs_data->cdata->get_cpu_cdbs(i);
+		cancel_delayed_work_sync(&cdbs->work);
+	}
+}
+
 /* Will return if we need to evaluate cpu load again or not */
 bool need_load_eval(struct cpu_dbs_common_info *cdbs,
 		unsigned int sampling_rate)
@@ -435,42 +447,3 @@ int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(cpufreq_governor_dbs);
-
-static void gov_set_update_util(struct policy_dbs_info *policy_dbs,
-				unsigned int delay_us)
-{
-	struct cpufreq_policy *policy = policy_dbs->policy;
-	int cpu;
-
-	gov_update_sample_delay(policy_dbs, delay_us);
-	policy_dbs->last_sample_time = 0;
-
-	for_each_cpu(cpu, policy->cpus) {
-		struct cpu_dbs_info *cdbs = &per_cpu(cpu_dbs, cpu);
-
-		cpufreq_add_update_util_hook(cpu, &cdbs->update_util,
-					     dbs_update_util_handler);
-	}
-}
-
-static inline void gov_clear_update_util(struct cpufreq_policy *policy)
-{
-	int i;
-
-	for_each_cpu(i, policy->cpus)
-		cpufreq_remove_update_util_hook(i);
-
-	synchronize_sched();
-}
-
-static inline void gov_cancel_work(struct dbs_data *dbs_data,
-		struct cpufreq_policy *policy)
-{
-	struct cpu_dbs_common_info *cdbs;
-	int i;
-
-	for_each_cpu(i, policy->cpus) {
-		cdbs = dbs_data->cdata->get_cpu_cdbs(i);
-		cancel_delayed_work_sync(&cdbs->work);
-	}
-}
