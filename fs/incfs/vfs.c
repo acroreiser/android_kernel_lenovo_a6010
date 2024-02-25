@@ -98,7 +98,7 @@ static int dir_rename_wrap(struct inode *old_dir, struct dentry *old_dentry,
 static const struct inode_operations incfs_dir_inode_ops = {
 	.lookup = dir_lookup,
 	.mkdir = dir_mkdir,
-	.rename = dir_rename_wrap,
+	.rename2 = dir_rename_wrap,
 	.unlink = dir_unlink,
 	.link = dir_link,
 	.rmdir = dir_rmdir
@@ -127,7 +127,7 @@ static const struct address_space_operations incfs_address_space_ops = {
 static const struct file_operations incfs_file_ops = {
 	.open = file_open,
 	.release = file_release,
-	.read_iter = generic_file_read_iter,
+	.read = do_sync_read,
 	.mmap = generic_file_mmap,
 	.splice_read = generic_file_splice_read,
 	.llseek = generic_file_llseek,
@@ -166,17 +166,15 @@ static const struct inode_operations incfs_file_inode_ops = {
 	.listxattr = incfs_listxattr
 };
 
-static int incfs_handler_getxattr(const struct xattr_handler *xh,
-				  struct dentry *d, struct inode *inode,
-				  const char *name, void *buffer, size_t size)
+static int incfs_handler_getxattr(struct dentry *d,
+				  const char *name, void *buffer, size_t size, int stub)
 {
 	return incfs_getxattr(d, name, buffer, size);
 }
 
-static int incfs_handler_setxattr(const struct xattr_handler *xh,
-				  struct dentry *d, struct inode *inode,
+static int incfs_handler_setxattr(struct dentry *d,
 				  const char *name, const void *buffer,
-				  size_t size, int flags)
+				  size_t size, int flags, int stub)
 {
 	return incfs_setxattr(d, name, buffer, size, flags);
 }
@@ -519,7 +517,7 @@ static __poll_t pending_reads_poll(struct file *file, poll_table *wait)
 	poll_wait(file, &mi->mi_pending_reads_notif_wq, wait);
 	if (incfs_fresh_pending_reads_exist(mi,
 					    state->last_pending_read_sn))
-		ret = EPOLLIN | EPOLLRDNORM;
+		ret = POLLIN | POLLRDNORM;
 
 	return ret;
 }
@@ -640,7 +638,7 @@ static __poll_t log_poll(struct file *file, poll_table *wait)
 	poll_wait(file, &mi->mi_log.ml_notif_wq, wait);
 	count = incfs_get_uncollected_logs_count(mi, log_state->state);
 	if (count >= mi->mi_options.read_log_wakeup_count)
-		ret = EPOLLIN | EPOLLRDNORM;
+		ret = POLLIN | POLLRDNORM;
 
 	return ret;
 }
@@ -758,7 +756,7 @@ static struct dentry *open_or_create_index_dir(struct dentry *backing_dir)
 		return ERR_PTR(-EINVAL);
 	} else if (IS_ERR(index_dentry)) {
 		return index_dentry;
-	} else if (d_really_is_positive(index_dentry)) {
+	} else if (index_dentry->d_inode != NULL) {
 		/* Index already exists. */
 		return index_dentry;
 	}
@@ -771,7 +769,7 @@ static struct dentry *open_or_create_index_dir(struct dentry *backing_dir)
 	if (err)
 		return ERR_PTR(err);
 
-	if (!d_really_is_positive(index_dentry)) {
+	if (!(index_dentry->d_inode != NULL)) {
 		dput(index_dentry);
 		return ERR_PTR(-EINVAL);
 	}
@@ -968,7 +966,7 @@ static int incfs_link(struct dentry *what, struct dentry *where)
 	int error = 0;
 
 	inode_lock_nested(pinode, I_MUTEX_PARENT);
-	error = vfs_link(what, pinode, where, NULL);
+	error = vfs_link(what, pinode, where);
 	inode_unlock(pinode);
 
 	dput(parent_dentry);
@@ -982,7 +980,7 @@ static int incfs_unlink(struct dentry *dentry)
 	int error = 0;
 
 	inode_lock_nested(pinode, I_MUTEX_PARENT);
-	error = vfs_unlink(pinode, dentry, NULL);
+	error = vfs_unlink(pinode, dentry);
 	inode_unlock(pinode);
 
 	dput(parent_dentry);
@@ -1066,17 +1064,11 @@ static int chmod(struct dentry *dentry, umode_t mode)
 	struct iattr newattrs;
 	int error;
 
-retry_deleg:
 	inode_lock(inode);
 	newattrs.ia_mode = (mode & S_IALLUGO) | (inode->i_mode & ~S_IALLUGO);
 	newattrs.ia_valid = ATTR_MODE | ATTR_CTIME;
-	error = notify_change(dentry, &newattrs, &delegated_inode);
+	error = notify_change(dentry, &newattrs);
 	inode_unlock(inode);
-	if (delegated_inode) {
-		error = break_deleg_wait(&delegated_inode);
-		if (!error)
-			goto retry_deleg;
-	}
 	return error;
 }
 
@@ -1152,7 +1144,7 @@ static long ioctl_create_file(struct mount_info *mi,
 		named_file_dentry = NULL;
 		goto out;
 	}
-	if (d_really_is_positive(named_file_dentry)) {
+	if (named_file_dentry->d_inode != NULL) {
 		/* File with this path already exists. */
 		error = -EEXIST;
 		goto out;
@@ -1168,7 +1160,7 @@ static long ioctl_create_file(struct mount_info *mi,
 		index_file_dentry = NULL;
 		goto out;
 	}
-	if (d_really_is_positive(index_file_dentry)) {
+	if (index_file_dentry->d_inode != NULL) {
 		/* File with this ID already exists in index. */
 		error = -EEXIST;
 		goto out;
@@ -1183,7 +1175,7 @@ static long ioctl_create_file(struct mount_info *mi,
 
 	if (error)
 		goto out;
-	if (!d_really_is_positive(index_file_dentry)) {
+	if (!(index_file_dentry->d_inode != NULL)) {
 		error = -EINVAL;
 		goto out;
 	}
@@ -1547,7 +1539,7 @@ static struct dentry *dir_lookup(struct inode *dir_inode, struct dentry *dentry,
 		if (err)
 			goto out;
 
-		if (!d_really_is_positive(backing_dentry)) {
+		if (!(backing_dentry->d_inode != NULL)) {
 			/*
 			 * No such entry found in the backing dir.
 			 * Create a negative entry.
@@ -1623,7 +1615,7 @@ static int dir_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	if (!err) {
 		struct inode *inode = NULL;
 
-		if (d_really_is_negative(backing_dentry)) {
+		if (backing_dentry->d_inode == NULL) {
 			err = -EINVAL;
 			goto out;
 		}
@@ -1637,7 +1629,7 @@ static int dir_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	}
 
 out:
-	if (d_really_is_negative(dentry))
+	if (dentry->d_inode == NULL)
 		d_drop(dentry);
 	path_put(&backing_path);
 	mutex_unlock(&mi->mi_dir_struct_mutex);
@@ -1679,7 +1671,7 @@ static int final_file_delete(struct mount_info *mi,
 	if (error)
 		goto out;
 
-	if (d_really_is_positive(index_file_dentry))
+	if (index_file_dentry->d_inode != NULL)
 		error = incfs_unlink(index_file_dentry);
 out:
 	dput(index_file_dentry);
@@ -1711,8 +1703,7 @@ static int dir_unlink(struct inode *dir, struct dentry *dentry)
 		goto out;
 	}
 
-	err = vfs_getattr(&backing_path, &stat, STATX_NLINK,
-			  AT_STATX_SYNC_AS_STAT);
+	err = vfs_getattr(&backing_path, &stat);
 	if (err)
 		goto out;
 
@@ -1762,7 +1753,7 @@ static int dir_link(struct dentry *old_dentry, struct inode *dir,
 		struct inode *inode = NULL;
 		struct dentry *bdentry = backing_new_path.dentry;
 
-		if (d_really_is_negative(bdentry)) {
+		if (bdentry->d_inode == NULL) {
 			error = -EINVAL;
 			goto out;
 		}
@@ -1861,7 +1852,7 @@ static int dir_rename(struct inode *old_dir, struct dentry *old_dentry,
 
 	error = vfs_rename(d_inode(backing_old_dir_dentry), backing_old_dentry,
 			d_inode(backing_new_dir_dentry), backing_new_dentry,
-			NULL, 0);
+			0);
 	if (error)
 		goto unlock_out;
 	if (target_inode)
@@ -2152,7 +2143,7 @@ struct dentry *incfs_mount_fs(struct file_system_type *type, int flags,
 	error = kern_path(dev_name, LOOKUP_FOLLOW | LOOKUP_DIRECTORY,
 			&backing_dir_path);
 	if (error || backing_dir_path.dentry == NULL ||
-		!d_really_is_positive(backing_dir_path.dentry)) {
+		!(backing_dir_path.dentry->d_inode != NULL)) {
 		pr_err("incfs: Error accessing: %s.\n",
 			dev_name);
 		goto err;
@@ -2195,7 +2186,7 @@ struct dentry *incfs_mount_fs(struct file_system_type *type, int flags,
 		goto err;
 
 	path_put(&backing_dir_path);
-	sb->s_flags |= SB_ACTIVE;
+	sb->s_flags |= MS_ACTIVE;
 
 	pr_debug("incfs: mount\n");
 	return dget(sb->s_root);
