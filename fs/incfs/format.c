@@ -83,7 +83,7 @@ static int truncate_backing_file(struct backing_file_context *bfc,
 	attr.ia_valid = ATTR_SIZE;
 
 	inode_lock(inode);
-	result = notify_change(dentry, &attr, NULL);
+	result = notify_change(dentry, &attr);
 	inode_unlock(inode);
 
 	return result;
@@ -111,7 +111,7 @@ static int append_zeros(struct backing_file_context *bfc, size_t len)
 	 */
 	file_size = incfs_get_end_offset(bfc->bc_file);
 	new_last_byte_offset = file_size + len - 1;
-	res = vfs_fallocate(bfc->bc_file, 0, new_last_byte_offset, 1);
+	res = do_fallocate(bfc->bc_file, 0, new_last_byte_offset, 1);
 	if (res)
 		return res;
 
@@ -621,7 +621,7 @@ int incfs_read_next_metadata_record(struct backing_file_context *bfc,
 	md_record_size = le16_to_cpu(md_hdr->h_record_size);
 
 	if (md_record_size > max_md_size) {
-		pr_warn("incfs: The record is too large. Size: %ld",
+		pr_warn("incfs: The record is too large. Size: %u",
 				md_record_size);
 		return -EBADMSG;
 	}
@@ -687,10 +687,10 @@ int incfs_read_next_metadata_record(struct backing_file_context *bfc,
 
 ssize_t incfs_kread(struct file *f, void *buf, size_t size, loff_t pos)
 {
-	return kernel_read(f, buf, size, &pos);
+	return kernel_read(f, pos, buf, size);
 }
 
 ssize_t incfs_kwrite(struct file *f, const void *buf, size_t size, loff_t pos)
 {
-	return kernel_write(f, buf, size, &pos);
+	return kernel_write(f, buf, size, pos);
 }

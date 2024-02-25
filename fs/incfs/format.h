@@ -282,6 +282,21 @@ struct metadata_handler {
 
 loff_t incfs_get_end_offset(struct file *f);
 
+static inline void inode_lock(struct inode *inode)
+{
+	mutex_lock(&inode->i_mutex);
+}
+
+static inline void inode_unlock(struct inode *inode)
+{
+	mutex_unlock(&inode->i_mutex);
+}
+
+static inline void inode_lock_nested(struct inode *inode, unsigned subclass)
+{
+	mutex_lock_nested(&inode->i_mutex, subclass);
+}
+
 /* Backing file context management */
 struct backing_file_context *incfs_alloc_bfc(struct file *backing_file);
 

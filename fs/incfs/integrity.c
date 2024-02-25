@@ -42,7 +42,7 @@ struct incfs_hash_alg *incfs_get_hash_alg(enum incfs_hash_tree_algorithm id)
 	}
 
 	/* pairs with smp_load_acquire() above */
-	if (cmpxchg_release(&result->shash, NULL, shash) != NULL)
+	if (cmpxchg(&result->shash, NULL, shash) != NULL)
 		crypto_free_shash(shash);
 
 	return result;

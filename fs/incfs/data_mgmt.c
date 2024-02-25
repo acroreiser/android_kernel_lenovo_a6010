@@ -523,9 +523,13 @@ int incfs_get_filled_blocks(struct data_file *df,
 	return error;
 }
 
+#define  atomic_read_acquire(v)		smp_load_acquire(&(v)->counter)
+#define  atomic_set_release(v, i)	smp_store_release(&(v)->counter, (i))
+
 static bool is_read_done(struct pending_read *read)
 {
 	return atomic_read_acquire(&read->done) != 0;
+
 }
 
 static void set_read_done(struct pending_read *read)
