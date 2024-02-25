@@ -104,6 +104,7 @@ static const struct inode_operations incfs_dir_inode_ops = {
 	.link = dir_link,
 	.rmdir = dir_rmdir,
 	.setattr = incfs_setattr,
+	.getxattr = incfs_getxattr
 };
 
 static const struct file_operations incfs_dir_fops = {
@@ -129,7 +130,7 @@ static const struct address_space_operations incfs_address_space_ops = {
 static const struct file_operations incfs_file_ops = {
 	.open = file_open,
 	.release = file_release,
-	.read = do_sync_read,
+	.aio_read = generic_file_aio_read,
 	.mmap = generic_file_mmap,
 	.splice_read = generic_file_splice_read,
 	.llseek = generic_file_llseek,
@@ -165,7 +166,8 @@ static const struct file_operations incfs_log_file_ops = {
 static const struct inode_operations incfs_file_inode_ops = {
 	.setattr = incfs_setattr,
 	.getattr = simple_getattr,
-	.listxattr = incfs_listxattr
+	.listxattr = incfs_listxattr,
+        .getxattr = incfs_getxattr
 };
 
 static int incfs_handler_getxattr(struct dentry *d,
