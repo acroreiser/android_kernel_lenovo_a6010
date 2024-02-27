@@ -1259,13 +1259,13 @@ ascend:
 		/* might go back up the wrong parent if we have had a rename. */
 		if (!locked && read_seqretry(&rename_lock, seq))
 			goto rename_retry;
-		/* go into the first sibling still alive */
-		do {
-			next = child->d_child.next;
+		next = child->d_child.next;
+		while (unlikely(child->d_flags & DCACHE_DENTRY_KILLED)) {
 			if (next == &this_parent->d_subdirs)
 				goto ascend;
 			child = list_entry(next, struct dentry, d_child);
-		} while (unlikely(child->d_flags & DCACHE_DENTRY_KILLED));
+			next = next->next;
+		}
 		rcu_read_unlock();
 		goto resume;
 	}
