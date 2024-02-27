@@ -2371,7 +2371,7 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 		return -EINVAL;
 	}
 
-	if (!wait_event_interruptible_timeout(mfd->ioctl_q,
+	if (!wait_event_timeout(mfd->ioctl_q,
 		!atomic_read(&mfd->ioctl_ref_cnt) || !release_all,
 		msecs_to_jiffies(1000)))
 		pr_warn("fb%d ioctl could not finish. waited 1 sec.\n",
@@ -2700,7 +2700,7 @@ static int mdss_fb_pan_idle(struct msm_fb_data_type *mfd)
 {
 	int ret = 0;
 
-	ret = wait_event_interruptible_timeout(mfd->idle_wait_q,
+	ret = wait_event_timeout(mfd->idle_wait_q,
 			(!atomic_read(&mfd->commits_pending) ||
 			 mfd->shutdown_pending),
 			msecs_to_jiffies(WAIT_DISP_OP_TIMEOUT));
@@ -2724,7 +2724,7 @@ static int mdss_fb_wait_for_kickoff(struct msm_fb_data_type *mfd)
 	if (!mfd->wait_for_kickoff)
 		return mdss_fb_pan_idle(mfd);
 
-	ret = wait_event_interruptible_timeout(mfd->kickoff_wait_q,
+	ret = wait_event_timeout(mfd->kickoff_wait_q,
 			(!atomic_read(&mfd->kickoff_pending) ||
 			 mfd->shutdown_pending),
 			msecs_to_jiffies(WAIT_DISP_OP_TIMEOUT / 2));
