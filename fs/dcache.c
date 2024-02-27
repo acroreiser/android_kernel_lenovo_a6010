@@ -1152,7 +1152,7 @@ ascend:
 	return 0; /* No mount points found in tree */
 positive:
 	if (!locked && read_seqretry(&rename_lock, seq))
-		goto rename_retry_unlocked;
+		goto rename_retry;
 	if (locked)
 		write_sequnlock(&rename_lock);
 	return 1;
@@ -1162,7 +1162,6 @@ rename_retry:
 	rcu_read_unlock();
 	if (locked)
 		goto again;
-rename_retry_unlocked:
 	locked = 1;
 	write_seqlock(&rename_lock);
 	goto again;
@@ -1227,7 +1226,6 @@ resume:
 		 */
 		if (found && need_resched()) {
 			spin_unlock(&dentry->d_lock);
-			rcu_read_lock();
 			goto out;
 		}
 
