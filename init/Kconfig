@@ -1278,13 +1278,33 @@ config ANDROID_TREBLE_MOUNT_LEGACY_LINKERCONFIG
 		Use this only for Project Treble purposes.
 
 config ANDROID_TREBLE_SPOOF_KERNEL_VERSION
-	string "TREBLE: report fake kernel version to userspace"
-	default "3.17"
+	bool "TREBLE/BPF: report arbitrary kernel version to userspace"
+	default n
 	help
-		Workaround for system crash due to kernel version older than 3.17.
+		TREBLE: Workaround for system crash due to kernel version older than 3.17.
+
 		Android ART requires Linux 3.17 to use memfd_create() syscall and
 		fails if the kernel is too old. We already have backported memfd_create()
 		so we can mimic to 3.17+ kernel and properly run GSIs.
+
+		BPF: Since Android 12 iptables has been replaced by eBPF programs
+                which require eBPF features backported only to Linux 4.9.
+                Since we have eBPF backport in our 3.10 kernel, we can pretend to be
+                4.9.y for userspace to load bpf progs and successfully boot OS.
+
+config ANDROID_TREBLE_BYPASS_KERNEL_VERSION_CHECKS
+        bool "Report custom kernel version only when needed"
+	depends on ANDROID_TREBLE_SPOOF_KERNEL_VERSION
+        default n
+        help
+                Spoof kernel version only for system_server, bpfloader and perfetto.
+                User will see a real kernel version in /proc/version and Settings->About phone.
+
+config ANDROID_TREBLE_SPOOF_KERNEL_VERSION_PREFIX
+        string "Kernel version to prepend to real one"
+        depends on ANDROID_TREBLE_SPOOF_KERNEL_VERSION
+        default "3.17"
+
 
 config ANDROID_KILL_BUGGY_CAMERA
 	bool "Kill BaconCamera after user leaving"
