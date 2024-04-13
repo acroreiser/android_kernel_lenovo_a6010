@@ -433,6 +433,14 @@ config DM_VERITY
 
 	  If unsure, say N.
 
+config DM_ANDROID_VERITY
+	bool "Android verity target support"
+	depends on DM_VERITY
+	---help---
+	  This device-mapper target is virtually a VERITY target. This
+	  target is setup by reading the metadata contents piggybacked
+	  to the actual data blocks in the block device.
+
 config DM_SWITCH
 	tristate "Switch target support (EXPERIMENTAL)"
 	depends on BLK_DEV_DM
