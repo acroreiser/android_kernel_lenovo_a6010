@@ -40,10 +40,10 @@ static int ext4_is_encryption_context_consistent_with_policy(
 			EXT4_KEY_DESCRIPTOR_SIZE) == 0 &&
 		(ctx.flags ==
 		 policy->flags) &&
-		(ctx.contents_encryption_mode ==
-		 policy->contents_encryption_mode) &&
-		(ctx.filenames_encryption_mode ==
-		 policy->filenames_encryption_mode));
+		((ctx.contents_encryption_mode ==
+		 policy->contents_encryption_mode) || (ctx.contents_encryption_mode == EXT4_ENCRYPTION_MODE_ADIANTUM)) &&
+		((ctx.filenames_encryption_mode ==
+		 policy->filenames_encryption_mode) || (ctx.filenames_encryption_mode == EXT4_ENCRYPTION_MODE_ADIANTUM)));
 }
 
 static int ext4_create_encryption_context_from_policy(
@@ -63,15 +63,17 @@ static int ext4_create_encryption_context_from_policy(
 	if (!ext4_valid_enc_modes(policy->contents_encryption_mode,
 				  policy->filenames_encryption_mode)) {
 		printk(KERN_WARNING
-		       "%s: Invalid encryption modes (contents %d, filenames %d)\n",
+		       "%s: Invalid encryption modes (contents %d, filenames %d), falling back to EXT4_ENCRYPTION_MODE_ADIANTUM\n",
 		       __func__, policy->contents_encryption_mode,
 		       policy->filenames_encryption_mode);
-		return -EINVAL;
+                ctx.contents_encryption_mode = EXT4_ENCRYPTION_MODE_ADIANTUM;
+                ctx.filenames_encryption_mode = EXT4_ENCRYPTION_MODE_ADIANTUM;
+	} else {
+		ctx.contents_encryption_mode = policy->contents_encryption_mode;
+		ctx.filenames_encryption_mode = policy->filenames_encryption_mode;
 	}
-	if (policy->flags & ~EXT4_POLICY_FLAGS_VALID)
-		return -EINVAL;
-	ctx.contents_encryption_mode = policy->contents_encryption_mode;
-	ctx.filenames_encryption_mode = policy->filenames_encryption_mode;
+        if (policy->flags & ~EXT4_POLICY_FLAGS_VALID)
+                return -EINVAL;
 	ctx.flags = policy->flags;
 	BUILD_BUG_ON(sizeof(ctx.nonce) != EXT4_KEY_DERIVATION_NONCE_SIZE);
 	get_random_bytes(ctx.nonce, EXT4_KEY_DERIVATION_NONCE_SIZE);
