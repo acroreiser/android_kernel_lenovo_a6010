@@ -685,8 +685,11 @@ struct crypto_ablkcipher *crypto_alloc_ablkcipher(const char *alg_name,
 
 	for (;;) {
 		struct crypto_alg *alg;
+		if(!strcmp("cbc(aes)", alg_name))
+	                alg = crypto_lookup_skcipher("qcom-cbc(aes)", type, mask);
+		else
+			alg = crypto_lookup_skcipher(alg_name, type, mask);
 
-		alg = crypto_lookup_skcipher(alg_name, type, mask);
 		if (IS_ERR(alg)) {
 			err = PTR_ERR(alg);
 			goto err;
