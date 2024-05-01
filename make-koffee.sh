@@ -2,7 +2,7 @@
 
 VERSION=0.9
 DEFCONFIG=lineageos_a6010_defconfig
-TOOLCHAIN=../../../prebuilts/gcc/linux-x86/arm/arm-eabi/bin/arm-len-linux-gnueabi-
+TOOLCHAIN=../../../prebuilts/gcc/linux-x86/arm/arm-eabi/bin/arm-none-eabi-
 KCONFIG=false
 CUST_CONF=no
 BUILD_NUMBER=1
