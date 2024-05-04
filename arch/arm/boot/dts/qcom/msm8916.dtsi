@@ -1665,12 +1665,6 @@
 		};
 	};
 
-	qcom,msm-thermal-simple {
-		compatible = "qcom,msm-thermal-simple";
-		qcom,thermal-vadc = <&pm8916_vadc>;
-		qcom,adc-channel = <54>; /* dev_harsh1998: Use pa_therm0 for msm8916 or simply 0x36 to decimal */
-	};
-
 	qcom,memshare {
 		compatible = "qcom,memshare";
 
