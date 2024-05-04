@@ -22,6 +22,7 @@
  * Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#pragma GCC diagnostic ignored "-Wformat-truncation="
 #include <linux/bcd.h>
 #include <linux/module.h>
 #include <linux/version.h>

@@ -10,6 +10,7 @@
  * GNU General Public License for more details.
  */
 
+#pragma GCC diagnostic ignored "-Wformat-truncation="
 #include <linux/module.h>
 #include <linux/firmware.h>
 #include <linux/device.h>
