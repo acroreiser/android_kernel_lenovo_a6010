@@ -40,6 +40,7 @@
 
 #define DM_VERITY_OPT_LOGGING		"ignore_corruption"
 #define DM_VERITY_OPT_RESTART		"restart_on_corruption"
+#define DM_VERITY_OPT_IGN_ZEROES	"ignore_zero_blocks"
 
 static unsigned dm_verity_prefetch_cluster = DM_VERITY_DEFAULT_PREFETCH_SIZE;
 
@@ -767,7 +768,7 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	char dummy;
 
 	static struct dm_arg _args[] = {
-		{0, 1, "Invalid number of feature args"},
+		{0, 2, "Invalid number of feature args"},
 	};
 
 	v = kzalloc(sizeof(struct dm_verity), GFP_KERNEL);
@@ -931,6 +932,8 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 				v->mode = DM_VERITY_MODE_LOGGING;
 			else if (!strcasecmp(opt_string, DM_VERITY_OPT_RESTART))
 				v->mode = DM_VERITY_MODE_RESTART;
+			else if (!strcasecmp(opt_string, DM_VERITY_OPT_IGN_ZEROES))
+				v->mode = DM_VERITY_MODE_LOGGING;
 			else {
 				ti->error = "Invalid feature arguments";
 				r = -EINVAL;
