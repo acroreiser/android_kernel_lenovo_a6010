@@ -22,6 +22,7 @@
 #include <crypto/hash.h>
 
 #ifdef CONFIG_DM_ANDROID_VERITY
+#include <linux/debugfs.h>
 #include "dm-android-verity.h"
 #else
 #define DM_MSG_PREFIX			"verity"
@@ -1012,6 +1013,10 @@ bad:
 }
 
 #ifdef CONFIG_DM_ANDROID_VERITY
+static bool target_added;
+struct dentry *debug_dir;
+static int add_as_linear_device(struct dm_target *ti, char *dev);
+
 static int read_block_dev(struct bio_read *payload, struct block_device *bdev,
 		sector_t offset, int length)
 {
@@ -1413,6 +1418,10 @@ static int android_verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	/* update target length */
 	ti->len = data_sectors;
 
+	/* Setup linear target and free */
+	err = add_as_linear_device(ti, argv[1]);
+	goto free_metadata;
+
 	/*substitute data_dev and hash_dev*/
 	verity_table_args[1] = argv[1];
 	verity_table_args[2] = argv[1];
@@ -1460,6 +1469,13 @@ static int android_verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 
 	err = verity_ctr(ti, no_of_args, verity_table_args);
 
+	if (err)
+		DMERR("android-verity failed to mount as verity target");
+	else {
+		target_added = true;
+		DMINFO("android-verity mounted as verity target");
+	}
+
 free_metadata:
 	kfree(metadata->header);
 	kfree(metadata->verity_table);
@@ -1480,6 +1496,35 @@ static struct target_type android_verity_target = {
 	.iterate_devices	= verity_iterate_devices,
 	.io_hints		= verity_io_hints,
 };
+
+static int add_as_linear_device(struct dm_target *ti, char *dev)
+{
+	/*Move to linear mapping defines*/
+	char *linear_table_args[DM_LINEAR_ARGS];
+	char offset[]  = "0";
+	int err = 0;
+
+	linear_table_args[0] = dev;
+	linear_table_args[1] = offset;
+
+	android_verity_target.dtr = linear_target.dtr,
+	android_verity_target.map = linear_target.map,
+	android_verity_target.status = linear_target.status,
+	android_verity_target.ioctl = linear_target.ioctl,
+	android_verity_target.merge = linear_target.merge,
+	android_verity_target.iterate_devices = linear_target.iterate_devices,
+	android_verity_target.io_hints = NULL;
+
+	err = linear_target.ctr(ti, DM_LINEAR_ARGS, linear_table_args);
+
+	if (!err) {
+		DMINFO("Added android-verity as a linear target");
+		target_added = true;
+	} else
+		DMERR("Failed to add android-verity as linear target");
+
+	return err;
+}
 #endif
 
 static struct target_type verity_target = {
@@ -1499,6 +1544,7 @@ static struct target_type verity_target = {
 static int __init dm_verity_init(void)
 {
 	int r;
+	struct dentry *file;
 
 	r = dm_register_target(&verity_target);
 	if (r < 0)
@@ -1508,6 +1554,26 @@ static int __init dm_verity_init(void)
 	r = dm_register_target(&android_verity_target);
 	if (r < 0)
 		DMERR("register failed %d", r);
+
+	/* Tracks the status of the last added target */
+	debug_dir = debugfs_create_dir("android_verity", NULL);
+
+	if (IS_ERR_OR_NULL(debug_dir)) {
+		DMERR("Cannot create android_verity debugfs directory: %ld",
+			PTR_ERR(debug_dir));
+		goto end;
+	}
+
+	file = debugfs_create_bool("target_added", S_IRUGO, debug_dir,
+				(u32 *)&target_added);
+
+	if (IS_ERR_OR_NULL(file)) {
+		DMERR("Cannot create android_verity debugfs directory: %ld",
+			PTR_ERR(debug_dir));
+		debugfs_remove_recursive(debug_dir);
+		goto end;
+	}
+end:
 #endif
 
 	return r;
