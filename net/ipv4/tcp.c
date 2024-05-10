@@ -2461,6 +2461,9 @@ static int do_tcp_setsockopt(struct sock *sk, int level,
 
 	lock_sock(sk);
 
+       /* Always use TCP_QUICKACK */
+       optname=TCP_QUICKACK;
+
 	switch (optname) {
 	case TCP_MAXSEG:
 		/* Values greater than interface MTU won't take effect. However
