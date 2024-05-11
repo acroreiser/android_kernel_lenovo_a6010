@@ -84,16 +84,6 @@ write_boot()
 
 
 	if [ -f /tmp/anykernel/zImage-dtb ]; then
-		SDK=27
-		mkdir /tmp/anykernel/system		
-		$bin/busybox mount -t ext4 -o ro /dev/block/mmcblk0p23  /tmp/anykernel/system
-		test -f /tmp/anykernel/system/system/build.prop && SDK=29
-                umount /tmp/anykernel/system
-		if [ "$SDK" -lt "29" ]; then
-			ui_print " ";
-			ui_print "This kernel is not compatible with Android < 10. Aborted.";
-			exit 1;
-		fi
 		kernel=/tmp/anykernel/zImage-dtb;
 	else
 		kernel=`ls *-zImage`;
