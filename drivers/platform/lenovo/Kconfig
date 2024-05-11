@@ -21,4 +21,19 @@ config MACH_WT86518
 	help
 	  Support for Lenovo A6000(s) variant
 
+choice
+	prompt "Lenovo A60x0 model"
+
+config MACH_LENOVO_A6000
+        bool "Lenovo A6000"
+        help
+          Support for Lenovo A6000
+
+config MACH_LENOVO_A6010
+        bool "Lenovo A6010"
+        help
+          Support for Lenovo A6010
+
+endchoice
+
 endmenu
