@@ -12,14 +12,30 @@
 
 /dts-v1/;
 
-#include "msm8916-qrd.dtsi"
+#include "msm8916-qrd-wt86528.dtsi"
 #include "msm8916-memory.dtsi"
-#include "wt86518/msm8916-wt86518.dtsi"
+#include "wt86528/msm8916-wt86518.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. MSM 8916 QRD WT86518";
+	model = "Qualcomm Technologies, Inc. MSM 8916 QRD WT86528 (WT86518 bootloader)";
 	compatible = "qcom,msm8916-qrd-wt86518", "qcom,msm8916-qrd", "qcom,msm8916", "qcom,qrd";
 	qcom,board-id = <0x1010b 8>;          
+ 
+};
+
+&soc {
+	i2c@78b8000 {
+		fan54015_otg_supply: fan54015-chg@6A {
+			compatible = "freescale,fan54015-chg";
+			reg = <0x6A>;
+			pinctrl-names = "otg_pin_high","otg_pin_low";
+			pinctrl-0 = <&otg_pin_high>;
+			pinctrl-1 = <&otg_pin_low>;        
+
+		        regulator-name = "fan54015_otg_vreg";
+			qcom,bms-controlled-charging;
+		};
+	};
 };
 
 &spmi_bus {
@@ -52,7 +68,7 @@
 		qcom,rpull-up-kohm = <68>;
 		qcom,vref-batt-therm = <1800000>;
 
-		#include "wt86518/batterydata-wingtech-guangyu-4v35-2300mah.dtsi"
+		#include "wt86528/batterydata-wingtech-guangyu-4v35-2300mah.dtsi"
 	};
 };
 
@@ -61,3 +77,10 @@
 	qcom,battery-data = <&qrd_batterydata>;
 };                                                                                             
                                                                                            
+&usb_otg {
+	qcom,hsusb-otg-mode = <3>;
+	qcom,usbid-gpio = <&msm_gpio 110 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usbid_default>;
+	vbus_otg-supply = <&fan54015_otg_supply>;
+};

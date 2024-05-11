@@ -80,7 +80,12 @@ dtb-$(CONFIG_ARCH_MSM8909) += msm8909-sim.dtb \
 	apq8009-512mb-mtp-wcd9326-refboard.dtb
 
 ifeq ($(CONFIG_MACH_WT86518),y)
+ifeq ($(CONFIG_MACH_LENOVO_A6000),y)
 dtb-$(CONFIG_ARCH_MSM8916) += msm8916-wt86518.dtb
+endif
+ifeq ($(CONFIG_MACH_LENOVO_A6010),y)
+dtb-$(CONFIG_ARCH_MSM8916) += msm8916-wt86528.dtb
+endif
 else
 dtb-$(CONFIG_ARCH_MSM8916) += msm8916-cdp.dtb \
 	msm8916-cdp-smb1360.dtb \
