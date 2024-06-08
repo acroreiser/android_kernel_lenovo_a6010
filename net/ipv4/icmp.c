@@ -544,7 +544,7 @@ relookup_failed:
  *			MUST reply to only the first fragment.
  */
 
-void icmp_send(struct sk_buff *skb_in, int type, int code, __be32 info)
+void __icmp_send(struct sk_buff *skb_in, int type, int code, __be32 info)
 {
 	struct iphdr *iph;
 	int room;
@@ -706,8 +706,13 @@ out_unlock:
 	icmp_xmit_unlock(sk);
 out:;
 }
-EXPORT_SYMBOL(icmp_send);
 
+void icmp_send(struct sk_buff *skb_in, int type, int code, __be32 info)
+{
+        memset(IPCB(skb_in), 0, sizeof(struct inet_skb_parm));
+        __icmp_send(skb_in, type, code, info);
+}
+EXPORT_SYMBOL(icmp_send);
 
 static void icmp_socket_deliver(struct sk_buff *skb, u32 info)
 {
