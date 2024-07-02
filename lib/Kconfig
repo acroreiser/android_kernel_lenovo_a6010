@@ -202,9 +202,6 @@ config LZO_DECOMPRESS
 config LZ4_COMPRESS
 	tristate
 
-config ZBEWALGO_COMPRESS
-	tristate
-
 config LZ4HC_COMPRESS
 	tristate
 
