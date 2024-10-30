@@ -439,7 +439,7 @@ void vmpressure_prio(gfp_t gfp, struct mem_cgroup *memcg, int prio)
 int vmpressure_register_event(struct cgroup_subsys_state *css,
 			      struct eventfd_ctx *eventfd, const char *args)
 {
-	struct vmpressure *vmpr = css_to_vmpressure(css);
+	struct vmpressure *vmpr = cg_to_vmpressure(css);
 	struct vmpressure_event *ev;
 	int level;
 
@@ -481,7 +481,7 @@ int vmpressure_register_event(struct cgroup_subsys_state *css,
 void vmpressure_unregister_event(struct cgroup_subsys_state *css,
 				 struct eventfd_ctx *eventfd)
 {
-	struct vmpressure *vmpr = css_to_vmpressure(css);
+	struct vmpressure *vmpr = cg_to_vmpressure(css);
 	struct vmpressure_event *ev;
 
 	if (!vmpr)
