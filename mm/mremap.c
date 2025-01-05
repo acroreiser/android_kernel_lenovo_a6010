@@ -393,6 +393,9 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 		if (split && new_vma == vma)
 			split = 0;
 
+		/* We always clear VM_LOCKED on the old vma */
+		vma->vm_flags &= VM_LOCKED;
+
 		/*
 		 * anon_vma links of the old vma is no longer needed after its page
 		 * table has been moved.
@@ -409,6 +412,11 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 		/* OOM: unable to split vma, just get accounts right */
 		vm_unacct_memory(excess >> PAGE_SHIFT);
 		excess = 0;
+	}
+
+	if (vm_flags & VM_LOCKED) {
+		mm->locked_vm += new_len >> PAGE_SHIFT;
+		*locked = true;
 	}
 out:
 	mm->hiwater_vm = hiwater_vm;
