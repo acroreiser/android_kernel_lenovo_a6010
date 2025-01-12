@@ -71,5 +71,14 @@ obj-$(CONFIG_CHARGER_TPS65090)	+= tps65090-charger.o
 obj-$(CONFIG_BATTERY_BCL)	+= battery_current_limit.o
 obj-$(CONFIG_MSM_BCL_CTL)	+= msm_bcl.o
 obj-$(CONFIG_MSM_BCL_PERIPHERAL_CTL) += bcl_peripheral.o
+#lenovo-sw weiweij added for b24296
+obj-$(CONFIG_BQ24296_CHARGER)	+= bq24296_charger.o
+#lenovo-sw weiweij added for b24296 end
+#lenovo-sw weiweij added for max17058
+obj-$(CONFIG_MAX17058_FG)	+= max17058_battery.o
+#lenovo-sw weiweij added for max17058 end
+#lenovo-sw weiweij added for rt9428
+obj-$(CONFIG_RT9428_FG)	+= rt9428_battery.o
+#lenovo-sw weiweij added for rt9428 end
 obj-$(CONFIG_POWER_RESET)	+= reset/
 obj-y				+= qcom/

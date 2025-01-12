@@ -544,6 +544,62 @@ config QPNP_LINEAR_CHARGER
 	  detection and charging. The driver also offers relevant information
 	  to userspace via the power supply framework.
 
+config BQ24296_CHARGER
+	tristate "BQ24296_CHARGER driver"
+	depends on I2C
+	help
+	  Say Y here to enable the bq24296 driver.
+
+config EXT_LED
+	tristate "ext led control"
+	depends on BQ24296_CHARGER
+	help
+	  Say Y here to enable ext led control.
+
+config LED_SN3193
+	tristate "ext led control sn3193"
+	depends on EXT_LED
+	help
+	  Say Y here to enable ext led control.
+
+config MAX17058_FG
+	tristate "_MAX17058 FG driver"
+	depends on I2C
+	help
+	  Say Y here to enable the max17058 driver.
+
+config RT9428_FG
+	tristate "RT9428 FG driver"
+	depends on I2C
+	help
+	  Say Y here to enable the RT9428 driver.
+
+config PMIC_CHARGING_LED
+	tristate "pmic led control"
+	help
+	  Say Y here to enable pmic led control.
+
+config UNSTANDARD_CHARGER_LIMIT
+	tristate "unstardard charger charing current limitation"
+	help
+	  Say Y here to enable pmic led control.
+
+config MULTI_BATTERY
+	tristate "second battery supplier support"
+	help
+	  Say Y here to second battery supplier support.
+
+config QPNP_CHARGER_FILE_OPS
+	tristate "qpnp charger file ops"
+	help
+	  Say Y here to pnp charger file ops support.
+
+config LED_OPS
+	tristate "led file ops"
+	help
+	  Say Y here to led file ops support.
+
+
 config MSM_BCL_CTL
 	bool "BCL Framework driver"
 	help
