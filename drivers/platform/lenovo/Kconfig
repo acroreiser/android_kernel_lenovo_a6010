@@ -22,7 +22,7 @@ config MACH_WT86518
 	  Support for Lenovo A6000(s) variant
 
 choice
-	prompt "Lenovo A60x0 model"
+	prompt "Lenovo device model"
 
 config MACH_LENOVO_A6000
         bool "Lenovo A6000"
@@ -33,6 +33,11 @@ config MACH_LENOVO_A6010
         bool "Lenovo A6010"
         help
           Support for Lenovo A6010
+
+config MACH_SISLEYR
+        bool "Lenovo S90-A"
+        help
+          Support for Lenovo S90-A
 
 endchoice
 
