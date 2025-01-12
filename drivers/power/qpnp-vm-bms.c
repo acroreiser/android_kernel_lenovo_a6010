@@ -246,6 +246,11 @@ struct qpnp_bms_chip {
 	unsigned int			end_soc;
 	unsigned int			chg_start_soc;
 
+//lenovo-sw weiweij add second battery supplier support
+#ifdef CONFIG_MULTI_BATTERY
+	int64_t			bat_id;
+#endif
+//lenovo-sw weiweij add second battery supplier support	end
 	struct bms_battery_data		*batt_data;
 	struct bms_dt_cfg		dt;
 
@@ -2216,6 +2221,11 @@ static enum power_supply_property bms_power_props[] = {
 	POWER_SUPPLY_PROP_BATTERY_TYPE,
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
+//lenovo-sw weiweij add second battery supplier support		
+#ifdef CONFIG_MULTI_BATTERY
+	POWER_SUPPLY_PROP_SERIAL_NUMBER,
+#endif 
+//lenovo-sw weiweij add second battery supplier support	end
 };
 
 static int
@@ -2234,6 +2244,12 @@ qpnp_vm_bms_property_is_writeable(struct power_supply *psy,
 
 	return 0;
 }
+//lenovo-sw weiweij add second battery supplier support	
+#ifdef CONFIG_MULTI_BATTERY
+#include <linux/power/max17058_battery.h>
+static int64_t read_battery_id(struct qpnp_bms_chip *chip);
+#endif
+//lenovo-sw weiweij add second battery supplier support	end
 
 static int qpnp_vm_bms_power_get_property(struct power_supply *psy,
 					enum power_supply_property psp,
@@ -2294,6 +2310,34 @@ static int qpnp_vm_bms_power_get_property(struct power_supply *psy,
 		else
 			val->intval = -EINVAL;
 		break;
+//lenovo-sw weiweij add second battery supplier support		
+#ifdef CONFIG_MULTI_BATTERY
+	case POWER_SUPPLY_PROP_SERIAL_NUMBER:
+		//ret =  read_battery_id(chip);
+		//sprintf(buf, "%lld", ret);
+		//res = res*MAX17058_BAT_ID_RES/(MAX17058_BAT_ID_VOL - res);
+		if(chip->bat_id<=0)
+		{
+			chip->bat_id =  read_battery_id(chip);
+		}
+
+		if(chip->bat_id<=0)
+		{
+			pr_err("get bat id num error\n");
+			val->strval = MAX17058_BAT_STR_ERR;
+			break;		
+		}
+		
+		pr_err("bat_id %lld \n", chip->bat_id);
+
+		if(chip->bat_id>1400000)
+			val->strval = MAX17058_BAT_STR_2;
+		else
+			val->strval = MAX17058_BAT_STR_1;
+		
+		break;
+#endif 		
+//lenovo-sw weiweij add second battery supplier support	end
 	default:
 		return -EINVAL;
 	}
@@ -3448,6 +3492,12 @@ static int set_battery_data(struct qpnp_bms_chip *chip)
 	int rc = 0;
 	struct bms_battery_data *batt_data;
 	struct device_node *node;
+//lenovo-sw weiweij add second battery supplier support		
+#ifdef CONFIG_MULTI_BATTERY
+	chip->bat_id = read_battery_id(chip);
+	pr_err("get bat_id %lld\n", chip->bat_id);		
+#endif
+//lenovo-sw weiweij add second battery supplier support	end
 
 	battery_id = read_battery_id(chip);
 	if (battery_id < 0) {
