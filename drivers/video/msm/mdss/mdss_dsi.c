@@ -644,6 +644,11 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	mdss_dsi_clk_ctrl(ctrl_pdata, DSI_LINK_CLKS, 1);
 	mdss_dsi_sw_reset(ctrl_pdata, true);
 
+#ifdef CONFIG_MACH_SISLEYR
+	if (mipi->init_delay)
+		usleep(mipi->init_delay);
+#endif
+
 	/*
 	 * Issue hardware reset line after enabling the DSI clocks and data
 	 * data lanes for LP11 init
@@ -656,6 +661,10 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 
 	if (mipi->init_delay)
 		usleep(mipi->init_delay);
+
+#ifdef CONFIG_MACH_SISLEYR
+	mipi->force_clk_lane_hs=1;//jixu add
+#endif
 
 	if (mipi->force_clk_lane_hs) {
 		u32 tmp;
