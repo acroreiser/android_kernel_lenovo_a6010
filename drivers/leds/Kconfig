@@ -525,6 +525,22 @@ config LEDS_AW2013
 	  This option enables support for the AW2013 RGB LED connected
 	  through I2C. Say Y to enable support for the AW2013 LED.
 
+config LEDS_SN3193
+	tristate "LED support for the sn3193 I2C RGB LED"
+	depends on LEDS_CLASS
+	depends on I2C
+	help
+	  This option enables support for the sn3193 RGB LED connected
+	  through I2C. Say Y to enable support for the sn3193 LED.
+
+config LEDS_SN3191
+	tristate "LED support for the sn3191 I2C RGB LED"
+	depends on LEDS_CLASS
+	depends on I2C
+	help
+	  This option enables support for the sn3191 RGB LED connected
+	  through I2C. Say Y to enable support for the sn3191 LED.
+
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"
 
