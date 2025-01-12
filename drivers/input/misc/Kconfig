@@ -906,5 +906,50 @@ config SENSORS_BMI160_ENABLE_INT2
 	help
 	 If you say yes here, you get INT2 support for Bosch Sensortec
 	 sensors BMI160.
+
+config SENSORS_LSM303D
+	bool "ST LSM303D Magnetometer&Accelmeter Driver"
+	depends on I2C
+	select INPUT_POLLDEV
+	default y
+	help
+	  Say Yes here to enable the ST LSM303DLHC Magnetometer Driver
+
+	  This driver will enable ST LSM303DLHC Magnetometer device.
+	  LSM303DLHC Magnetometer device is ultra compact high performance
+	  e-compass.
+
+config APDS9930_SISLEY
+	tristate "Avago APDS9930 combined als and proximity sensors"
+	depends on I2C
+	help
+	  Say Y here if you want to build a driver for Avago APDS9930
+	  combined ambient light and proximity sensor chip.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called apds9950. If unsure, say N here.
+
+# lenovo-sw chenli2 for ALSPS start
+config SENSORS_EPL8801
+	bool "enable EPL8801"
+	depends on I2C
+	help
+	   Say Y here to enable the EPL8801
+# lenovo-sw chenli2 for ALSPS end
+
+# lenovo-sw youwc1 for g-sensor start
+config SENSORS_BMA2X2_SISLEYR
+	tristate "BMA255/BMA250E/BMA222E/BMA280 acceleration sensor support for Lenovo sisleyr"
+	depends on I2C && MACH_SISLEYR && !SENSORS_BMA2X2
+	help
+	  If you say yes here you get support for Bosch Sensortec's
+	  acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
+# lenovo-sw youwc1 for g-sensor end
+
+config LENOVO_HALL
+	tristate "lenovo hall sensor support"
+	default n
+	help
+	  lenovo hall sensor
 endif
 

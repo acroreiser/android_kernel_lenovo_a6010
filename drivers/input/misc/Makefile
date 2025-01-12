@@ -75,19 +75,8 @@ obj-$(CONFIG_SENSORS_AKM8963)		+= akm8963.o
 obj-$(CONFIG_SENSORS_AKM09911)		+= akm09911.o
 obj-$(CONFIG_SENSORS_LIS3DH)		+= lis3dh_acc.o
 obj-$(CONFIG_SENSORS_AP3426)		+= ap3426.o
-obj-$(CONFIG_SENSORS_BMA2X2)	+= bstclass.o
-
-obj-$(CONFIG_SENSORS_BMA2X2)	+= bma2x2.o
 obj-$(CONFIG_SENSORS_LTR553)	+= ltr553.o
 obj-$(CONFIG_SENSORS_ELAN_EPL2182)      += elan_epl2182.o
-
-ifeq ($(CONFIG_SENSORS_BMA2X2_ENABLE_INT1),y)
-	EXTRA_CFLAGS += -DBMA2X2_ENABLE_INT1
-endif
-
-ifeq ($(CONFIG_BOSCH_BMA2X2_ENABLE_INT2),y)
-	EXTRA_CFLAGS += -DBMA2X2_ENABLE_INT2
-endif
 
 obj-$(CONFIG_SENSORS_BMI160) += bmi160_driver.o bmi160.o
 ifeq ($(CONFIG_BMI160_MAG_INTERFACE_SUPPORT),y)
@@ -105,3 +94,25 @@ obj-$(CONFIG_SENSORS_BMI160_I2C) += bmi160_i2c.o
 ifeq ($(CONFIG_SENSORS_BMI160_I2C),y)
 	EXTRA_CFLAGS += -DBMI_USE_BASIC_I2C_FUNC
 endif
+
+obj-$(CONFIG_SENSORS_LSM303D)	+= lsm303d.o
+obj-$(CONFIG_APDS9930_SISLEY)		+= apds993x_sisley.o
+# lenovo-sw chenli2 for ALSPS start
+obj-$(CONFIG_SENSORS_EPL8801)		+= epl8801.o
+# lenovo-sw chenli2 for ALSPS end
+ifeq ($(CONFIG_MACH_SISLEYR),y)
+# lenovo-sw youwc1 for g-sensor start
+obj-$(CONFIG_SENSORS_BMA2X2_SISLEYR)    += bma2x2_driver.o
+obj-$(CONFIG_SENSORS_BMA2X2_SISLEYR)    += bst_sensor_common.o
+# lenovo-sw youwc1 for g-sensor end
+else
+obj-$(CONFIG_SENSORS_BMA2X2)    += bstclass.o
+obj-$(CONFIG_SENSORS_BMA2X2)    += bma2x2.o
+ifeq ($(CONFIG_SENSORS_BMA2X2_ENABLE_INT1),y)
+        EXTRA_CFLAGS += -DBMA2X2_ENABLE_INT1
+endif
+ifeq ($(CONFIG_BOSCH_BMA2X2_ENABLE_INT2),y)
+        EXTRA_CFLAGS += -DBMA2X2_ENABLE_INT2
+endif
+endif
+obj-$(CONFIG_LENOVO_HALL)    += hall_switch.o
