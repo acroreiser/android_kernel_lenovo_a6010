@@ -33,7 +33,8 @@
 #define SHOW_PROGRESS
 #define MAX_FIRMWARE_ID_LEN 10
 #define FORCE_UPDATE false
-#define INSIDE_FIRMWARE_UPDATE
+//#define LENOVO_CTP_CHECK_PR_NUM
+//#define INSIDE_FIRMWARE_UPDATE    //remove by lixh10
 
 #define FW_IMAGE_OFFSET 0x100
 /* 0 to ignore flash block check to speed up flash time */
@@ -743,29 +744,23 @@ static int fwu_wait_for_idle(int timeout_ms)
 static enum flash_area fwu_go_nogo(void)
 {
 	int retval = 0;
-	int index = 0;
+
 	int deviceFirmwareID;
 	int imageConfigID;
 	int deviceConfigID;
+#ifdef LENOVO_CTP_CHECK_PR_NUM
+	int index = 0;
 	unsigned long imageFirmwareID;
+	char *strptr;
+#endif
 	unsigned char firmware_id[4];
 	unsigned char config_id[4];
 	unsigned char pkg_id[4];
-	char *strptr;
-	char *imagePR;
+	char *imagePR = kzalloc(sizeof(MAX_FIRMWARE_ID_LEN), GFP_KERNEL);
 	enum flash_area flash_area = NONE;
 	struct i2c_client *i2c_client = fwu->rmi4_data->i2c_client;
 	struct f01_device_status f01_device_status;
 	struct image_content *img = &fwu->image_content;
-
-	imagePR = kzalloc(sizeof(MAX_FIRMWARE_ID_LEN), GFP_KERNEL);
-	if (!imagePR) {
-		dev_err(&i2c_client->dev,
-			"%s: Failed to alloc mem for image pointer\n",
-			__func__);
-		flash_area = NONE;
-		return flash_area;
-	}
 
 	if (fwu->force_update) {
 		flash_area = UI_FIRMWARE;
@@ -842,6 +837,7 @@ static enum flash_area fwu_go_nogo(void)
 	deviceFirmwareID = extract_uint(firmware_id);
 
 	/* .img firmware id */
+#ifdef LENOVO_CTP_CHECK_PR_NUM
 	if (img->is_contain_build_info) {
 		dev_err(&i2c_client->dev,
 			"%s: Image option contains build info.\n",
@@ -893,7 +889,7 @@ static enum flash_area fwu_go_nogo(void)
 			__func__);
 		goto exit;
 	}
-
+#endif
 	/* device config id */
 	retval = fwu->fn_ptr->read(fwu->rmi4_data,
 				fwu->f34_fd.ctrl_base_addr,
@@ -908,7 +904,7 @@ static enum flash_area fwu_go_nogo(void)
 	}
 	deviceConfigID =  extract_uint_be(config_id);
 
-	dev_dbg(&i2c_client->dev,
+	dev_info(&i2c_client->dev,
 		"Device config ID 0x%02X, 0x%02X, 0x%02X, 0x%02X\n",
 		config_id[0], config_id[1], config_id[2], config_id[3]);
 
@@ -921,12 +917,23 @@ static enum flash_area fwu_go_nogo(void)
 			fwu->config_data[3]);
 	imageConfigID =  extract_uint_be(fwu->config_data);
 
-	dev_dbg(&i2c_client->dev,
+//#ifdef LENOVO_FIRMWARE_UPDATE
+    if(fwu->config_data[0] != config_id[0])
+    {
+        dev_info(&i2c_client->dev,
+		"[wj]Module ID is different, So we can't to update firmware.\n");
+		//flash_area = UI_FIRMWARE;
+		goto exit;
+    }
+//#endif
+
+	dev_info(&i2c_client->dev,
 		"%s: Device config ID %d, .img config ID %d\n",
 		__func__, deviceConfigID, imageConfigID);
 
-	if (imageConfigID > deviceConfigID) {
-		flash_area = CONFIG_AREA;
+
+	if (imageConfigID != deviceConfigID) {
+		flash_area = UI_FIRMWARE;
 		goto exit;
 	}
 exit:
@@ -1456,13 +1463,7 @@ static int fwu_do_read_config(void)
 
 	kfree(fwu->read_config_buf);
 	fwu->read_config_buf = kzalloc(fwu->config_size, GFP_KERNEL);
-	if (!fwu->read_config_buf) {
-		dev_err(&fwu->rmi4_data->i2c_client->dev,
-			"%s: Failed to alloc memory for config buffer\n",
-			__func__);
-		retval = -ENOMEM;
-		goto exit;
-	}
+
 	block_offset[1] |= (fwu->config_area << 5);
 
 	retval = fwu->fn_ptr->write(fwu->rmi4_data,
@@ -1591,7 +1592,7 @@ static int fwu_start_reflash(void)
 	pr_notice("%s: Start of reflash process\n", __func__);
 
 	if (fwu->ext_data_source)
-		dev_info(&fwu->rmi4_data->i2c_client->dev,
+		printk(
 				"%s Load .img file from commandline.\n",
 				__func__);
 	else {
@@ -1613,7 +1614,7 @@ static int fwu_start_reflash(void)
 
 		snprintf(fwu->image_name, NAME_BUFFER_SIZE, "%s",
 			fwu->rmi4_data->fw_image_name);
-		dev_info(&fwu->rmi4_data->i2c_client->dev,
+		printk(
 			"%s: Requesting firmware image %s\n",
 			__func__, fwu->image_name);
 
@@ -1628,7 +1629,7 @@ static int fwu_start_reflash(void)
 			return -EINVAL;
 		}
 
-		dev_dbg(&fwu->rmi4_data->i2c_client->dev,
+		printk(
 				"%s: Firmware image size = %zu\n",
 				__func__, fw_entry->size);
 
@@ -1686,7 +1687,7 @@ static int fwu_start_reflash(void)
 	if (retval < 0)
 		goto exit;
 
-	dev_info(&fwu->rmi4_data->i2c_client->dev, "Device is in %s mode\n",
+	printk("Device is in %s mode\n",
 		f01_device_status.flash_prog == 1 ? "bootloader" : "UI");
 	if (f01_device_status.flash_prog)
 		dev_info(&fwu->rmi4_data->i2c_client->dev, "Flash status %d\n",
@@ -2208,13 +2209,13 @@ static struct bin_attribute dev_attr_data = {
 
 static struct device_attribute attrs[] = {
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE_EXTRA_SYSFS
-	__ATTR(fw_name, S_IRUGO | S_IWUSR | S_IWGRP,
+	__ATTR(imagename, S_IRUGO | S_IWUSR | S_IWGRP,
 			fwu_sysfs_image_name_show,
 			fwu_sysfs_image_name_store),
 	__ATTR(force_update_fw, S_IWUSR | S_IWGRP,
 			NULL,
 			fwu_sysfs_force_reflash_store),
-	__ATTR(update_fw, S_IWUSR | S_IWGRP,
+	__ATTR(doreflash, S_IWUSR | S_IWGRP,
 			NULL,
 			fwu_sysfs_do_reflash_store),
 	__ATTR(writeconfig, S_IWUSR | S_IWGRP,
@@ -2259,13 +2260,14 @@ static struct device_attribute attrs[] = {
 #endif
 };
 
-
+#ifdef INSIDE_FIRMWARE_UPDATE
 static void synaptics_rmi4_fwu_work(struct work_struct *work)
 {
 	mutex_lock(&fwu_sysfs_mutex);
 	fwu_start_reflash();
 	mutex_unlock(&fwu_sysfs_mutex);
 }
+#endif
 
 static int synaptics_rmi4_fwu_init(struct synaptics_rmi4_data *rmi4_data)
 {
@@ -2325,10 +2327,10 @@ static int synaptics_rmi4_fwu_init(struct synaptics_rmi4_data *rmi4_data)
 			SYNAPTICS_RMI4_PRODUCT_ID_SIZE);
 	fwu->product_id[SYNAPTICS_RMI4_PRODUCT_ID_SIZE] = 0;
 
-	dev_dbg(&rmi4_data->i2c_client->dev,
+	dev_info(&rmi4_data->i2c_client->dev,
 			"%s: F01 product info: 0x%04x 0x%04x\n",
 			__func__, fwu->productinfo1, fwu->productinfo2);
-	dev_dbg(&rmi4_data->i2c_client->dev,
+	dev_info(&rmi4_data->i2c_client->dev,
 			"%s: F01 product ID: %s\n",
 			__func__, fwu->product_id);
 

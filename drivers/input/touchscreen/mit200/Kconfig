@@ -1,0 +1,17 @@
+#
+# Touchscreen driver configuration
+#
+
+if INPUT_TOUCHSCREEN
+
+config TOUCHSCREEN_MIT200
+        tristate "MELFAS MIT200 Touchscreen"
+        depends on I2C
+        help
+          Say Y here if you have a MELFAS MIT200 touchscreen device in your system.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the module will be called mit_ts.
+
+endif

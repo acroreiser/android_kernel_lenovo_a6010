@@ -77,9 +77,15 @@
 
 #define NAME_BUFFER_SIZE 256
 
-#define PINCTRL_STATE_ACTIVE	"pmx_ts_active"
-#define PINCTRL_STATE_SUSPEND	"pmx_ts_suspend"
-#define PINCTRL_STATE_RELEASE	"pmx_ts_release"
+//add by wengjun1
+//#define LENOVO_CTP_ESD_CHECK
+#define LENOVO_CTP_SLIDE_WAKEUP
+#define LENOVO_CTP_EAGE_LIMIT
+#define SYNAP_DEBUG_ON  1
+#define SYNAP_DEBUG(fmt, arg...)	do {\
+		if (SYNAP_DEBUG_ON) {\
+			printk("[wj]synaptics:"fmt"\n", ##arg); } \
+		} while (0)
 
 /*
  * struct synaptics_rmi4_fn_desc - function descriptor fields in PDT
@@ -183,6 +189,7 @@ struct synaptics_rmi4_device_info {
  * @board: constant pointer to platform data
  * @rmi4_mod_info: device information
  * @regulator: pointer to associated regulator
+ * @rmi4_report_mutex: mutex for input event reporting
  * @rmi4_io_ctrl_mutex: mutex for i2c i/o control
  * @det_work: work thread instance for expansion function detection
  * @det_workqueue: pointer to work queue for work thread instance
@@ -221,11 +228,16 @@ struct synaptics_rmi4_data {
 	struct synaptics_rmi4_device_info rmi4_mod_info;
 	struct regulator *vdd;
 	struct regulator *vcc_i2c;
+	struct mutex rmi4_report_mutex;
 	struct mutex rmi4_io_ctrl_mutex;
 	struct delayed_work det_work;
 	struct workqueue_struct *det_workqueue;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
+#endif
+#ifdef LENOVO_CTP_SLIDE_WAKEUP
+	struct delayed_work tp_work;
+	struct workqueue_struct *tp_workqueue;
 #endif
 	struct dentry *dir;
 	char fw_image_name[NAME_BUFFER_SIZE];
@@ -243,6 +255,12 @@ struct synaptics_rmi4_data {
 	unsigned short f01_cmd_base_addr;
 	unsigned short f01_ctrl_base_addr;
 	unsigned short f01_data_base_addr;
+//wengjun1 add
+	unsigned short f11_query_base_addr;
+	unsigned short f11_cmd_base_addr;
+	unsigned short f11_ctrl_base_addr;
+	unsigned short f11_data_base_addr;
+	unsigned short f34_ctrl_base_addr;
 	int irq;
 	int sensor_max_x;
 	int sensor_max_y;
@@ -275,9 +293,6 @@ struct synaptics_rmi4_data {
 #endif
 #endif
 	struct pinctrl *ts_pinctrl;
-	struct pinctrl_state *pinctrl_state_active;
-	struct pinctrl_state *pinctrl_state_suspend;
-	struct pinctrl_state *pinctrl_state_release;
 #if defined(CONFIG_SECURE_TOUCH)
 	atomic_t st_enabled;
 	atomic_t st_pending_irqs;
@@ -287,6 +302,8 @@ struct synaptics_rmi4_data {
 	struct clk *core_clk;
 	struct clk *iface_clk;
 #endif
+	struct pinctrl_state *gpio_state_active;
+	struct pinctrl_state *gpio_state_suspend;
 };
 
 enum exp_fn {
