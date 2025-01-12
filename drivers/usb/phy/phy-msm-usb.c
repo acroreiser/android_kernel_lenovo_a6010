@@ -55,6 +55,12 @@
 #include <linux/fastchg.h>
 #endif
 
+/*lenovo-sw weiweij added for 24296 charger*/
+#ifdef CONFIG_BQ24296_CHARGER
+#include <linux/power/bq24296_charger.h> 
+#endif
+/*lenovo-sw weiweij added for 24296 charger end*/
+
 #define MSM_USB_BASE	(motg->regs)
 #define MSM_USB_PHY_CSR_BASE (motg->phy_csr_regs)
 
@@ -1902,6 +1908,23 @@ static int msm_otg_notify_chg_type(struct msm_otg *motg)
 		charger_type = POWER_SUPPLY_TYPE_USB_ACA;
 	else
 		charger_type = POWER_SUPPLY_TYPE_UNKNOWN;
+
+/*lenovo-sw weiweij added for 24296 charger*/
+#ifdef CONFIG_BQ24296_CHARGER
+	pr_err("charger_type=%d\n", charger_type);
+
+	if(charger_type == POWER_SUPPLY_TYPE_UNKNOWN)
+		bq24296_exec_command(BQ24296_SET_CHR_TYPE, CHARGER_UNKNOWN);
+	else if(motg->chg_type == USB_FLOATED_CHARGER)
+		bq24296_exec_command(BQ24296_SET_CHR_TYPE, CHARGER_UNSTANDARD);
+	else if(charger_type==POWER_SUPPLY_TYPE_USB_DCP)
+		bq24296_exec_command(BQ24296_SET_CHR_TYPE, CHARGER_AC);
+	else
+		bq24296_exec_command(BQ24296_SET_CHR_TYPE, CHARGER_USB);
+#else
+	pr_err("charger_type=%d, motg->chg_type=%d\n", charger_type, motg->chg_type);
+#endif
+/*lenovo-sw weiweij added for 24296 charger end*/
 
 	if (!psy) {
 		pr_err("No USB power supply registered!\n");
@@ -4674,7 +4697,10 @@ static int otg_power_get_property_usb(struct power_supply *psy,
 		break;
 	/* Reflect USB enumeration */
 	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = motg->online;
+          //lenovo sw yexh1, add for support usb charging only function
+		//val->intval = motg->online;
+                val->intval = !!test_bit(B_SESS_VLD, &motg->inputs);
+          //lenovo sw yexh1, end
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 		val->intval = psy->type;
