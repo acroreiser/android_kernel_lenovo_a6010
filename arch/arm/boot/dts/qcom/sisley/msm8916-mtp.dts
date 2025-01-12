@@ -1,0 +1,146 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
+/dts-v1/;
+
+#include "msm8916-mtp.dtsi"
+#include "../msm8916-memory.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. MSM 8916 MTP";
+	compatible = "qcom,msm8916-mtp", "qcom,msm8916", "qcom,mtp";
+	qcom,board-id = <8 0>;
+};
+/*lenovo-sw molg1 add 20141111 begin*/
+&tlmm_pinmux {
+		apds9930_int_pin {
+			qcom,pins = <&gp 113>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "apds9930-irq";
+			apds9930_default: apds9930_default {
+				drive-strenghth = <6>;
+				bias-pull-up;
+			};
+		};
+	};
+
+&i2c_0 { /* BLSP1 QUP2 */
+		avago@39 {
+			compatible = "avago,apds9930";
+			reg = <0x39>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&apds9930_default>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <113 0x2>;
+			vdd-supply = <&pm8916_l17>;
+			vio-supply = <&pm8916_l6>;
+			avago,irq-gpio = <&msm_gpio 113 0x2>;
+			avago,ps_threshold = <600>;
+			avago,ps_hysteresis_threshold = <500>;
+			avago,ps_pulse = <10>;
+			avago,ps_pgain = <1>;
+			avago,als_B = <186>;
+			avago,als_C = <75>;
+			avago,als_D = <129>;
+			avago,ga_value = <510>;
+		};
+	/*lenovo-sw molg 20140428 add begin*/
+		st@1d {
+			compatible = "st,lsm303d";
+			reg = <0x1d>;
+			vdd-supply = <&pm8916_l17>;
+			vcc_i2c-supply = <&pm8916_l6>;
+			st,cs-gpio = <&msm_gpio 121 0x00>;
+		};
+	/*lenovo-sw molg 20140428 add end*/
+};
+/*lenovo-sw molg1 add 20141111 end*/
+
+&i2c_4 {
+		sn3193@68 {
+			compatible = "lenovo,sn3193";
+			reg = <0x68>;
+			lenovo,en-gpio = <&msm_gpio 38 0x00>;
+		};
+
+		bq24296_otg_supply: bq24296@6b {
+			compatible = "ti,bq24296-charger";
+			reg = <0x6b>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <62 8>;
+			ti,irq-gpio = <&msm_gpio 62 0x2008>;
+			ti,en-gpio-dvt1 = <&msm_gpio 56 0x00>;
+			ti,psel-gpio = <&msm_gpio 120 0x00>;
+			ti,otg-gpio = <&msm_gpio 73 0x00>;
+			ti,interrupts = <62 0x2008>;
+			ti,current-limit = <1500>;
+			ti,chg-current = <1500>;
+			ti,cv-vol = <4350>;
+			ti,term-current = <256>;
+			ti,chg-temp-protect-cur-0m = <0>;
+			ti,chg-temp-protect-cur-10m = <512>;
+			ti,chg-temp-protect-cur-45m = <1500>;
+			ti,chg-temp-protect-cur-50m = <1500>;
+			ti,chg-temp-protect-cur-50p = <0>;
+			ti,chg-temp-protect-vol-0m = <4350>;
+			ti,chg-temp-protect-vol-10m = <4350>;
+			ti,chg-temp-protect-vol-45m = <4350>;
+			ti,chg-temp-protect-vol-50m = <4350>;
+			ti,chg-temp-protect-vol-50p = <4350>;
+
+                        regulator-name = "bq24296_otg_vreg";
+        };
+
+		max17058@36 {
+			compatible = "max,max17058-fg";
+			reg = <0x36>;
+			max,irq-gpio = <&msm_gpio 109 0x2008>;
+			max,r-bat = <180>;//need to calculate
+			max,ini-rcomp = <127>;
+			max,ini-temp-co-hot = <700>;//factor 1000
+			max,ini-temp-co-cold = <5175>;//factor 1000
+			max,ini-soc-checka = <228>;
+			max,ini-soc-checkb = <230>;
+			max,ini-ocv-test = <57408>;
+			max,ini-bits = <19>;
+			max,model-data = [AA 00 B6 40 B7 A0 B9 C0 
+							BB E0 BC D0 BD 40 BD A0 
+							C0 30 C0 F0 C4 80 C6 00 
+							C8 80 CB 00 CF E0 D6 40 
+							01 C0 17 60 1D A0 17 80 
+							54 80 5F 80 7E A0 14 A0 
+							4A 60 0E 00 22 40 10 00 
+							10 00 14 00 0C 00 0C 00];
+			qcom,fg-vadc = <&pm8916_vadc>;
+        };	
+};
+
+#include "dsi-panel-d53d6ea8061v-720p-video-magna-lenovo.dtsi"
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+};
+&pmx_mdss {
+	qcom,num-grp-pins = <4>;
+	qcom,pins = <&gp 25>, <&gp 76>,<&gp 97>, <&gp 98>;
+};
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&dsi_d53d6ea8061v_720p_video_magna_lenovo>;
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active>;
+	pinctrl-1 = <&mdss_dsi_suspend>;
+	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+	qcom,platform-vsp-gpio = <&msm_gpio 97 0>;
+	qcom,platform-vsn-gpio = <&msm_gpio 76 0>;
+	qcom,platform-bklight-en-gpio = <&msm_gpio 98 0>;
+};
+

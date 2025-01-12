@@ -1,0 +1,193 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
+/dts-v1/;
+
+#include "msm8916-mtp-sisley.dtsi"
+#include "sisley/msm8916-memory-sisley.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. MSM 8916 MTP SISLEY";
+	compatible = "qcom,msm8916-mtp", "qcom,msm8916", "qcom,mtp", "lenovo,sisley";
+	qcom,board-id = <8 0x31>;
+};
+#include "sisley/dsi-panel-d53d6ea8061v-720p-video-magna-lenovo.dtsi"
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+};
+			
+			
+&pmx_mdss {
+	qcom,num-grp-pins = <4>;
+	qcom,pins = <&gp 25>, <&gp 76>,<&gp 97>, <&gp 98>;
+};
+			
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&dsi_d53d6ea8061v_720p_video_magna_lenovo>;
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active>;
+	pinctrl-1 = <&mdss_dsi_suspend>;
+			
+	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+			
+	qcom,platform-vsp-gpio = <&msm_gpio 97 0>;
+	qcom,platform-vsn-gpio = <&msm_gpio 76 0>;
+	qcom,platform-bklight-en-gpio = <&msm_gpio 98 0>;
+};
+/*lenovo-sw molg1 add 20141111 begin*/
+&tlmm_pinmux {
+		apds9930_int_pin {
+			qcom,pins = <&gp 113>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "apds9930-irq";
+			apds9930_default: apds9930_default {
+				drive-strenghth = <6>;
+				bias-pull-up;
+			};
+		};
+};
+
+&i2c_0 { /* BLSP1 QUP2 */
+		avago@39 {
+			compatible = "avago,apds9930";
+			reg = <0x39>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&apds9930_default>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <113 0x2>;
+			vdd-supply = <&pm8916_l17>;
+			vio-supply = <&pm8916_l6>;
+			avago,irq-gpio = <&msm_gpio 113 0x2>;
+			avago,ps_threshold = <600>;
+			avago,ps_hysteresis_threshold = <500>;
+			avago,ps_pulse = <10>;
+			avago,ps_pgain = <1>;
+			avago,als_B = <186>;
+			avago,als_C = <75>;
+			avago,als_D = <129>;
+			avago,ga_value = <510>;
+		};
+/*lenovo-sw molg 20140428 add begin*/
+	bma@18 {
+			compatible = "bma,bma222e";
+			reg = <0x18>;
+			vdd-supply = <&pm8916_l17>;
+			vcc_i2c-supply = <&pm8916_l6>;
+/*lenovo-sw youwc1 add for g-sensor direction start*/
+			bma,sensor_direction = <0>;
+/*lenovo-sw youwc1 add for g-sensor direction end*/
+        };
+/*lenovo-sw molg 20140428 add end*/
+};
+/*lenovo-sw molg1 add 20141111 end*/
+
+&i2c_4 {
+		sn3193@68 {
+			compatible = "lenovo,sn3193";
+			reg = <0x68>;
+			lenovo,en-gpio = <&msm_gpio 38 0x00>;
+		};
+
+		bq24296_otg_supply: bq24296@6b {
+			compatible = "ti,bq24296-charger";
+			reg = <0x6b>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <62 8>;
+			ti,irq-gpio = <&msm_gpio 62 0x2008>;
+			ti,en-gpio-dvt1 = <&msm_gpio 116 0x00>;
+			ti,en-gpio-dvt2 = <&msm_gpio 105 0x00>;
+			ti,psel-gpio = <&msm_gpio 120 0x00>;
+			ti,otg-gpio = <&msm_gpio 73 0x00>;
+			ti,interrupts = <62 0x2008>;
+			ti,current-limit = <1000>;
+			ti,chg-current = <1000>;
+			ti,cv-vol = <4350>;
+			ti,term-current = <256>;
+			ti,chg-temp-protect-cur-0m = <0>;
+			ti,chg-temp-protect-cur-10m = <600>;
+			ti,chg-temp-protect-cur-45m = <1000>;
+			ti,chg-temp-protect-cur-50m = <600>;
+			ti,chg-temp-protect-cur-50p = <0>;
+			ti,chg-temp-protect-vol-0m = <4350>;
+			ti,chg-temp-protect-vol-10m = <4350>;
+			ti,chg-temp-protect-vol-45m = <4350>;
+			ti,chg-temp-protect-vol-50m = <4350>;
+			ti,chg-temp-protect-vol-50p = <4350>;
+
+                        regulator-name = "bq24296_otg_vreg";
+        };
+
+		max17058@36 {
+			compatible = "max,max17058-fg";
+			reg = <0x36>;
+			max,irq-gpio = <&msm_gpio 1 0x2008>;
+			max,r-bat = <180>;//need to calculate
+			max,ini-rcomp = <80>;
+			max,ini-temp-co-hot = <1050>;//factor 1000
+			max,ini-temp-co-cold = <4500>;//factor 1000
+			max,ini-soc-checka = <203>;
+			max,ini-soc-checkb = <205>;
+			max,ini-ocv-test = <58240>;
+			max,ini-bits = <19>;
+			max,model-data = [9F 70 B3 50 B7 F0 B8 D0
+							BB 10 BB F0 BC E0 BD 70
+							BF 30 C1 40 C3 C0 C6 30
+							CA 40 CF E0 D4 B0 D9 80
+							00 40 0C 00 40 00 16 00
+							24 00 48 00 53 40 2B E0
+							1D E0 0F E0 17 A0 13 E0
+							0F C0 10 80 01 80 01 80];
+			qcom,fg-vadc = <&pm8916_vadc>;
+        };	
+};
+/*Lenovo-sw zhucc2 add for disabled SDCARD ---start*/
+&sdhc_2 {
+  status = "disabled";
+};
+/*Lenovo-sw zhucc2 add for disabled SDCARD ---end*/
+/* lenovo-sw wengjun1, 2014-04-18 add begin */
+&i2c_5 {
+    touchscreen@48 { 
+            compatible = "melfas,mms114";
+			reg = <0x48>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <13 0>;
+			vdd-supply = <&pm8916_l17>;
+			vcc_i2c-supply = <&pm8916_l6>;
+			pinctrl-names = "pmx_ts_active","pmx_ts_suspend";
+			pinctrl-0 = <&ts_int_active &ts_reset_active>;
+			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+			mms,reset-gpio = <&msm_gpio 12 0x0>;
+			mms,irq-gpio = <&msm_gpio 13 0x2008>;
+			mms,ctp-gpio = <&msm_gpio 74 0x0>;
+			x-size = <720>;
+			y-size = <1280>;
+			contact-threshold = <10>;
+			moving-threshold = <10>;
+			x-invert;
+			y-invert; 
+    };
+};
+
+/* lenovo-sw yexh1, add for usb driver current setting and otg function, 2014-04-16 add begin */
+&usb_otg{          
+        qcom,hsusb-otg-phy-init-seq = <0x64 0x80 0x6F 0x81 0x20 0x82 0x13 0x83 0xffffffff>;
+	qcom,hsusb-otg-mode = <3>;
+	qcom,usbid-gpio = <&msm_gpio 110 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usbid_default>;
+	vbus_otg-supply = <&bq24296_otg_supply>; //<&pm8916_l16>; // <&smb1360_otg_supply>; //<&pm8916_l16>; //
+};
+/* lenovo-sw yexh1 end */
+
+

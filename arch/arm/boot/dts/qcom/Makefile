@@ -87,6 +87,9 @@ ifeq ($(CONFIG_MACH_LENOVO_A6010),y)
 dtb-$(CONFIG_ARCH_MSM8916) += msm8916-wt86528.dtb
 endif
 else
+ifeq ($(CONFIG_MACH_LENOVO_SISLEYR),y)
+dtb-$(CONFIG_ARCH_MSM8916) += msm8916-sisley.dtb
+else
 dtb-$(CONFIG_ARCH_MSM8916) += msm8916-cdp.dtb \
 	msm8916-cdp-smb1360.dtb \
 	msm8916-mtp.dtb \
@@ -134,6 +137,7 @@ dtb-$(CONFIG_ARCH_MSM8916) += msm8916-cdp.dtb \
 	msm8929-qrd-skul.dtb \
 	msm8929-qrd-skulb.dtb \
 	msm8929-cdp-jdi.dtb
+endif
 endif
 
 dtb-$(CONFIG_ARCH_MSM8226) += msm8226-sim.dtb \
