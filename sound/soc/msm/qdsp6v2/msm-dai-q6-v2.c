@@ -110,6 +110,12 @@ static const char *const mi2s_format[] = {
 	"Compr-60958"
 };
 
+#ifdef CONFIG_MACH_SISLEYR
+/* lenovo-sw zhouwl, 2014-11-25,add for quat mi2s control */
+extern atomic_t quat_mi2s_clk_ref;
+/* lenovo-sw zhouwl, 2014-11-25,add for quat mi2s control */
+#endif
+
 static const struct soc_enum mi2s_config_enum[] = {
 	SOC_ENUM_SINGLE_EXT(4, mi2s_format),
 };
@@ -2631,7 +2637,24 @@ static void msm_dai_q6_mi2s_shutdown(struct snd_pcm_substream *substream,
 				__func__, port_id);
 	}
 
+#ifdef CONFIG_MACH_SISLEYR
+/* lenovo-sw zhouwl, 2014-11-25,add for quat mi2s control */
+       if ((atomic_read(&quat_mi2s_clk_ref) >= 1) && (port_id == AFE_PORT_ID_QUATERNARY_MI2S_RX)) {
+               printk(KERN_DEBUG "[%s]quat_mi2s_clk_ref is using...port_id=%#x\n", __func__, port_id);
+               if (test_bit(STATUS_PORT_STARTED, dai_data->status_mask)) {
+                       clear_bit(STATUS_PORT_STARTED, dai_data->status_mask);
+               }
+
+               if (test_bit(STATUS_PORT_STARTED, dai_data->hwfree_status)) {
+              clear_bit(STATUS_PORT_STARTED, dai_data->hwfree_status);
+               }
+               return;
+       }
+/* lenovo-sw zhouwl, 2014-11-25,add for quat mi2s control */
+       dev_dbg(dai->dev, "%s: closing afe port id = %x\n",
+#else
 	dev_dbg(dai->dev, "%s: closing afe port id = 0x%x\n",
+#endif
 			__func__, port_id);
 
 	if (test_bit(STATUS_PORT_STARTED, dai_data->status_mask)) {

@@ -133,6 +133,12 @@ static void wcd_program_hs_vref(struct wcd_mbhc *mbhc)
 	plug_type_cfg = WCD_MBHC_CAL_PLUG_TYPE_PTR(mbhc->mbhc_cfg->calibration);
 	reg_val = ((plug_type_cfg->v_hs_max - HS_VREF_MIN_VAL) / 100);
 
+#ifdef CONFIG_MACH_SISLEYR
+	/*lenovo-sw,lily8,2015-03-06,some headset can't be detected correctly for upgrade to L,begin*/
+	reg_val = 0x02;
+	/*lenovo-sw,lily8,2015-03-06,some headset can't be detected correctly for upgrade to L,end*/
+#endif
+
 	dev_dbg(codec->dev, "%s: reg_val  = %x\n", __func__, reg_val);
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_HS_VREF, reg_val);
 }
