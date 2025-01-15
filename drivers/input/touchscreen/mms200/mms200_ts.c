@@ -1738,7 +1738,7 @@ static int mms_ts_probe(struct i2c_client *client,
 		return -EAGAIN;
 	}
 
-	if (sysfs_create_link(NULL, &client->dev.kobj, "board_properties")) {//mms_ts
+	if (sysfs_create_link(NULL, &client->dev.kobj, "mms_ts")) {
 		dev_err(&client->dev, "failed to create sysfs symlink\n");
 		return -EAGAIN;
 	}
