@@ -27,8 +27,9 @@
 #include <linux/freezer.h>
 #include <linux/random.h>
 #include <linux/pm_qos.h>
+#ifdef CONFIG_WAKE_GESTURES
 #include <linux/wake_gestures.h>
-
+#endif
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
 
@@ -4663,8 +4664,11 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 	if (deny_new_usb) {
 		dev_err(hub_dev, "denied insert of USB device on port %d\n", port1);
 		goto done;
-	} else
+#ifdef CONFIG_WAKE_GESTURES
+	} else {
 		set_vibrate(62);
+#endif
+	}
 
 	if (hub_is_superspeed(hub->hdev))
 		unit_load = 150;
