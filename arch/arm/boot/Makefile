@@ -69,9 +69,24 @@ $(obj)/zImage:	$(obj)/compressed/vmlinux FORCE
 	$(call if_changed,objcopy)
 	@$(kecho) '  Kernel: $@ is ready'
 
+ifeq ($(CONFIG_MACH_SISLEYR),y)
+
+.PHONY: zImage-dtb
+
+$(obj)/zImage-dtb:     $(obj)/zImage $(DTB_OBJS) FORCE
+	$(call if_changed,cat)
+	gzip $(obj)/zImage-dtb
+	cat $(obj)/zImage-dtb.gz $(DTB_OBJS) > $(obj)/zImage-dtb
+	rm $(obj)/zImage-dtb.gz
+        @echo '  Kernel: $@ is ready'
+
+else
+
 $(obj)/zImage-dtb:	$(obj)/zImage $(DTB_OBJS) FORCE
 	$(call if_changed,cat)
 	@echo '  Kernel: $@ is ready'
+
+endif
 
 endif
 
