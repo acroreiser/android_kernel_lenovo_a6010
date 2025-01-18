@@ -42,7 +42,7 @@ contains()
 	test "${1#*$2}" != "$1" && return 0 || return 1;
 }
 
-BOOTBLK="/dev/block/mmcblk0p22"
+BOOTBLK="/dev/block/platform/soc.0/7824900.sdhci/by-name/boot"
 # dump boot and extract ramdisk
 dump_boot()
 {
