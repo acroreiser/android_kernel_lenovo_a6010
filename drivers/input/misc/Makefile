@@ -100,12 +100,12 @@ obj-$(CONFIG_APDS9930_SISLEY)		+= apds993x_sisley.o
 # lenovo-sw chenli2 for ALSPS start
 obj-$(CONFIG_SENSORS_EPL8801)		+= epl8801.o
 # lenovo-sw chenli2 for ALSPS end
-ifeq ($(CONFIG_MACH_SISLEYR),y)
+
 # lenovo-sw youwc1 for g-sensor start
 obj-$(CONFIG_SENSORS_BMA2X2_SISLEYR)    += bma2x2_driver.o
 obj-$(CONFIG_SENSORS_BMA2X2_SISLEYR)    += bst_sensor_common.o
 # lenovo-sw youwc1 for g-sensor end
-else
+
 obj-$(CONFIG_SENSORS_BMA2X2)    += bstclass.o
 obj-$(CONFIG_SENSORS_BMA2X2)    += bma2x2.o
 ifeq ($(CONFIG_SENSORS_BMA2X2_ENABLE_INT1),y)
@@ -114,5 +114,5 @@ endif
 ifeq ($(CONFIG_BOSCH_BMA2X2_ENABLE_INT2),y)
         EXTRA_CFLAGS += -DBMA2X2_ENABLE_INT2
 endif
-endif
+
 obj-$(CONFIG_LENOVO_HALL)    += hall_switch.o

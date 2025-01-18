@@ -7382,7 +7382,7 @@ static int bma2x2_power_init(struct bma2x2_data *data)
 		}
 	}
 
-	data->vio = regulator_get(&data->bma2x2_client->dev, "vio");
+	data->vio = regulator_get(&data->bma2x2_client->dev, "vcc_i2c");
 	if (IS_ERR(data->vio)) {
 		ret = PTR_ERR(data->vio);
 		dev_err(&data->bma2x2_client->dev,
@@ -7452,8 +7452,8 @@ static int bma2x2_parse_dt(struct device *dev,
 		return rc;
 	}
 	if (temp_val > 7 || temp_val < 0) {
-		dev_err(dev, "Invalid place parameter, use default value 0\n");
-		pdata->place = 0;
+		dev_err(dev, "Invalid place parameter, use default value 1\n");
+		pdata->place = 1;
 	} else {
 		pdata->place = temp_val;
 	}
@@ -7939,7 +7939,7 @@ static int bma2x2_probe(struct i2c_client *client,
 			"Cannot create sysfs for bma2x2\n");
 		goto remove_dtap_sysfs_exit;
 	}
-
+/*
 	dev_acc = bst_allocate_device();
 	if (!dev_acc) {
 		dev_err(&client->dev,
@@ -7967,7 +7967,7 @@ static int bma2x2_probe(struct i2c_client *client,
 			"Cannot create sysfs for bst_acc.\n");
 		goto bst_free_exit;
 	}
-
+*/
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	data->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
 	data->early_suspend.suspend = bma2x2_early_suspend;
@@ -8004,7 +8004,7 @@ static int bma2x2_probe(struct i2c_client *client,
 	if (err) {
 		dev_err(&client->dev, "create class device file failed!\n");
 		err = -EINVAL;
-		goto remove_bst_acc_sysfs_exit;
+		goto remove_bma2x2_sysfs_exit;
 	}
 
 	dev_notice(&client->dev, "BMA2x2 driver probe successfully");
@@ -8013,14 +8013,14 @@ static int bma2x2_probe(struct i2c_client *client,
 	bma2x2_power_ctl(data, false);
 	return 0;
 
-remove_bst_acc_sysfs_exit:
-	sysfs_remove_group(&data->bst_acc->dev.kobj,
-			&bma2x2_attribute_group);
-bst_free_exit:
-	bst_unregister_device(dev_acc);
+//remove_bst_acc_sysfs_exit:
+//	sysfs_remove_group(&data->bst_acc->dev.kobj,
+//			&bma2x2_attribute_group);
+//bst_free_exit:
+//	bst_unregister_device(dev_acc);
 
-bst_free_acc_exit:
-	bst_free_device(dev_acc);
+//bst_free_acc_exit:
+//	bst_free_device(dev_acc);
 
 remove_bma2x2_sysfs_exit:
 	sysfs_remove_group(&data->input->dev.kobj,
@@ -8224,7 +8224,7 @@ static const struct i2c_device_id bma2x2_id[] = {
 MODULE_DEVICE_TABLE(i2c, bma2x2_id);
 
 static const struct of_device_id bma2x2_of_match[] = {
-	{ .compatible = "bosch,bma2x2", },
+	{ .compatible = "bma,bma222e", },
 	{ },
 };
 
