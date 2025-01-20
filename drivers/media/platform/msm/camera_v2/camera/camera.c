@@ -208,9 +208,9 @@ static int camera_v4l2_reqbufs(struct file *filep, void *fh,
 	session = msm_session_find(session_id);
 	if (WARN_ON(!session))
 		return -EIO;
-	mutex_lock(&session->lock_q);
+	mutex_lock(&session->lock);
 	ret = vb2_reqbufs(&sp->vb2_q, req);
-	mutex_unlock(&session->lock_q);
+	mutex_unlock(&session->lock);
 	return ret;
 }
 
@@ -231,9 +231,9 @@ static int camera_v4l2_qbuf(struct file *filep, void *fh,
 	session = msm_session_find(session_id);
 	if (WARN_ON(!session))
 		return -EIO;
-	mutex_lock(&session->lock_q);
+	mutex_lock(&session->lock);
 	ret = vb2_qbuf(&sp->vb2_q, pb);
-	mutex_unlock(&session->lock_q);
+	mutex_unlock(&session->lock);
 	return ret;
 }
 
@@ -248,9 +248,9 @@ static int camera_v4l2_dqbuf(struct file *filep, void *fh,
 	session = msm_session_find(session_id);
 	if (WARN_ON(!session))
 		return -EIO;
-	mutex_lock(&session->lock_q);
+	mutex_lock(&session->lock);
 	ret = vb2_dqbuf(&sp->vb2_q, pb, filep->f_flags & O_NONBLOCK);
-	mutex_unlock(&session->lock_q);
+	mutex_unlock(&session->lock);
 	return ret;
 }
 
@@ -559,9 +559,6 @@ static int camera_v4l2_open(struct file *filep)
 	if (!atomic_read(&pvdev->opened)) {
 		pm_stay_awake(&pvdev->vdev->dev);
 
-		/* Disable power collapse latency */
-		msm_pm_qos_update_request(CAMERA_DISABLE_PC_LATENCY);
-
 		/* create a new session when first opened */
 		rc = msm_create_session(pvdev->vdev->num, pvdev->vdev);
 		if (rc < 0) {
@@ -595,8 +592,6 @@ static int camera_v4l2_open(struct file *filep)
 					__func__, __LINE__, rc);
 			goto post_fail;
 		}
-		/* Enable power collapse latency */
-		msm_pm_qos_update_request(CAMERA_ENABLE_PC_LATENCY);
 	} else {
 		rc = msm_create_command_ack_q(pvdev->vdev->num,
 			find_first_zero_bit((const unsigned long *)&opn_idx,
@@ -610,7 +605,6 @@ static int camera_v4l2_open(struct file *filep)
 	idx |= (1 << find_first_zero_bit((const unsigned long *)&opn_idx,
 				MSM_CAMERA_STREAM_CNT_BITS));
 	atomic_cmpxchg(&pvdev->opened, opn_idx, idx);
-
 	return rc;
 
 post_fail:
@@ -673,7 +667,6 @@ static int camera_v4l2_close(struct file *filep)
 		/* This should take care of both normal close
 		 * and application crashes */
 		msm_destroy_session(pvdev->vdev->num);
-
 		pm_relax(&pvdev->vdev->dev);
 	} else {
 		camera_pack_event(filep, MSM_CAMERA_SET_PARM,

@@ -52,12 +52,12 @@ static void vpe_mem_dump(const char * const name, const void * const addr,
 	int i;
 	u32 *p = (u32 *) addr;
 	u32 data;
-	VPE_DBG("%s: (%s) %pK %d\n", __func__, name, addr, size);
+	VPE_DBG("%s: (%s) %p %d\n", __func__, name, addr, size);
 	line_str[0] = '\0';
 	p_str = line_str;
 	for (i = 0; i < size/4; i++) {
 		if (i % 4 == 0) {
-			snprintf(p_str, 12, "%pK: ", p);
+			snprintf(p_str, 12, "%p: ", p);
 			p_str += 10;
 		}
 		data = *p++;
@@ -594,7 +594,7 @@ static int vpe_open_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 		goto err_mutex_unlock;
 	}
 
-	VPE_DBG("open %d %pK\n", i, &fh->vfh);
+	VPE_DBG("open %d %p\n", i, &fh->vfh);
 	vpe_dev->vpe_open_cnt++;
 	if (vpe_dev->vpe_open_cnt == 1) {
 		rc = vpe_init_hardware(vpe_dev);
@@ -649,7 +649,7 @@ static int vpe_close_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 		return -ENODEV;
 	}
 
-	VPE_DBG("close %d %pK\n", i, &fh->vfh);
+	VPE_DBG("close %d %p\n", i, &fh->vfh);
 	vpe_dev->vpe_open_cnt--;
 	if (vpe_dev->vpe_open_cnt == 0) {
 		vpe_deinit_mem(vpe_dev);
@@ -1382,8 +1382,6 @@ static long msm_vpe_subdev_ioctl(struct v4l2_subdev *sd,
 				process_frame,
 				sizeof(struct msm_vpe_frame_info_t))) {
 					mutex_unlock(&vpe_dev->mutex);
-					kfree(process_frame);
-					kfree(event_qcmd);
 					return -EINVAL;
 		}
 

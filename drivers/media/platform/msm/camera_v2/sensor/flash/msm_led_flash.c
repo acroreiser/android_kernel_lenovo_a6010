@@ -39,8 +39,6 @@ static long msm_led_flash_subdev_ioctl(struct v4l2_subdev *sd,
 		return fctrl->func_tbl->flash_get_subdev_id(fctrl, argp);
 	case VIDIOC_MSM_FLASH_LED_DATA_CFG:
 		return fctrl->func_tbl->flash_led_config(fctrl, argp);
-	case MSM_SD_NOTIFY_FREEZE:
-		return 0;
 	case MSM_SD_SHUTDOWN:
 		*(int *)argp = MSM_CAMERA_LED_RELEASE;
 		return fctrl->func_tbl->flash_led_config(fctrl, argp);
@@ -119,9 +117,6 @@ int32_t msm_led_i2c_flash_create_v4lsubdev(void *data)
 	fctrl->msm_sd.sd.entity.type = MEDIA_ENT_T_V4L2_SUBDEV;
 	fctrl->msm_sd.sd.entity.group_id = MSM_CAMERA_SUBDEV_LED_FLASH;
 	msm_sd_register(&fctrl->msm_sd);
-
-	msm_led_flash_v4l2_subdev_fops = v4l2_subdev_fops;
-	fctrl->msm_sd.sd.devnode->fops = &msm_led_flash_v4l2_subdev_fops;
 
 	CDBG("probe success\n");
 	return 0;
