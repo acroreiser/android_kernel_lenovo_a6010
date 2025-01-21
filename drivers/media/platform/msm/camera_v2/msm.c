@@ -994,6 +994,47 @@ static void msm_sd_notify(struct v4l2_subdev *sd,
 	}
 }
 
+/*lenovo-sw chenglong1 add for mediaserver com with root*/
+#define MAX_ACTION_SIZE 128
+wait_queue_head_t camsvr2root_wq;
+char intent_action[MAX_ACTION_SIZE];
+int intent_action_size = 0;
+static ssize_t camsvr2root_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	printk("%s: wait for intent ...\n", __func__);
+	wait_event_interruptible(camsvr2root_wq, intent_action_size);
+	printk("%s: got intent: %s\n", __func__, intent_action);
+	intent_action_size = 0;
+	return snprintf(buf, PAGE_SIZE, "%s",intent_action);
+}
+
+static ssize_t camsvr2root_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int len = strlen(buf);
+	
+	printk("%s: got intent: %s\n", __func__, buf);
+	len = len > MAX_ACTION_SIZE-1 ? MAX_ACTION_SIZE-1 : len;
+	intent_action_size = len;
+	if (len) {
+	  memcpy(intent_action, buf, len);
+	  intent_action[len] = '\0';
+	  
+	  printk("%s: now wakeup camsvr2root_wq... size=%d\n", __func__, intent_action_size);
+	  wake_up_interruptible(&camsvr2root_wq);
+	}
+	
+	return count;
+}
+
+static struct device_attribute camsvr2root_attrs[] = {
+	__ATTR(camsvr2rt, 0644,
+			camsvr2root_show,
+			camsvr2root_store),
+};
+/*lenovo-sw  add end*/
+
 static int msm_probe(struct platform_device *pdev)
 {
 	struct msm_video_device *pvdev;
@@ -1065,6 +1106,19 @@ static int msm_probe(struct platform_device *pdev)
 	/* FIXME: How to get rid of this messy? */
 	pvdev->vdev->entity.name = video_device_node_name(pvdev->vdev);
 #endif
+
+	/*lenovo-sw chenglong1 add for mediaserver com with root*/
+	{
+		struct kset *cam_kset_ptr = NULL;
+
+		init_waitqueue_head(&camsvr2root_wq);
+		cam_kset_ptr = kset_create_and_add("camdir", NULL, NULL);
+		printk("%s: creating camsvr2root ...\n", __func__);
+		if (sysfs_create_file( &cam_kset_ptr->kobj, &camsvr2root_attrs[0].attr) < 0) {
+			printk("%s: create camsvr2root failed!!!\n", __func__);
+		}
+	}
+	/*lenovo-sw add end*/
 
 	atomic_set(&pvdev->opened, 0);
 	video_set_drvdata(pvdev->vdev, pvdev);

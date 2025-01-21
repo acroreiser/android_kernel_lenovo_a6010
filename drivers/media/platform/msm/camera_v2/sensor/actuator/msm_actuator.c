@@ -17,10 +17,32 @@
 #include "msm_actuator.h"
 #include "msm_cci.h"
 
+/*+add ljk ois*/
+#include "OIS_head.h"
+#include <linux/proc_fs.h>
+/*+end*/
+
+#include <soc/qcom/socinfo.h>//chenglong1 for board compatible
+
 DEFINE_MSM_MUTEX(msm_actuator_mutex);
 
+//#define MSM_ACUTUATOR_DEBUG
 #undef CDBG
-#define CDBG(fmt, args...) pr_debug(fmt, ##args)
+#ifdef MSM_ACUTUATOR_DEBUG
+#define CDBG(fmt, args...) pr_err(fmt, ##args)
+#else
+ #define CDBG(fmt, args...) pr_debug(fmt, ##args)
+#endif
+
+ #define MAX_QVALUE  4096
+
+/*+add ljk ois*/
+static int need_init_lc=1;
+struct msm_actuator_ctrl_t *actuator_ctrl = NULL;
+struct task_struct *ois_task;
+extern _FACT_ADJ fadj;
+int OIS_STATUS = 0;
+/*+end*/
 
 static struct v4l2_file_operations msm_actuator_v4l2_subdev_fops;
 static int32_t msm_actuator_power_up(struct msm_actuator_ctrl_t *a_ctrl);
@@ -92,11 +114,58 @@ static void msm_actuator_parse_i2c_params(struct msm_actuator_ctrl_t *a_ctrl,
 				write_arr[i].hw_shift);
 
 			if (write_arr[i].reg_addr != 0xFFFF) {
-				i2c_byte1 = write_arr[i].reg_addr;
-				i2c_byte2 = value;
-				if (size != (i+1)) {
-					i2c_byte2 = value & 0xFF;
-					CDBG("byte1:0x%x, byte2:0x%x\n",
+/*+add ljk z2 rohm_bu64243 driveric*/
+		        if(!strcmp(a_ctrl->pdev->name,"1c.qcom,actuator")) //add for z2 rohm_bu64243
+                {
+			        i2c_byte1 = write_arr[i].reg_addr;
+				    i2c_byte2 = value;
+				    if (size != (i+1)) {
+                        if(i==0)
+                        {
+                            i2c_byte2 = 0x90;
+        					i2c_tbl[a_ctrl->i2c_tbl_index].
+        						reg_addr = i2c_byte1;
+        					i2c_tbl[a_ctrl->i2c_tbl_index].
+        						reg_data = i2c_byte2;
+        					i2c_tbl[a_ctrl->i2c_tbl_index].
+        						delay = 0;
+                            CDBG("1t-- i2c_tbl_index=%d reg_addr:0x%x, reg_data:0x%x\n",a_ctrl->i2c_tbl_index,
+        						    i2c_tbl[a_ctrl->i2c_tbl_index].reg_addr, i2c_tbl[a_ctrl->i2c_tbl_index].reg_data);
+
+
+        					a_ctrl->i2c_tbl_index++;
+        					i++;
+        					i2c_byte1 = write_arr[i].reg_addr;
+        					i2c_byte2 = 0x00;
+                        }
+
+                        else
+                        {
+        					i2c_byte2 = (value & 0xFF00) >> 8;
+        					i2c_tbl[a_ctrl->i2c_tbl_index].
+        						reg_addr = i2c_byte1;
+        					i2c_tbl[a_ctrl->i2c_tbl_index].
+        						reg_data = i2c_byte2;
+        					i2c_tbl[a_ctrl->i2c_tbl_index].
+        						delay = 0;
+                            CDBG("el-- i2c_tbl_index=%d reg_addr:0x%x, reg_data:0x%x\n",a_ctrl->i2c_tbl_index,
+        						    i2c_tbl[a_ctrl->i2c_tbl_index].reg_addr, i2c_tbl[a_ctrl->i2c_tbl_index].reg_data);
+
+        					a_ctrl->i2c_tbl_index++;
+        					i++;
+        					i2c_byte1 = write_arr[i].reg_addr;
+        					i2c_byte2 = (value&0xFF);
+    					}
+    			    }
+			    }
+                else
+/*+end*/
+                {
+    				i2c_byte1 = write_arr[i].reg_addr;
+    				i2c_byte2 = value;
+    				if (size != (i+1)) {
+    					i2c_byte2 = value & 0xFF;
+    					CDBG("----  size=%d i2c_tbl_index=%d byte1:0x%x, byte2:0x%x\n",size,a_ctrl->i2c_tbl_index,
 						i2c_byte1, i2c_byte2);
 					i2c_tbl[a_ctrl->i2c_tbl_index].
 						reg_addr = i2c_byte1;
@@ -109,6 +178,7 @@ static void msm_actuator_parse_i2c_params(struct msm_actuator_ctrl_t *a_ctrl,
 					i2c_byte1 = write_arr[i].reg_addr;
 					i2c_byte2 = (value & 0xFF00) >> 8;
 				}
+                }
 			} else {
 				i2c_byte1 = (value & 0xFF00) >> 8;
 				i2c_byte2 = value & 0xFF;
@@ -514,6 +584,51 @@ static int32_t msm_actuator_vreg_control(struct msm_actuator_ctrl_t *a_ctrl,
 	return rc;
 }
 
+/* add by chensheng1, for dw9718 vcm power down mode */
+static int32_t msm_actuator_standby(struct msm_actuator_ctrl_t *a_ctrl)
+{
+	int32_t rc = 0;
+	CDBG("Enter\n");
+
+#ifdef CONFIG_MACH_SISLEYR
+	//zhangjiano for sisley and lite
+	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+		&a_ctrl->i2c_client,
+		0x02,
+		200>>8,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+		&a_ctrl->i2c_client,
+		0x03,
+		200&0xFF,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	msleep(10);
+	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+		&a_ctrl->i2c_client,
+		0x02,
+		100>>8,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+		&a_ctrl->i2c_client,
+		0x03,
+		100&0xFF,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	msleep(10);
+	rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+		&a_ctrl->i2c_client,
+		0x00,
+		0x01,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	if (rc < 0)
+		pr_err("%s set power down mode failed %d\n", __func__, __LINE__);
+	else
+		pr_err("%s set power down mode success...\n", __func__);
+#endif
+
+	CDBG("Exit\n");
+	return rc;
+}
+
 static int32_t msm_actuator_power_down(struct msm_actuator_ctrl_t *a_ctrl)
 {
 	int32_t rc = 0;
@@ -716,6 +831,136 @@ static int32_t msm_actuator_set_param(struct msm_actuator_ctrl_t *a_ctrl,
 	return rc;
 }
 
+#if 0
+int ois_thread(void *data)
+{
+    int rc = 0;
+	CDBG("%s enter ois create thread\n", __func__);
+    rc = func_PROGRAM_DOWNLOAD( );
+	if (rc < 0)
+		pr_err("func_PROGRAM_DOWNLOAD failed\n");
+
+    func_COEF_DOWNLOAD( 0 );
+
+    VCOSET();
+    I2C_OIS_spcl_cmnd( 1, _cmd_8C_EI );
+
+		//WR_I2C( _SLV_OIS_, 2, out );
+	CDBG("%s over ois create thread\n", __func__);
+
+    return 0;
+}
+#endif
+
+#if 1
+static int32_t msm_actuator_init_lc_tune_data(struct msm_actuator_ctrl_t *a_ctrl)
+{
+    /* OIS initial */
+
+	int rc = 0;
+//	OIS_UWORD u16_dat;
+
+#if 0
+
+	   ois_task = kthread_create(ois_thread, NULL, "ois");
+	if (IS_ERR(ois_task)) {
+    	CDBG("%s kthread_create ois_task error\n", __func__);
+    	ois_task = NULL;
+	}
+    wake_up_process(ois_task);
+
+	CDBG("%s Exit ois create thread\n", __func__);
+
+	return 0;
+
+	CDBG("%s enter ois create thread\n", __func__);
+#else
+    #if 1
+        VCOSET0();
+        rc = func_PROGRAM_DOWNLOAD( );
+    	if (rc < 0)
+    		pr_err("func_PROGRAM_DOWNLOAD failed\n");
+        func_COEF_DOWNLOAD( 0 );
+        VCOSET1();
+        I2C_OIS_spcl_cmnd( 1, _cmd_8C_EI );
+        rc = SET_FADJ_PARAM(&fadj);
+        if(rc == 0)
+        {
+            OIS_STATUS = 1;
+    		pr_err("OIS_STATUS = %d\n",OIS_STATUS);
+        }
+
+#if 0
+        u16_dat=I2C_OIS_mem__read(_M_X_H_ofs);             //=0x02b3
+    		pr_err("_M_X_H_ofs=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_Y_H_ofs);             //= 0x02af
+    		pr_err("_M_Y_H_ofs=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_Kgx00);                 //= 0x0166
+    		pr_err("_M_Y_H_ofs=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_Kgy00);                 //= 0x0046
+    		pr_err("_M_Kgy00=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_KgxHG);                //= 0xd6b6
+    		pr_err("_M_KgxHG=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_KgyHG);                //= 0xd458
+    		pr_err("_M_KgyHG=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_KgxG);                  //= 0xd6b6
+    		pr_err("_M_KgxG=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_KgyG);                  //= 0xd458
+    		pr_err("_M_KgyG=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_TMP_X_);             //=0x0000
+    		pr_err("_M_TMP_X_=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_TMP_Y_);             //=0x0000
+    		pr_err("_M_TMP_Y_=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_KgxH0);                //= 0x0041
+    		pr_err("_M_KgxH0=0x%x\n",u16_dat);
+        u16_dat=I2C_OIS_mem__read(_M_KgyH0);                //= 0x0047
+    		pr_err("_M_KgyH0=0x%x\n",u16_dat);
+#endif
+
+
+
+
+    #else
+
+    #endif
+#endif
+	return rc;
+
+}
+#endif
+/* ljk add for factory mode*/
+ssize_t proc_ois_write (struct file *file, const char __user *buf, size_t nbytes, loff_t *ppos)
+{
+    char string[nbytes];
+    static int flag = 0;
+    sscanf(buf, "%s", string);
+    if (!strcmp((const char *)string, (const char *)"on"))
+    {
+            if(flag == 1)
+            {
+        	    pr_err("ois on called +\n");
+                func_SET_SCENE_PARAM( _SCENE_SPORT_3, 1, 0, 1, &fadj ); // Change SCENE parameter OIS-ON
+        	    CDBG("ois on called -\n");
+                flag = 0;
+    	    }
+    }
+    else if (!strcmp((const char *)string, (const char *)"off"))
+    {
+            if(flag == 0)
+            {
+        	    pr_err("ois off called + \n");
+                func_SET_SCENE_PARAM( _SCENE_SPORT_3, 0, 0, 1, &fadj ); // Change SCENE parameter OIS-ON
+        	    CDBG("ois off called -\n");
+                flag = 1;
+    	    }
+    }
+    return nbytes;
+}
+const struct file_operations proc_ois_operations = {
+	.owner	= THIS_MODULE,
+	.write	= proc_ois_write,
+};
+/*+end*/
 static int msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl)
 {
 	int rc = 0;
@@ -729,6 +974,10 @@ static int msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl)
 			&a_ctrl->i2c_client, MSM_CCI_INIT);
 		if (rc < 0)
 			pr_err("cci_init failed\n");
+
+		/*lenovo-sw chenglong1 add for af standby*/
+		pr_err("msm_actuator_init: cci_init success\n");
+		/*lenovo-sw add end*/
 	}
 	CDBG("Exit\n");
 	return rc;
@@ -758,6 +1007,18 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		rc = msm_actuator_set_param(a_ctrl, &cdata->cfg.set_info);
 		if (rc < 0)
 			pr_err("init table failed %d\n", rc);
+/*+add ljk ois*/
+#if 1
+	if((!strcmp(a_ctrl->pdev->name,"1c.qcom,actuator"))&&(need_init_lc==1))
+	{
+	    actuator_ctrl = a_ctrl;
+    	pr_err("%s: actuator_ctrl=%p\n", __func__,actuator_ctrl);
+
+		msm_actuator_init_lc_tune_data(a_ctrl);
+		need_init_lc=0;
+	}
+#endif
+/*+end*/
 		break;
 
 	case CFG_SET_DEFAULT_FOCUS:
@@ -792,6 +1053,33 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 			pr_err("Failed actuator power up%d\n", rc);
 		break;
 
+	/* add by chensheng1, for dw9718 vcm power down mode */
+	case CFG_ACTUATOR_STANDBY:
+		rc = msm_actuator_standby(a_ctrl);
+		if (rc < 0)
+			pr_err("msm_actuator_standby failed %d\n", rc);
+		else
+			pr_err("msm_actuator_standby sucess...\n");
+		break;
+/* +begin xujt1 add command to enable/disable OIS*/
+    case CFG_SET_OIS_ENABLE:
+        pr_err("%s CFG_SET_OIS_ENABLE  OIS_STATUS = %d\n",__func__, OIS_STATUS);
+
+        if (OIS_STATUS == 1)//ois init success
+        {
+             pr_err("%s set ois_enable = %d\n",__func__, cdata->cfg.ois_enable);
+             if(cdata->cfg.ois_enable != 0x0)
+             {
+                func_SET_SCENE_PARAM( _SCENE_SPORT_3, 1, 0, 1, &fadj ); // Change SCENE parameter OIS-ON
+             }
+        	 else
+    		 {
+                func_SET_SCENE_PARAM( _SCENE_SPORT_3, 0, 0, 1, &fadj ); // Change SCENE parameter OIS-Off
+    		 }
+        }
+	   	break;
+/* +end	xujt1 add command to enable/disable OIS*/
+
 	default:
 		break;
 	}
@@ -824,6 +1112,9 @@ static struct msm_camera_i2c_fn_t msm_sensor_cci_func_tbl = {
 	.i2c_read_seq = msm_camera_cci_i2c_read_seq,
 	.i2c_write = msm_camera_cci_i2c_write,
 	.i2c_write_table = msm_camera_cci_i2c_write_table,
+/*add ljk for i2c */
+	.i2c_write_seq = msm_camera_cci_i2c_write_seq,
+/*end*/
 	.i2c_write_seq_table = msm_camera_cci_i2c_write_seq_table,
 	.i2c_write_table_w_microdelay =
 		msm_camera_cci_i2c_write_table_w_microdelay,
@@ -851,14 +1142,21 @@ static int msm_actuator_close(struct v4l2_subdev *sd,
 		pr_err("failed\n");
 		return -EINVAL;
 	}
+
+	
 	if (a_ctrl->act_device_type == MSM_CAMERA_PLATFORM_DEVICE) {
 		rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_util(
 			&a_ctrl->i2c_client, MSM_CCI_RELEASE);
 		if (rc < 0)
 			pr_err("cci_init failed\n");
+
 	}
 	kfree(a_ctrl->i2c_reg_tbl);
 	a_ctrl->i2c_reg_tbl = NULL;
+/*add ljk for i2c */
+    need_init_lc=1; //for msm_actuator_init_lc_tune_data called when camera open every time
+    OIS_STATUS = 0;
+/*+end*/
 
 	CDBG("Exit\n");
 	return rc;
@@ -1178,6 +1476,14 @@ static int32_t msm_actuator_platform_probe(struct platform_device *pdev)
 	struct msm_camera_cci_client *cci_client = NULL;
 	struct msm_actuator_ctrl_t *msm_actuator_t = NULL;
 	struct msm_actuator_vreg *vreg_cfg;
+	/*+ljk add for factory mode*/
+    struct proc_dir_entry * rcdir;
+	rcdir = proc_create_data("CTP_OIS_CTRL", S_IFREG | S_IWUGO | S_IWUSR, NULL, &proc_ois_operations, NULL);
+    if(rcdir==NULL)
+    {
+    	CDBG("proc_create_data fail\n");
+    }
+	/*+end*/
 	CDBG("Enter\n");
 
 	if (!pdev->dev.of_node) {
@@ -1242,6 +1548,36 @@ static int32_t msm_actuator_platform_probe(struct platform_device *pdev)
 	cci_client = msm_actuator_t->i2c_client.cci_client;
 	cci_client->cci_subdev = msm_cci_get_subdev();
 	cci_client->cci_i2c_master = MASTER_MAX;
+
+	/*lenovo-sw chenglong1 add for af standby*/
+	{
+		uint32_t cci_client_id = 0;
+
+		rc = of_property_read_u32((&pdev->dev)->of_node, "reg", &cci_client_id);
+		CDBG("actuaotr i2c addr: 0x%x, rc %d\n", cci_client_id, rc);
+		if (rc < 0) {
+          		//kfree(msm_actuator_t);
+          		pr_err("failed rc %d\n", rc);
+          		//return rc;
+		} else {
+          		cci_client->sid = cci_client_id >> 1;
+		}
+		cci_client->retries = 3;
+		cci_client->id_map = 0;
+		cci_client->cci_i2c_master = msm_actuator_t->cci_master;
+		msm_actuator_t->i2c_client.addr_type = MSM_CAMERA_I2C_BYTE_ADDR;
+
+		if ((msm_actuator_t->act_device_type == MSM_CAMERA_PLATFORM_DEVICE) ) {
+          		pr_err("[AF Debug] cci init for actuator...\n");
+          		msm_actuator_power_up(msm_actuator_t);
+          		if (!msm_actuator_init(msm_actuator_t)) {
+          			pr_err("[AF Debug] sent actuator to sleep\n");
+          			msm_actuator_standby(msm_actuator_t);
+          		}
+          		msm_actuator_power_down(msm_actuator_t);
+		}
+	}
+	/*lenovo-sw add end*/
 	v4l2_subdev_init(&msm_actuator_t->msm_sd.sd,
 		msm_actuator_t->act_v4l2_subdev_ops);
 	v4l2_set_subdevdata(&msm_actuator_t->msm_sd.sd, msm_actuator_t);

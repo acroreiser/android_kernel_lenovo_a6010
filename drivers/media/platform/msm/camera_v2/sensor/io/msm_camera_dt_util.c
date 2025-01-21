@@ -114,7 +114,18 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 				}
 			}
 			break;
-
+		/*+Begin: ljk for ois power.*/
+		case CAM_VOIS:
+			for (j = 0; j < num_vreg; j++) {
+				if (!strcmp(cam_vreg[j].reg_name, "cam_vois")) {
+					pr_err("%s:%d i %d j %d cam_vois\n",
+						__func__, __LINE__, i, j);
+					power_setting[i].seq_val = j;
+					break;
+				}
+			}
+			break;
+       		 /*+End.*/
 		default:
 			pr_err("%s:%d invalid seq_val %d\n", __func__,
 				__LINE__, power_setting[i].seq_val);
@@ -863,6 +874,11 @@ int msm_camera_init_gpio_pin_tbl(struct device_node *of_node,
 		gconf->gpio_num_info->valid[SENSOR_GPIO_VDIG] = 1;
 		CDBG("%s qcom,gpio-vdig %d\n", __func__,
 			gconf->gpio_num_info->gpio_num[SENSOR_GPIO_VDIG]);
+		/*lenovo-sw chenglong1 add for turn off vdd during powerup procedure*/
+		gpio_request(gconf->gpio_num_info->gpio_num[SENSOR_GPIO_VDIG], "camdvdd_ctrl");
+		gpio_set_value(gconf->gpio_num_info->gpio_num[SENSOR_GPIO_VDIG], 0);
+		gpio_free(gconf->gpio_num_info->gpio_num[SENSOR_GPIO_VDIG]);
+		/*lenovo-sw add end*/
 	} else {
 		rc = 0;
 	}

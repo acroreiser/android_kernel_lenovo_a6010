@@ -19,7 +19,45 @@
 #include "msm_eeprom.h"
 
 #undef CDBG
+//#define MSM_EEPROM_DEBUG
+#ifdef MSM_EEPROM_DEBUG
+#define CDBG(fmt, args...) pr_err(fmt, ##args)
+#else
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
+#endif
+/* + add ljk for otp checksum*/
+#define THREEA_BEGIN_OFFSET 0
+#define THREEA_END_OFFSET 2045    //ljk change for imx214 //2029
+#define THREEA_CHKSUM_HI_OFFSET 2046
+#define THREEA_CHKSUM_LOW_OFFSET 2047
+
+#define OIS_BEGIN_OFFSET 2048
+#define OIS_END_OFFSET 2086
+#define OIS_CHKSUM_HI_OFFSET 2087
+#define OIS_CHKSUM_LOW_OFFSET 2088
+uint8_t is_3a_checksumed = 0;
+uint8_t is_ois_checksumed = 0;
+//add for front camera
+#define FRONT_THREEA_BEGIN_OFFSET 0
+#define FRONT_THREEA_END_OFFSET 1021
+#define FRONT_THREEA_CHKSUM_HI_OFFSET 1022
+#define FRONT_THREEA_CHKSUM_LOW_OFFSET 1023
+uint8_t FRONT_is_3a_checksumed = 0;
+uint8_t FRONT_is_ois_checksumed = 0;
+extern int	E2pDat_Lenovo( uint8_t * memory_data);
+struct msm_eeprom_ctrl_t *eeprom_rear_data_ctrl = NULL;
+struct msm_eeprom_ctrl_t *eeprom_front_data_ctrl = NULL;
+/*+ end*/
+
+/*lenovo-sw add for eeprom read only once*/
+#define E2PROM_SUNNY_P13V01N "sunny_p13v01n"
+#define E2PROM_JUCHEN "juchen"
+#define E2PROM_ONSEMI "onsemi"
+
+#define IS_E2PROM_SUNNY_P13V01N(x) if (!strcmp(x, E2PROM_SUNNY_P13V01N))
+#define IS_E2PROM_JUCHEN(x) if (!strcmp(x, E2PROM_JUCHEN))
+#define IS_E2PROM_ONSEMI(x) if (!strcmp(x, E2PROM_ONSEMI))
+/*lenovo-sw add end*/
 
 DEFINE_MSM_MUTEX(msm_eeprom_mutex);
 #ifdef CONFIG_COMPAT
@@ -127,8 +165,49 @@ static int eeprom_config_read_cal_data(struct msm_eeprom_ctrl_t *e_ctrl,
 		e_ctrl->cal_data.mapdata,
 		cdata->cfg.read_data.num_bytes);
 
+/*+Begin xujt1 remove free code 2014-05-14*/
+/*remove bellow code,or we can't get eeprom data when restarting camera
+after killing 'mm-qcamera-daemon', and result in rear camera open fail */
+#if 0
+	/* should only be called once.  free kernel resource */
+	if (!rc) {
+		kfree(e_ctrl->cal_data.mapdata);
+		kfree(e_ctrl->cal_data.map);
+		memset(&e_ctrl->cal_data, 0, sizeof(e_ctrl->cal_data));
+	}
+#endif
+/*+End  xujt1 remove free code 2014-05-14*/
 	return rc;
 }
+
+/*lenovo-sw chenglong1 add for obtaining module id*/
+struct msm_eeprom_ctrl_t *g_eeprom_p13v01n_ctrl = NULL;
+
+int msm_eeprom_get_module_id(const char *eeprom_name)
+{
+    if (!eeprom_name) {
+        pr_err("%s error: eeprom_is null\n", __func__);
+        return -1;
+    }
+    
+    IS_E2PROM_SUNNY_P13V01N(eeprom_name)  {
+        if (is_3a_checksumed) {
+            printk("%s: sunny_p13v01n  module id: %d", __func__, g_eeprom_p13v01n_ctrl->cal_data.mapdata[1]);
+            return g_eeprom_p13v01n_ctrl->cal_data.mapdata[1];
+        }
+    }
+    
+    /*IS_E2PROM_JUCHEN(g_eeprom_p13v01n_ctrl->eboard_info->eeprom_name)  {
+    }
+    
+    IS_E2PROM_ONSEMI(g_eeprom_p13v01n_ctrl->eboard_info->eeprom_name)  {
+    
+    }*/
+    
+    return -2;
+}
+EXPORT_SYMBOL(msm_eeprom_get_module_id);
+/*lenovo-sw add end*/
 
 static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
 	void __user *argp)
@@ -150,6 +229,28 @@ static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
 		CDBG("%s E CFG_EEPROM_GET_CAL_DATA\n", __func__);
 		cdata->cfg.get_data.num_bytes =
 			e_ctrl->cal_data.num_data;
+		CDBG("%s E CFG_EEPROM_GET_CAL_DATA num_bytes=%d\n", __func__,cdata->cfg.get_data.num_bytes);
+	    /*lenovo-sw add for eeprom read only once*/
+	    IS_E2PROM_JUCHEN(e_ctrl->eboard_info->eeprom_name)
+	    {
+		    cdata->cfg.get_data.is_3a_checksumed =
+			FRONT_is_3a_checksumed;
+			CDBG("%s E CFG_EEPROM_GET_CAL_DATA FRONT_is_3a_checksumed=%d\n", __func__,cdata->cfg.get_data.is_3a_checksumed);
+		}
+
+	   	IS_E2PROM_ONSEMI(e_ctrl->eboard_info->eeprom_name)
+	    {
+		    cdata->cfg.get_data.is_3a_checksumed =
+			is_3a_checksumed;
+			CDBG("%s E CFG_EEPROM_GET_CAL_DATA is_3a_checksumed=%d\n", __func__,cdata->cfg.get_data.is_3a_checksumed);
+        }
+
+		IS_E2PROM_SUNNY_P13V01N(e_ctrl->eboard_info->eeprom_name) {
+			cdata->cfg.get_data.is_3a_checksumed =
+			is_3a_checksumed;
+			CDBG("%s E CFG_EEPROM_GET_CAL_DATA is_3a_checksumed=%d\n", __func__,cdata->cfg.get_data.is_3a_checksumed);
+		}
+		/*lenovo-sw add end*/
 		break;
 	case CFG_EEPROM_READ_CAL_DATA:
 		CDBG("%s E CFG_EEPROM_READ_CAL_DATA\n", __func__);
@@ -1013,12 +1114,76 @@ static long msm_eeprom_subdev_fops_ioctl32(struct file *file, unsigned int cmd,
 
 #endif
 
+/*lenovo-sw add for eeprom read only once*/
+static int sunny_p13v01n_eeprom_read(struct msm_eeprom_ctrl_t *e_ctrl)
+{
+	#define SUNNY_P13V01N_THREEA_BEGIN_OFFSET	1
+	#define SUNNY_P13V01N_THREEA_END_OFFSET		413
+	#define SUNNY_P13V01N_THREEA_CHKSUM_OFFSET	414
+	int rc = 0;
+	int j = 0;
+	int32_t loop = 0;
+	int32_t data_index;
+	int32_t data_3a_sum;
+	
+    do{
+        data_3a_sum = 0;
+	    rc = read_eeprom_memory(e_ctrl, &e_ctrl->cal_data);
+	    if (rc < 0) {
+    		pr_err("%s read_eeprom_memory failed loop=%d\n", __func__,loop);
+    	}
+    	else if((rc < 0)&&(loop>4))
+    	{
+    		pr_err("%s read_eeprom_memory failed loop=%d\n", __func__,loop);
+    		break;
+	    }
+    	else
+    	{
+        	for(data_index=SUNNY_P13V01N_THREEA_BEGIN_OFFSET; data_index < SUNNY_P13V01N_THREEA_END_OFFSET+1; data_index++)
+        	{
+                data_3a_sum = data_3a_sum+e_ctrl->cal_data.mapdata[data_index];
+    		    //CDBG("%s data_3a_sum=0x%x .mapdata[%d]=0x%x\n", __func__,data_3a_sum,data_index,e_ctrl->cal_data.mapdata[data_index]);
+        	}
+			data_3a_sum = (data_3a_sum&0xff) + 1;
+    	    pr_err("%s: data_3aa_sum = 0x%x  checksum=0x%x\n",__func__,data_3a_sum,(*(e_ctrl->cal_data.mapdata+SUNNY_P13V01N_THREEA_CHKSUM_OFFSET)));
+			is_3a_checksumed = 1; //force valid for module checksum method not ready
+            /*if((data_3a_sum&0xff)==(*(e_ctrl->cal_data.mapdata+SUNNY_P13V01N_THREEA_CHKSUM_OFFSET)))
+			{
+			    pr_err("%s: data_3a_sum data success!  loop = %d\n",__func__,loop);
+			    is_3a_checksumed = 1;
+			}
+			else //checksum==0
+			{
+			    pr_err("%s: data_3a_sum data fail!  loop=%d\n",__func__,loop);
+			    is_3a_checksumed = 0;
+			}*/
+        }
+        loop++;
+    }while((loop < 4)&&(is_3a_checksumed == 0));
+
+	for (j = 0; j < e_ctrl->cal_data.num_data; j+=5)
+		CDBG("memory_data[%d]: 0x%02x,0x%02x,0x%02x,0x%02x,0x%02x\n", j,
+			e_ctrl->cal_data.mapdata[j], e_ctrl->cal_data.mapdata[j+1],
+			e_ctrl->cal_data.mapdata[j+2], e_ctrl->cal_data.mapdata[j+3],
+			e_ctrl->cal_data.mapdata[j+4]);
+    //eeprom_front_data_ctrl = e_ctrl;
+
+	return 0;	
+}
+/*lenovo-sw add end*/
+
 static int msm_eeprom_platform_probe(struct platform_device *pdev)
 {
 	int rc = 0;
-	int j = 0;
+	//int j = 0;
 	uint32_t temp;
-
+/* add ljk for checksum otp*/
+	int32_t loop = 0;
+	int32_t data_index;
+	int32_t data_3a_sum;
+	int32_t data_3a_sum_front;
+	int32_t data_ois_sum;
+/* + end*/
 	struct msm_camera_cci_client *cci_client = NULL;
 	struct msm_eeprom_ctrl_t *e_ctrl = NULL;
 	struct msm_eeprom_board_info *eb_info = NULL;
@@ -1135,16 +1300,124 @@ static int msm_eeprom_platform_probe(struct platform_device *pdev)
 		pr_err("failed rc %d\n", rc);
 		goto memdata_free;
 	}
-	rc = read_eeprom_memory(e_ctrl, &e_ctrl->cal_data);
-	if (rc < 0) {
-		pr_err("%s read_eeprom_memory failed\n", __func__);
+
+	/*lenovo-sw add for eeprom read only once*/
+	IS_E2PROM_SUNNY_P13V01N(eb_info->eeprom_name){
+		sunny_p13v01n_eeprom_read(e_ctrl);
+		/*lenovo-sw chenglong1 add for obtaining module id*/
+		g_eeprom_p13v01n_ctrl = e_ctrl;
+		/*lenovo-sw add end*/
+	}
+	
+	/* add ljk for checksum otp*/
+	IS_E2PROM_JUCHEN(eb_info->eeprom_name)
+	{
+        do{
+            data_3a_sum_front = 0;
+    	    rc = read_eeprom_memory(e_ctrl, &e_ctrl->cal_data);
+    	    if (rc < 0) {
+        		pr_err("%s read_eeprom_memory failed loop=%d\n", __func__,loop);
+        	}
+        	else if((rc < 0)&&(loop>4))
+        	{
+        		pr_err("%s read_eeprom_memory failed loop=%d\n", __func__,loop);
+    		goto power_down;
+    	    }
+        	else
+        	{
+            	for(data_index=FRONT_THREEA_BEGIN_OFFSET; data_index <= FRONT_THREEA_END_OFFSET; data_index++)
+            	{
+                    data_3a_sum_front = data_3a_sum_front+e_ctrl->cal_data.mapdata[data_index];
+        		    //CDBG("%s data_3a_sum_front=0x%x .mapdata[%d]=0x%x\n", __func__,data_3a_sum_front,data_index,e_ctrl->cal_data.mapdata[data_index]);
+
+            	}
+            	    pr_err("%s: data_3a_sum_front = 0x%x  temp_data=0x%x 0x%x\n",__func__,data_3a_sum_front,(*(e_ctrl->cal_data.mapdata+FRONT_THREEA_CHKSUM_HI_OFFSET)),(*(e_ctrl->cal_data.mapdata+FRONT_THREEA_CHKSUM_LOW_OFFSET)));
+                    if((data_3a_sum_front&0xffff)==(((*(e_ctrl->cal_data.mapdata+FRONT_THREEA_CHKSUM_HI_OFFSET))<<8)|(*(e_ctrl->cal_data.mapdata+FRONT_THREEA_CHKSUM_LOW_OFFSET))))
+                    {
+                        pr_err("%s: data_3a_sum_front data success!  loop = %d\n",__func__,loop);
+                        FRONT_is_3a_checksumed = 1;
+                    }
+                    else //checksum==0
+                    {
+                        pr_err("%s: data_3a_sum_front data fail!  loop=%d\n",__func__,loop);
+                        FRONT_is_3a_checksumed = 0;
+                    }
+            }
+            loop++;
+        }while((loop < 3)&&(FRONT_is_3a_checksumed == 0));
+/*
+    	for (j = 0; j < e_ctrl->cal_data.num_data; j++)
+    		CDBG("front_memory_data[%d] = 0x%X\n", j,
+    			e_ctrl->cal_data.mapdata[j]);*/
+        eeprom_front_data_ctrl = e_ctrl;
+	}
+
+	//rear camera eeprom onsemi
+	IS_E2PROM_ONSEMI(eb_info->eeprom_name)
+	{
+        do{
+            data_3a_sum = 0;
+            data_ois_sum= 0;
+    	rc = read_eeprom_memory(e_ctrl, &e_ctrl->cal_data);
+    	if (rc < 0) {
+        		pr_err("%s read_eeprom_memory failed loop=%d\n", __func__,loop);
+        	}
+        	else if((rc < 0)&&(loop>4))
+        	{
+        		pr_err("%s read_eeprom_memory failed loop=%d\n", __func__,loop);
+    		goto power_down;
+    	}
+        	else
+        	{
+            	for(data_index=THREEA_BEGIN_OFFSET; data_index <= THREEA_END_OFFSET; data_index++)
+            	{
+                    data_3a_sum = data_3a_sum+e_ctrl->cal_data.mapdata[data_index];
+            	}
+            	    pr_err("%s: data_3a_sum = 0x%x  temp_data=0x%x 0x%x\n",__func__,data_3a_sum,(*(e_ctrl->cal_data.mapdata+THREEA_CHKSUM_HI_OFFSET)),(*(e_ctrl->cal_data.mapdata+THREEA_CHKSUM_LOW_OFFSET)));
+                    if((data_3a_sum&0xffff)==(((*(e_ctrl->cal_data.mapdata+THREEA_CHKSUM_HI_OFFSET))<<8)|(*(e_ctrl->cal_data.mapdata+THREEA_CHKSUM_LOW_OFFSET))))
+                    {
+                        pr_err("%s: data_3a_sum data success!  loop = %d\n",__func__,loop);
+                        is_3a_checksumed = 1;
+                    }
+                    else //checksum==0
+                    {
+                        pr_err("%s: data_3a_sum data fail!  loop=%d\n",__func__,loop);
+                        is_3a_checksumed = 0;
+                    }
+            	for(data_index=OIS_BEGIN_OFFSET; data_index <= OIS_END_OFFSET; data_index++)
+            	{
+                    data_ois_sum = data_ois_sum+e_ctrl->cal_data.mapdata[data_index];
+            	}
+            	    pr_err("%s: data_ois_sum = 0x%x  temp_data=0x%x 0x%x\n",__func__,data_ois_sum,(*(e_ctrl->cal_data.mapdata+OIS_CHKSUM_HI_OFFSET)),(*(e_ctrl->cal_data.mapdata+OIS_CHKSUM_LOW_OFFSET)));
+                    if((data_ois_sum&0xffff)==(((*(e_ctrl->cal_data.mapdata+OIS_CHKSUM_HI_OFFSET))<<8)|(*(e_ctrl->cal_data.mapdata+OIS_CHKSUM_LOW_OFFSET))))
+                    {
+                        pr_err("%s: data_ois_sum data success!  loop = %d\n",__func__,loop);
+                        is_ois_checksumed = 1;
+                    }
+                    else //checksum==0
+                    {
+                        pr_err("%s: data_ois_sum data fail!  loop=%d\n",__func__,loop);
+                        is_ois_checksumed = 0;
+                    }
+            }
+            loop++;
+        }while((loop < 3)&&((is_3a_checksumed == 0) ||  (is_ois_checksumed == 0)));
+
+	/*	for (j = 0; j < e_ctrl->cal_data.num_data; j++)
+			CDBG("memory_data[%d] = 0x%X\n", j,
+				e_ctrl->cal_data.mapdata[j]);
+*/
+        CDBG("%s line %d\n", __func__, __LINE__);
+        eeprom_rear_data_ctrl = e_ctrl;
+    	E2pDat_Lenovo(eeprom_rear_data_ctrl->cal_data.mapdata);
+        pr_err("%s line %d memory_data=%p\n", __func__, __LINE__,eeprom_rear_data_ctrl->cal_data.mapdata);
+    }
+
+	if (loop >= 3) {
+		pr_err("%s loop=%d >= 3 read_eeprom_memory failed\n", __func__,loop);
 		goto power_down;
 	}
-	for (j = 0; j < e_ctrl->cal_data.num_data; j++)
-		CDBG("memory_data[%d] = 0x%X\n", j,
-			e_ctrl->cal_data.mapdata[j]);
-
-	e_ctrl->is_supported |= msm_eeprom_match_crc(&e_ctrl->cal_data);
+    e_ctrl->is_supported |= msm_eeprom_match_crc(&e_ctrl->cal_data);
 
 	rc = msm_camera_power_down(power_info, e_ctrl->eeprom_device_type,
 		&e_ctrl->i2c_client);

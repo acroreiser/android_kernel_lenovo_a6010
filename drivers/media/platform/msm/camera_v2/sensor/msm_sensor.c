@@ -466,7 +466,7 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	if (s_ctrl->set_mclk_23880000)
 		msm_sensor_adjust_mclk(power_info);
 
-	for (retry = 0; retry < 3; retry++) {
+	for (retry = 0; retry < 5; retry++) {
 		rc = msm_camera_power_up(power_info, s_ctrl->sensor_device_type,
 			sensor_i2c_client);
 		if (rc < 0)
@@ -485,6 +485,9 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	return rc;
 }
 
+/*lenovo-sw chenglong1 add for obtaining module id*/
+extern int msm_eeprom_get_module_id(const char *eeprom_name);
+/*end*/
 int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int rc = 0;
@@ -516,13 +519,40 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 		pr_err("%s: %s: read id failed\n", __func__, sensor_name);
 		return rc;
 	}
+	/* + ljk for imx179 match id*/
+	if(!strcmp(sensor_name, "imx179"))
+    	{
+        	chipid = chipid&0xFFF;
+    	}
+	/* + end*/
 
-	CDBG("%s: read id: 0x%x expected id 0x%x:\n", __func__, chipid,
+    	/*lenovo-sw chenglong1 add for sisley camera*/
+    	if (!strcmp(sensor_name, "imx179_sunny_p8n15e")) {
+		chipid = chipid&0xFFF;
+		slave_info->sensor_id &= 0x0fff;
+	}
+	/*lenovo-sw add end*/
+	pr_err("%s: read id: 0x%x expected id 0x%x:\n", __func__, chipid,
 		slave_info->sensor_id);
 	if (chipid != slave_info->sensor_id) {
 		pr_err("msm_sensor_match_id chip id doesnot match\n");
 		return -ENODEV;
 	}
+
+	/*lenovo-sw chenglong1 add for obtaining module id*/
+        pr_err("%s: need check mid: %d\n", __func__, (slave_info->need_check_mid));
+        if (slave_info->need_check_mid) {
+	    int mid = 0;
+	    if (s_ctrl->sensordata->eeprom_name) pr_err("need check mid: module eeprom_name: %s\n", s_ctrl->sensordata->eeprom_name);
+	    mid = msm_eeprom_get_module_id(s_ctrl->sensordata->eeprom_name);
+             pr_err("module id: %d, required mid: %d\n", mid, slave_info->module_id);
+	    if (mid != slave_info->module_id) {
+    		pr_err("msm_sensor_match_id chip id doesnot match\n");
+    		return -ENODEV;
+             }
+	}
+        /*lenovo-sw add end*/
+
 	return rc;
 }
 
@@ -761,14 +791,54 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			pr_err("%s:%d: i2c_read failed\n", __func__, __LINE__);
 			break;
 		}
-		if (copy_to_user(&read_config.data,
+		//wuyt3 modified for L branch as only could copy __user pointer
+		if (copy_to_user(&(((struct msm_camera_i2c_read_config *)compat_ptr(cdata->cfg.setting))->data),
 			(void *)&local_data, sizeof(uint16_t))) {
-			pr_err("%s:%d copy failed\n", __func__, __LINE__);
+			pr_err("[wuyt3]%s:%d copy failed!Error code rc = %d\n", __func__, __LINE__,rc);
+			rc = -EFAULT;
+			break;
+		}
+		//end
+		break;
+	}
+	/* wuyt3 added for campat L */
+	case CFG_READ_I2C_SEQ_ARRAY: {
+		struct msm_camera_i2c_read_seq_config conf_array;
+
+		if (s_ctrl->sensor_state != MSM_SENSOR_POWER_UP) {
+			pr_err("%s:%d failed: invalid state %d\n", __func__,
+				__LINE__, s_ctrl->sensor_state);
+			rc = -EFAULT;
+			break;
+		}
+
+		if (copy_from_user(&conf_array,
+			(void *)compat_ptr(cdata->cfg.setting),
+			sizeof(struct msm_camera_i2c_read_seq_config))) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			rc = -EFAULT;
+			break;
+		}
+
+		if (!conf_array.size) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->
+			i2c_read_seq(s_ctrl->sensor_i2c_client,
+			conf_array.reg_addr,
+			conf_array.lenc, conf_array.size);
+		if (copy_to_user(((struct msm_camera_i2c_read_seq_config *)compat_ptr(cdata->cfg.setting))->lenc,
+			conf_array.lenc, conf_array.size * sizeof(uint8_t))) {
+			pr_err("[wuyt3]%s:%d copy failed\n", __func__, __LINE__);
 			rc = -EFAULT;
 			break;
 		}
 		break;
 	}
+	/* End */
 	case CFG_WRITE_I2C_SEQ_ARRAY: {
 		struct msm_camera_i2c_seq_reg_setting32 conf_array32;
 		struct msm_camera_i2c_seq_reg_setting conf_array;
@@ -1162,6 +1232,44 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 		kfree(reg_setting);
 		break;
 	}
+	/* Begin add by chensheng1, improve otp performance */
+	case CFG_READ_I2C_SEQ_ARRAY: {
+		struct msm_camera_i2c_read_seq_config conf_array;
+
+		if (s_ctrl->sensor_state != MSM_SENSOR_POWER_UP) {
+			pr_err("%s:%d failed: invalid state %d\n", __func__,
+				__LINE__, s_ctrl->sensor_state);
+			rc = -EFAULT;
+			break;
+		}
+
+		if (copy_from_user(&conf_array,
+			(void *)cdata->cfg.setting,
+			sizeof(struct msm_camera_i2c_read_seq_config))) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			rc = -EFAULT;
+			break;
+		}
+
+		if (!conf_array.size) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			rc = -EFAULT;
+			break;
+		}
+
+		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->
+			i2c_read_seq(s_ctrl->sensor_i2c_client,
+			conf_array.reg_addr,
+			conf_array.lenc, conf_array.size);
+		if (copy_to_user(((struct msm_camera_i2c_read_seq_config *)cdata->cfg.setting)->lenc,
+			conf_array.lenc, conf_array.size * sizeof(uint8_t))) {
+			pr_err("%s:%d copy failed\n", __func__, __LINE__);
+			rc = -EFAULT;
+			break;
+		}
+		break;
+	}
+	/* End add by chensheng1, improve otp performance */
 	case CFG_WRITE_I2C_SEQ_ARRAY: {
 		struct msm_camera_i2c_seq_reg_setting conf_array;
 		struct msm_camera_i2c_seq_reg_array *reg_setting = NULL;
@@ -1560,6 +1668,7 @@ int msm_sensor_i2c_probe(struct i2c_client *client,
 		s_ctrl->sensor_v4l2_subdev_ops = &msm_sensor_subdev_ops;
 
 	if (!client->dev.of_node) {
+		pr_err("%s:%d cam_8960_clk_info\n", __func__, __LINE__);
 		s_ctrl->sensordata->power_info.clk_info =
 			kzalloc(sizeof(cam_8960_clk_info), GFP_KERNEL);
 		if (!s_ctrl->sensordata->power_info.clk_info) {
@@ -1571,6 +1680,7 @@ int msm_sensor_i2c_probe(struct i2c_client *client,
 		s_ctrl->sensordata->power_info.clk_info_size =
 			ARRAY_SIZE(cam_8960_clk_info);
 	} else {
+		pr_err("%s:%d cam_8610_clk_info\n", __func__, __LINE__);
 		s_ctrl->sensordata->power_info.clk_info =
 			kzalloc(sizeof(cam_8610_clk_info), GFP_KERNEL);
 		if (!s_ctrl->sensordata->power_info.clk_info) {

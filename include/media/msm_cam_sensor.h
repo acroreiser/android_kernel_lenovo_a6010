@@ -253,6 +253,10 @@ enum eeprom_cfg_type_t {
 
 struct eeprom_get_t {
 	uint32_t num_bytes;
+/*	+ add ljk for otp checksum*/
+    uint8_t is_3a_checksumed;
+    uint8_t is_ois_checksumed;
+/*  +end*/
 };
 
 struct eeprom_read_t {
@@ -381,6 +385,9 @@ enum msm_sensor_cfg_type_t {
 	CFG_SLAVE_READ_I2C,
 	CFG_WRITE_I2C_ARRAY,
 	CFG_SLAVE_WRITE_I2C_ARRAY,
+	/* Begin add by chensheng1, improve otp performance */
+	CFG_READ_I2C_SEQ_ARRAY,
+	/* End add by chensheng1, improve otp performance */
 	CFG_WRITE_I2C_SEQ_ARRAY,
 	CFG_POWER_UP,
 	CFG_POWER_DOWN,
@@ -414,6 +421,12 @@ enum msm_actuator_cfg_type_t {
 	CFG_ACTUATOR_POWERDOWN,
 	CFG_ACTUATOR_POWERUP,
 	CFG_ACTUATOR_INIT,
+/* add by chensheng1, for dw9718 vcm power down mode */
+	CFG_ACTUATOR_STANDBY,
+/* end chensheng1*/
+/* +begin xujt1 add command to enable/disable OIS*/
+    CFG_SET_OIS_ENABLE,
+/* +end	xujt1 add command to enable/disable OIS*/
 };
 
 enum msm_ois_cfg_type_t {
@@ -543,6 +556,9 @@ struct msm_actuator_cfg_data {
 		struct msm_actuator_get_info_t get_info;
 		struct msm_actuator_set_position_t setpos;
 		enum af_camera_name cam_name;
+/* +begin xujt1 add command to enable/disable OIS*/
+        uint8_t ois_enable;
+/* +end	xujt1 add command to enable/disable OIS*/
 	} cfg;
 };
 

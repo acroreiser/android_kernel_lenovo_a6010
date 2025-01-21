@@ -788,6 +788,12 @@ int32_t msm_sensor_driver_probe(void *setting,
 		slave_info->sensor_id_info.sensor_id_reg_addr;
 	camera_info->sensor_id = slave_info->sensor_id_info.sensor_id;
 
+	/*lenovo-sw chenglong1 add for obtaining module id*/
+	pr_err("%s: module_id need check: %d, id: %d", __func__, slave_info->sensor_id_info.need_check_mid, slave_info->sensor_id_info.module_id);
+	camera_info->need_check_mid = slave_info->sensor_id_info.need_check_mid;
+	camera_info->module_id = slave_info->sensor_id_info.module_id;
+	/*lenovo-sw add end*/
+
 	/* Fill CCI master, slave address and CCI default params */
 	if (!s_ctrl->sensor_i2c_client) {
 		pr_err("failed: sensor_i2c_client %p",
