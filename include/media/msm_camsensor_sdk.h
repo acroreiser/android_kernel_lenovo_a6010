@@ -29,7 +29,11 @@
 #define MAX_ACTUATOR_SCENARIO     8
 #define MAX_ACT_MOD_NAME_SIZE     32
 #define MAX_ACT_NAME_SIZE         32
+#ifndef CONFIG_MACH_SISLEYR
 #define MAX_ACTUATOR_INIT_SET     32
+#else
+#define MAX_ACTUATOR_INIT_SET     12
+#endif
 #define MAX_I2C_REG_SET           12
 
 #define MAX_NAME_SIZE             32
@@ -233,7 +237,9 @@ struct msm_camera_sensor_slave_info {
 	uint8_t  is_init_params_valid;
 	struct msm_sensor_init_params sensor_init_params;
 	uint8_t is_flash_supported;
+#ifndef CONFIG_MACH_SISLEYR
 	enum msm_sensor_output_format_t output_format;
+#endif
 };
 
 struct msm_camera_i2c_reg_array {
@@ -248,7 +254,9 @@ struct msm_camera_i2c_reg_setting {
 	enum msm_camera_i2c_reg_addr_type addr_type;
 	enum msm_camera_i2c_data_type data_type;
 	uint16_t delay;
+#ifndef CONFIG_MACH_SISLEYR
 	enum msm_camera_qup_i2c_write_batch_t qup_i2c_batch;
+#endif
 };
 
 struct msm_camera_csid_vc_cfg {
@@ -313,8 +321,10 @@ struct region_params_t {
 	*/
 	uint16_t step_bound[2];
 	uint16_t code_per_step;
+#ifndef CONFIG_MACH_SISLEYR
 	/* qvalue for converting float type numbers to integer format */
 	uint32_t qvalue;
+#endif
 };
 
 struct reg_settings_t {
