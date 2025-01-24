@@ -10,6 +10,7 @@
 #include <linux/version.h>
 #include <linux/types.h>
 #include <generated/utsrelease.h>
+#include <generated/timeconst.h>
 
 #ifdef RHEL_MAJOR
 #if RHEL_MAJOR == 7
