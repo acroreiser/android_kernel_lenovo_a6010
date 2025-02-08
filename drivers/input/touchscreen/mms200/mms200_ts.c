@@ -14,6 +14,7 @@
 #include <linux/i2c.h>
 #include <linux/i2c/mms114.h>
 #include <linux/input/mt.h>
+#include <linux/proc_fs.h>
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
@@ -531,6 +532,32 @@ static DEVICE_ATTR(test_fluency_delay, 0664,
 
 #endif
 
+static ssize_t mms_disable_keys_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct mms_ts_info *info = dev_get_drvdata(dev);
+	const char c = info->disable_keys ? '1' : '0';
+	return sprintf(buf, "%c\n", c);
+}
+
+static ssize_t mms_disable_keys_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct mms_ts_info *info = dev_get_drvdata(dev);
+	int i;
+
+	if (sscanf(buf, "%u", &i) == 1 && i < 2) {
+		info->disable_keys = (i == 1);
+		return count;
+	} else {
+		dev_dbg(dev, "disable_keys write error\n");
+		return -EINVAL;
+	}
+}
+
+static DEVICE_ATTR(disable_keys, S_IWUSR | S_IRUSR, mms_disable_keys_show,
+		   mms_disable_keys_store);
+
 static struct attribute *mms_attrs[] = {
 	&dev_attr_fw_update.attr,
 #ifdef LENOVO_CTP_GESTURE_WAKEUP
@@ -543,6 +570,7 @@ static struct attribute *mms_attrs[] = {
 	&dev_attr_test_fluency_delay.attr,
 	&dev_attr_test_fluency_intval.attr,
 #endif
+    &dev_attr_disable_keys.attr,
 	NULL,
 };
 
@@ -593,6 +621,10 @@ void mms_report_key_event(struct mms_ts_info *info,  u8 *buf)
 {
 	int key_code;
 	int key_state;
+
+	if (info->disable_keys)
+			return;
+
 	key_code = -1;
 	switch (buf[0] & 0xf) {
 	case 1:
@@ -1509,6 +1541,41 @@ static void configure_sleep(struct mms_ts_info *data)
 #endif
 #endif
 
+static int mms_keydisabler_init(struct mms_ts_info *info)
+{
+       struct i2c_client *client = info->client;
+
+       int ret = 0;
+       char *buf, *path = NULL;
+       char *key_disabler_sysfs_node;
+       struct proc_dir_entry *proc_entry_tp = NULL;
+       struct proc_dir_entry *proc_symlink_tmp = NULL;
+
+       buf = kzalloc(sizeof(struct mms_ts_info), GFP_KERNEL);
+       if (buf)
+               path = "/devices/soc.0/78b9000.i2c/i2c-5/5-0048";
+
+       proc_entry_tp = proc_mkdir("touchpanel", NULL);
+       if (proc_entry_tp == NULL) {
+               dev_err(&client->dev, "Couldn't create touchpanel dir in procfs\n");
+               ret = -ENOMEM;
+       }
+
+       key_disabler_sysfs_node = kzalloc(sizeof(struct mms_ts_info), GFP_KERNEL);
+       if (key_disabler_sysfs_node)
+               sprintf(key_disabler_sysfs_node, "/sys%s/%s", path, "disable_keys");
+       proc_symlink_tmp = proc_symlink("disable_keys",
+                       proc_entry_tp, key_disabler_sysfs_node);
+       if (proc_symlink_tmp == NULL) {
+               dev_err(&client->dev, "Couldn't create disable_keys symlink\n");
+               ret = -ENOMEM;
+       }
+
+       kfree(buf);
+       kfree(key_disabler_sysfs_node);
+       return ret;
+}
+
 static int mms_ts_probe(struct i2c_client *client,
 				  const struct i2c_device_id *id)
 {
@@ -1745,6 +1812,11 @@ static int mms_ts_probe(struct i2c_client *client,
 
 	if (sysfs_create_link(NULL, &client->dev.kobj, "mms_ts")) {
 		dev_err(&client->dev, "failed to create sysfs symlink\n");
+		return -EAGAIN;
+	}
+
+	if (mms_keydisabler_init(info)) {
+		dev_err(&client->dev, "failed to create keydisabler symlink\n");
 		return -EAGAIN;
 	}
 

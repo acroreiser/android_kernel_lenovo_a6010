@@ -192,6 +192,7 @@ struct mms_ts_info {
 	bool gesture_open;
 	bool test_mode;
 	bool power_down;
+	bool disable_keys;
 	struct pinctrl *ts_pinctrl;
 	struct pinctrl_state *gpio_state_active;
 	struct pinctrl_state *gpio_state_suspend;
