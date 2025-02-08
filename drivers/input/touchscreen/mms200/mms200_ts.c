@@ -337,6 +337,10 @@ static ssize_t mms_force_update(struct device *dev, struct device_attribute *att
 	int result = 0;
 	unsigned int input;
 
+	dev_err(&info->client->dev,"[@acroreiser]: mms_force_update is DANGEROUS and not supported here.\n");
+	return -ENOTSUPP;
+
+#if 0
 	error = sscanf(buf, "%u", &input);
 	if(error != 1 || input != 1){
 		dev_err(&info->client->dev,"Input error,val %d is invalid !!! \n",input);
@@ -382,6 +386,7 @@ open_err:
 	enable_irq(client->irq);
 	set_fs(old_fs);
 	return error;
+#endif
 }
 
 //static DEVICE_ATTR(fw_update, 0664, mms_force_update, NULL);
