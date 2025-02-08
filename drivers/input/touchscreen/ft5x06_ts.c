@@ -2226,10 +2226,10 @@ static int ft5x06_proc_init(struct ft5x06_ts_data *data)
        key_disabler_sysfs_node = kzalloc(sizeof(struct ft5x06_ts_data), GFP_KERNEL);
        if (key_disabler_sysfs_node)
                sprintf(key_disabler_sysfs_node, "/sys%s/%s", path, "disable_keys");
-       proc_symlink_tmp = proc_symlink("capacitive_keys_enable",
+       proc_symlink_tmp = proc_symlink("disable_keys",
                        proc_entry_tp, key_disabler_sysfs_node);
        if (proc_symlink_tmp == NULL) {
-               dev_err(&client->dev, "Couldn't create capacitive_keys_enable symlink\n");
+               dev_err(&client->dev, "Couldn't create disable_keys symlink\n");
                ret = -ENOMEM;
        }
 
