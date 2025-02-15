@@ -247,7 +247,10 @@ ssize_t splice_to_pipe(struct pipe_inode_info *pipe,
 		}
 
 		if (do_wakeup) {
-			wakeup_pipe_readers(pipe);
+			smp_mb();
+			if (waitqueue_active(&pipe->wait))
+				wake_up_interruptible_sync(&pipe->wait);
+			kill_fasync(&pipe->fasync_readers, SIGIO, POLL_IN);
 			do_wakeup = 0;
 		}
 
