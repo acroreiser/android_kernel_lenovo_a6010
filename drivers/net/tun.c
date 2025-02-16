@@ -1368,7 +1368,7 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 }
 
 static ssize_t tun_do_read(struct tun_struct *tun, struct tun_file *tfile,
-			   struct kiocb *iocb, const struct iovec *iv,
+			   const struct iovec *iv,
 			   ssize_t len, int noblock)
 {
 	DECLARE_WAITQUEUE(wait, current);
@@ -1430,7 +1430,7 @@ static ssize_t tun_chr_aio_read(struct kiocb *iocb, const struct iovec *iv,
 		goto out;
 	}
 
-	ret = tun_do_read(tun, tfile, iocb, iv, len,
+	ret = tun_do_read(tun, tfile, iv, len,
 			  file->f_flags & O_NONBLOCK);
 	ret = min_t(ssize_t, ret, len);
 	if (ret > 0)
@@ -1529,7 +1529,7 @@ static int tun_recvmsg(struct socket *sock, struct msghdr *m, size_t total_len,
 					 SOL_PACKET, TUN_TX_TIMESTAMP);
 		goto out;
 	}
-	ret = tun_do_read(tun, tfile, iocb, m->msg_iov, total_len,
+	ret = tun_do_read(tun, tfile, m->msg_iov, total_len,
 			  flags & MSG_DONTWAIT);
 	if (ret > total_len) {
 		m->msg_flags |= MSG_TRUNC;
