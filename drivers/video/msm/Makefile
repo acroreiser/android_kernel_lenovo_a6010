@@ -1,5 +1,9 @@
 ifeq ($(CONFIG_FB_MSM_MDSS_COMMON),y)
+ifeq ($(CONFIG_MACH_MSM8974_HAMMERHEAD),y)
+obj-y += mdss-hammerhead/
+else
 obj-y += mdss/
+endif
 else
 obj-y := msm_fb.o
 

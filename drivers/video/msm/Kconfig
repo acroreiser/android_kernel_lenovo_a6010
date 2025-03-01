@@ -512,6 +512,10 @@ config FB_MSM_QPIC_PANEL_DETECT
 	  Support for Qpic panel auto detect
 
 if FB_MSM_MDSS
+if MACH_MSM8974_HAMMERHEAD
+	source "drivers/video/msm/mdss-hammerhead/Kconfig"
+else
 	source "drivers/video/msm/mdss/Kconfig"
+endif
 endif
 endif
