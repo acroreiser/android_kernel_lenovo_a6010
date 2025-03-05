@@ -130,9 +130,20 @@ void apply_kernelsu_rules()
 	// Allow all binder transactions
 	ksu_allow(db, ALL, KERNEL_SU_DOMAIN, "binder", ALL);
 
-    // Allow system server kill su process
-    ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "getpgid");
-    ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "sigkill");
+	// Allow system server kill su process
+	ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "getpgid");
+	ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "sigkill");
+    	
+    	ksu_allow(db, "init", "zygote", "unix_stream_socket", "getattr");
+    	ksu_allow(db, "init", "zygote", "unix_stream_socket", "write");
+    	ksu_allow(db, "init", "zygote", "unix_stream_socket", "getopt");
+    	ksu_allow(db, "init", "zygote", "unix_stream_socket", "read");
+    	ksu_allow(db, "init", "zygote", "unix_stream_socket", "accept");
+    	ksu_allow(db, "init", "sys_ptrace", "capability", "ptrace");
+	ksu_allow(db, "init", "capability", "sys_ptrace", "use");
+	ksu_allow(db, "init", "system_file", "file", "execute_no_trans");
+	ksu_allow(db, "init", "system_file", "file", "write");
+	ksu_allow(db, "init", "app_data_file", "dir", "getattr");
 
 	rcu_read_unlock();
 }
