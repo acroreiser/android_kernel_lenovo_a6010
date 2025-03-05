@@ -48,8 +48,8 @@
 
 #include <mach/board.h>
 #include <mach/memory.h>
-#include <mach/iommu.h>
-#include <mach/iommu_domains.h>
+#include <linux/qcom_iommu.h>
+#include <linux/msm_iommu_domains.h>
 #include <mach/msm_memtypes.h>
 /* HACK: preventing displaying garbage in off-mode charge */
 #ifdef CONFIG_MACH_LGE
@@ -1413,7 +1413,7 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 
 static inline int mdss_fb_create_ion_client(struct msm_fb_data_type *mfd)
 {
-	mfd->fb_ion_client  = msm_ion_client_create(-1 , "mdss_fb_iclient");
+	mfd->fb_ion_client  = msm_ion_client_create("mdss_fb_iclient");
 	if (IS_ERR_OR_NULL(mfd->fb_ion_client)) {
 		pr_err("Err:client not created, val %d\n",
 				PTR_RET(mfd->fb_ion_client));

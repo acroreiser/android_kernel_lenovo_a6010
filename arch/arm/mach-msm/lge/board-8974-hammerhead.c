@@ -34,7 +34,7 @@
 #include <mach/msm_iomap.h>
 #include <mach/msm_memtypes.h>
 #include <soc/qcom/smd.h>
-#include <mach/restart.h>
+#include <mach/subsystem_restart.h>
 #include <soc/qcom/rpm-smd.h>
 #include <soc/qcom/socinfo.h>
 #include <soc/qcom/smem.h>
@@ -85,11 +85,6 @@ static struct of_dev_auxdata msm8974_auxdata_lookup[] __initdata = {
 			"msm_hsic_host", NULL),
 	{}
 };
-
-static void __init msm8974_early_memory(void)
-{
-	of_scan_flat_dt(dt_scan_for_memory_hole, NULL);
-}
 
 void __init msm_8974_reserve(void)
 {
@@ -153,10 +148,10 @@ void __init msm8974_init(void)
 	msm8974_add_drivers();
 }
 
-void __init msm8974_init_very_early(void)
-{
-	msm8974_early_memory();
-}
+//void __init msm8974_init_very_early(void)
+//{
+//	msm8974_early_memory();
+//}
 
 static const char *const msm8974_dt_match[] __initconst = {
 	"qcom,msm8974",
@@ -169,7 +164,5 @@ DT_MACHINE_START(MSM8974_DT, "Qualcomm MSM 8974 HAMMERHEAD (Flattened Device Tre
 	.init_machine	= msm8974_init,
 	.dt_compat		= msm8974_dt_match,
 	.reserve		= msm_8974_reserve,
-	.init_very_early= msm8974_init_very_early,
-	.restart		= msm_restart,
 	.smp			= &msm8974_smp_ops,
 MACHINE_END

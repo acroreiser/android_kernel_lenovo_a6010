@@ -25,9 +25,9 @@
 #include <linux/memblock.h>
 #include <linux/sw_sync.h>
 
-#include <mach/iommu_domains.h>
+#include <linux/msm_iommu_domains.h>
 #include <soc/qcom/event_timer.h>
-#include <mach/msm_bus.h>
+#include <linux/msm-bus.h>
 #include <soc/qcom/scm.h>
 #include "mdss.h"
 #include "mdss_debug.h"
@@ -2989,16 +2989,6 @@ static int mdss_mdp_overlay_off(struct msm_fb_data_type *mfd)
 		msleep(vsync_time);
 
 		__vsync_retire_signal(mfd, mdp5_data->retire_cnt);
-
-		/*
-		 * the retire work can still schedule after above retire_signal
-		 * api call. Flush workqueue guarantees that current caller
-		 * context is blocked till retire_work finishes. Any work
-		 * schedule after flush call should not cause any issue because
-		 * retire_signal api checks for retire_cnt with sync_mutex lock.
-		 */
-
-		flush_kthread_work(&mdp5_data->vsync_work);
 	}
 
 ctl_stop:
@@ -3193,7 +3183,7 @@ static void __vsync_retire_handle_vsync(struct mdss_mdp_ctl *ctl, ktime_t t)
 	}
 
 	mdp5_data = mfd_to_mdp5_data(mfd);
-	queue_kthread_work(&mdp5_data->worker, &mdp5_data->vsync_work);
+	kthread_queue_work(&mdp5_data->worker, &mdp5_data->vsync_work);
 }
 
 static void __vsync_retire_work_handler(struct kthread_work *work)
@@ -3296,8 +3286,8 @@ static int __vsync_retire_setup(struct msm_fb_data_type *mfd)
 		return -ENOMEM;
 	}
 
-	init_kthread_worker(&mdp5_data->worker);
-	init_kthread_work(&mdp5_data->vsync_work, __vsync_retire_work_handler);
+	kthread_init_worker(&mdp5_data->worker);
+	kthread_init_work(&mdp5_data->vsync_work, __vsync_retire_work_handler);
 
 	mdp5_data->thread = kthread_run(kthread_worker_fn,
 					&mdp5_data->worker, "vsync_retire_work");
@@ -3395,7 +3385,7 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 		goto init_fail;
 	}
 
-	mdp5_data->vsync_event_sd = sysfs_get_dirent(dev->kobj.sd, NULL,
+	mdp5_data->vsync_event_sd = sysfs_get_dirent(dev->kobj.sd,
 						     "vsync_event");
 	if (!mdp5_data->vsync_event_sd) {
 		pr_err("vsync_event sysfs lookup failed\n");

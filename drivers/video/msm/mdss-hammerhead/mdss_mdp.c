@@ -41,10 +41,11 @@
 #include <mach/board.h>
 #include <linux/clk/msm-clk.h>
 #include <mach/hardware.h>
-#include <mach/msm_bus.h>
-#include <mach/msm_bus_board.h>
-#include <mach/iommu.h>
-#include <mach/iommu_domains.h>
+#include <linux/msm-bus.h>
+#include <linux/msm-bus-board.h>
+#include <linux/iommu.h>
+#include <linux/qcom_iommu.h>
+#include <linux/msm_iommu_domains.h>
 #include <mach/memory.h>
 #include <mach/msm_memtypes.h>
 #include <linux/regulator/rpm-smd-regulator.h>
@@ -1167,7 +1168,7 @@ static u32 mdss_mdp_res_init(struct mdss_data_type *mdata)
 	mdata->hist_intr.state = 0;
 	spin_lock_init(&mdata->hist_intr.lock);
 
-	mdata->iclient = msm_ion_client_create(-1, mdata->pdev->name);
+	mdata->iclient = msm_ion_client_create(mdata->pdev->name);
 	if (IS_ERR_OR_NULL(mdata->iclient)) {
 		pr_err("msm_ion_client_create() return error (%pK)\n",
 				mdata->iclient);

@@ -20,8 +20,8 @@
 #include <linux/types.h>
 #include <linux/workqueue.h>
 #include <linux/irqreturn.h>
- 
-#include <mach/iommu_domains.h>
+
+#include <linux/msm_iommu_domains.h>
 
 #include "mdss_panel.h"
 

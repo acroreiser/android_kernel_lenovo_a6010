@@ -15,7 +15,7 @@
 #include "msm8974-hammerhead-usb.dtsi"
 #include "msm8974-hammerhead-misc.dtsi"
 #include "msm8974-hammerhead-pm.dtsi"
-#include "msm8974-hammerhead-camera.dtsi"
+//#include "msm8974-hammerhead-camera.dtsi"
 #include "msm8974-hammerhead-nfc.dtsi"
 #include "msm8974-hammerhead-regulator.dtsi"
 #include "msm8974-hammerhead-sensor.dtsi"
@@ -303,52 +303,6 @@
 			status = "disabled";
 		};
 	};
-};
-
-&sdcc2 {
-	#address-cells = <0>;
-	interrupt-parent = <&sdcc2>;
-	interrupts = <0 1 2>;
-	#interrupt-cells = <1>;
-	interrupt-map-mask = <0xffffffff>;
-
-	/* Qualcomm / Broadcom WiFi solution definition.
-	 * You must choose one solution
-	 */
-
-	/* Qualcomm WiFi solution - Start */
-	/*
-	interrupt-map = <0 &intc 0 125 0
-		1 &intc 0 220 0
-		2 &msmgpio 35 0x3>;
-	interrupt-names = "core_irq", "bam_irq", "wlan_oob_irq";
-	qcom,bus-width = <4>;
-
-	vdd-supply = <&pm8941_l11>;
-	qcom,sdcc-sup-voltages = <1800 2950>;
-	qcom,sdcc-nonremovable = <1>;
-	qcom,sup-voltages = <1800 2950>;
-	qcom,nonremovable;
-	*/
-	/* Qualcomm WiFi solution - End */
-
-	/* Broadcom WiFi solution - Start */
-	interrupt-map = <0 &intc 0 125 0
-		1 &intc 0 220 0
-		2 &msmgpio 44 0x3>;
-	interrupt-names = "core_irq", "bam_irq", "wlan_oob_irq";
-	qcom,bus-width = <4>;
-
-	qcom,sdcc-sup-voltages = <1800 2950>;
-	qcom,sup-voltages = <1800 2950>;
-	qcom,wifi-control-func;
-	qcom,not-use-vdd;
-	vdd-io-supply = <&pm8941_s3>;
-	/* Broadcom WiFi solution - End */
-
-	qcom,vdd-io-voltage-level = <1800000 1800000>;
-	qcom,vdd-io-current-level = <6 22000>;
-	status = "ok";
 };
 
 &sdhc_1 {

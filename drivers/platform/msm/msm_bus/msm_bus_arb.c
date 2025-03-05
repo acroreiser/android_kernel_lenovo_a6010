@@ -446,7 +446,7 @@ static uint64_t get_avail_bw(struct msm_bus_fabric_device *fabdev)
 
 	MSM_BUS_DBG("%s: Total_avail_bw %llu, rt_bw %llu\n",
 		__func__, avail_bw, rt_bw);
-	trace_bus_avail_bw(avail_bw, rt_bw);
+//	trace_bus_avail_bw(avail_bw, rt_bw);
 
 	if (avail_bw < rt_bw) {
 		MSM_BUS_ERR("\n%s: ERROR avail BW %llu < MDP %llu",

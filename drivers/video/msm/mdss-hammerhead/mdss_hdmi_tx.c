@@ -1454,7 +1454,7 @@ static void hdmi_tx_set_avi_infoframe(struct hdmi_tx_ctrl *hdmi_ctrl)
 	case HDMI_VFRMT_3840x2160p24_16_9:
 		mode = 18;
 		break;
-	case HDMI_VFRMT_4096x2160p24_16_9:
+	case HDMI_EVFRMT_4096x2160p24_16_9:
 		mode = 19;
 		break;
 	default:
@@ -1580,7 +1580,7 @@ static void hdmi_tx_set_vendor_specific_infoframe(
 	case HDMI_VFRMT_3840x2160p24_16_9:
 		hdmi_vic = 0x3;
 		break;
-	case HDMI_VFRMT_4096x2160p24_16_9:
+	case HDMI_EVFRMT_4096x2160p24_16_9:
 		hdmi_vic = 0x4;
 		break;
 	default:

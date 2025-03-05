@@ -16,13 +16,13 @@
 #include <linux/errno.h>
 #include <linux/file.h>
 #include <linux/msm_ion.h>
-#include <mach/iommu.h>
+#include <linux/iommu.h>
 #include <linux/msm_kgsl.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <media/msm_media_info.h>
 
-#include <mach/iommu_domains.h>
+#include <linux/msm_iommu_domains.h>
 
 #include "mdss_fb.h"
 #include "mdss_mdp.h"
@@ -513,10 +513,6 @@ static int mdss_mdp_put_img(struct mdss_mdp_img_data *data)
 				ion_unmap_iommu(iclient, data->srcp_ihdl,
 					mdss_get_iommu_domain(domain), 0);
 
-				if (domain == MDSS_IOMMU_DOMAIN_SECURE) {
-					msm_ion_unsecure_buffer(iclient,
-							data->srcp_ihdl);
-				}
 				data->mapped = false;
 			}
 			ion_free(iclient, data->srcp_ihdl);
@@ -616,14 +612,6 @@ static int mdss_mdp_map_buffer(struct mdss_mdp_img_data *data)
 			int domain;
 			if (data->flags & MDP_SECURE_OVERLAY_SESSION) {
 				domain = MDSS_IOMMU_DOMAIN_SECURE;
-				ret = msm_ion_secure_buffer(iclient,
-					data->srcp_ihdl, 0x2, 0);
-				if (IS_ERR_VALUE(ret)) {
-					ion_free(iclient, data->srcp_ihdl);
-					pr_err("failed to secure handle (%d)\n",
-						ret);
-					return ret;
-				}
 			} else {
 				domain = MDSS_IOMMU_DOMAIN_UNSECURE;
 			}
@@ -633,9 +621,6 @@ static int mdss_mdp_map_buffer(struct mdss_mdp_img_data *data)
 						0, SZ_4K, 0,
 						(ion_phys_addr_t *) &data->addr,
 						&data->len, 0, 0);
-			if (ret && (domain == MDSS_IOMMU_DOMAIN_SECURE))
-				msm_ion_unsecure_buffer(iclient,
-						data->srcp_ihdl);
 
 			data->mapped = true;
 		} else {
