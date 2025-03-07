@@ -65,7 +65,7 @@ ifeq ($(shell grep "ssize_t kernel_write" $(srctree)/fs/read_write.c | grep -q "
 ccflags-y += -DKSU_KERNEL_WRITE
 endif
 
-ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat
+ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
 
 # Keep a new line here!! Because someone may append config
