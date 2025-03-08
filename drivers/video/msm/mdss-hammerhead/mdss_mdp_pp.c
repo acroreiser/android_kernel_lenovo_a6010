@@ -1886,7 +1886,7 @@ int mdss_mdp_pp_resume(struct mdss_mdp_ctl *ctl, u32 dspp_num)
 		ret = mdss_mdp_get_ad(ctl->mfd, &ad);
 		if (ret) {
 			pr_warn("Failed to get AD info, err = %d\n", ret);
-			return 0;
+			return -ENODEV;
 		}
 		if (ctl->mfd->panel_info->type == WRITEBACK_PANEL) {
 			bl_mfd = mdss_get_mfd_from_index(0);
@@ -4140,8 +4140,6 @@ static int mdss_ad_init_checks(struct msm_fb_data_type *mfd)
 	int i = 0;
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
 	struct msm_fb_data_type *ad_mfd = mfd;
-
-              return -ENODEV;
 
 	if (ad_mfd->ext_ad_ctrl >= 0)
 		ad_mfd = mdss_get_mfd_from_index(ad_mfd->ext_ad_ctrl);

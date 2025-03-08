@@ -156,9 +156,6 @@
 			05 01 00 00 64 00 01 10];
 		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
-		qcom,cont-splash-enabled;
-		qcom,ulps-enabled;
-		qcom,partial-update-enabled;
 		qcom,panel-roi-alignment = <2 2 2 2 8 8>;
 	};
 };

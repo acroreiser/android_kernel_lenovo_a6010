@@ -577,8 +577,8 @@ error:
 		pr_debug("mem reservation not reqd if cont splash disabled\n");
 		memblock_free(mdp5_mdata->splash_mem_addr,
 					mdp5_mdata->splash_mem_size);
-		free_bootmem_late(mdp5_mdata->splash_mem_addr,
-				 mdp5_mdata->splash_mem_size);
+//		free_bootmem_late(mdp5_mdata->splash_mem_addr,
+//				 mdp5_mdata->splash_mem_size);
 	} else if (rc && mfd->panel_info->cont_splash_enabled) {
 		pr_err("no rsvd mem found in DT for splash screen\n");
 	} else {
