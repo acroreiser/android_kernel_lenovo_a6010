@@ -192,6 +192,7 @@ void mdss_mdp_release_splash_pipe(struct msm_fb_data_type *mfd)
 int mdss_mdp_splash_cleanup(struct msm_fb_data_type *mfd,
 					bool use_borderfill)
 {
+#if 0
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_mdp_ctl *ctl = mdp5_data->ctl;
 	int rc = 0;
@@ -250,6 +251,8 @@ int mdss_mdp_splash_cleanup(struct msm_fb_data_type *mfd,
 	mdss_mdp_footswitch_ctrl_splash(0);
 end:
 	return rc;
+#endif
+	return 0;
 }
 
 static struct mdss_mdp_pipe *mdss_mdp_splash_get_pipe(

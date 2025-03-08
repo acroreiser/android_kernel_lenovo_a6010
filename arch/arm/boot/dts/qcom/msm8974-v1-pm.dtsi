@@ -130,61 +130,82 @@
 				50 02 32 50 0f];
 	};
 
+
 	qcom,lpm-levels {
 		compatible = "qcom,lpm-levels";
-		qcom,default-l2-state = "l2_cache_retention";
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		qcom,lpm-level@0 {
-			reg = <0x0>;
-			qcom,mode = "wfi";
-			qcom,l2 = "l2_cache_active";
-			qcom,latency-us = <1>;
-			qcom,ss-power = <784>;
-			qcom,energy-overhead = <190000>;
-			qcom,time-overhead = <100>;
-		};
+		qcom,pm-cluster@0{
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			label = "system";
+			qcom,spm-device-names = "l2";
+			qcom,default-level = <0>;
 
-		qcom,lpm-level@1 {
-			reg = <0x1>;
-			qcom,mode = "retention";
-			qcom,l2 = "l2_cache_active";
-			qcom,latency-us = <75>;
-			qcom,ss-power = <735>;
-			qcom,energy-overhead = <77341>;
-			qcom,time-overhead = <105>;
-		};
+			qcom,pm-cluster-level@0{
+				reg = <0>;
+				label = "l2-cache-active";
+				qcom,spm-l2-mode = "active";
+				qcom,latency-us = <1>;
+				qcom,ss-power = <784>;
+				qcom,energy-overhead = <190000>;
+				qcom,time-overhead = <100>;
+			};
 
+			qcom,pm-cluster-level@1{
+				reg = <1>;
+				label = "l2-gdhs";
+				qcom,spm-l2-mode = "gdhs";
+				qcom,latency-us = <240>;
+				qcom,ss-power = <138>;
+				qcom,energy-overhead = <1208400>;
+				qcom,time-overhead = <3200>;
+				qcom,min-child-idx = <1>;
+			};
 
-		qcom,lpm-level@2 {
-			reg = <0x2>;
-			qcom,mode = "standalone_pc";
-			qcom,l2 = "l2_cache_active";
-			qcom,latency-us = <95>;
-			qcom,ss-power = <725>;
-			qcom,energy-overhead = <99500>;
-			qcom,time-overhead = <130>;
-		};
+			qcom,pm-cluster-level@2{
+				reg = <2>;
+				label = "l2-pc";
+				qcom,spm-l2-mode = "pc";
+				qcom,latency-us = <30000>;
+				qcom,ss-power = <110>;
+				qcom,energy-overhead = <1250300>;
+				qcom,time-overhead = <3500>;
+				qcom,min-child-idx = <2>;
+			};
 
-		qcom,lpm-level@3 {
-			reg = <0x3>;
-			qcom,mode = "pc";
-			qcom,l2 = "l2_cache_gdhs";
-			qcom,latency-us = <20000>;
-			qcom,ss-power = <138>;
-			qcom,energy-overhead = <1208400>;
-			qcom,time-overhead = <3200>;
-		};
+			qcom,pm-cpu {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				qcom,pm-cpu-level@0 {
+					reg = <0>;
+					qcom,spm-cpu-mode = "wfi";
+					qcom,latency-us = <1>;
+					qcom,ss-power = <784>;
+					qcom,energy-overhead = <190000>;
+					qcom,time-overhead = <100>;
+				};
 
-		qcom,lpm-level@4 {
-			reg = <0x4>;
-			qcom,mode = "pc";
-			qcom,l2 = "l2_cache_pc";
-			qcom,latency-us = <30000>;
-			qcom,ss-power = <110>;
-			qcom,energy-overhead = <1250300>;
-			qcom,time-overhead = <3500>;
+				qcom,pm-cpu-level@1 {
+					reg = <1>;
+					qcom,spm-cpu-mode = "standalone_pc";
+					qcom,latency-us = <95>;
+					qcom,ss-power = <725>;
+					qcom,energy-overhead = <99500>;
+					qcom,time-overhead = <130>;
+				};
+
+				qcom,pm-cpu-level@2 {
+					reg = <2>;
+					qcom,spm-cpu-mode = "pc";
+					qcom,latency-us = <30000>;
+					qcom,ss-power = <110>;
+					qcom,energy-overhead = <1250300>;
+					qcom,time-overhead = <3500>;
+				};
+			};
 		};
 	};
 
