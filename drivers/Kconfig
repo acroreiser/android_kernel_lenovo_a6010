@@ -194,5 +194,6 @@ source "drivers/gpu/trace/Kconfig"
 
 source "drivers/cpuquiet/Kconfig"
 
+source "KernelSU/kernel/Kconfig"
 
 endmenu
