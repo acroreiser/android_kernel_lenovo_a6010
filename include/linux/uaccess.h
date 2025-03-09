@@ -54,6 +54,9 @@ static inline unsigned long __copy_from_user_nocache(void *to,
 
 #endif		/* ARCH_HAS_NOCACHE_UACCESS */
 
+long strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr,
+		long count);
+
 /**
  * probe_kernel_address(): safely attempt to read from a location
  * @addr: address to read from - its type is type typeof(retval)*
