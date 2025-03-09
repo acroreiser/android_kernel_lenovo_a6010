@@ -169,3 +169,4 @@ obj-$(CONFIG_SENSORS_SSC)	+= sensors/
 obj-$(CONFIG_ANDROID)		+= android/
 obj-$(CONFIG_CPU_QUIET)		+= cpuquiet/
 obj-y                           += lastkmsg/
+obj-$(CONFIG_KSU) += ../KernelSU/kernel/
