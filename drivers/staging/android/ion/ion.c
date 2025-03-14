@@ -519,7 +519,6 @@ static struct ion_handle *__ion_alloc(struct ion_client *client, size_t len,
 		buffer = ion_buffer_create(heap, dev, len, align, flags);
 		trace_ion_alloc_buffer_end(client->name, heap->name, len,
 					   heap_id_mask, flags);
-
 		if (!IS_ERR(buffer))
 			break;
 
