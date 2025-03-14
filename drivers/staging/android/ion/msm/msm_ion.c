@@ -55,6 +55,10 @@ static struct ion_heap_desc ion_heap_meta[] = {
 		.id	= ION_SYSTEM_HEAP_ID,
 		.name	= ION_SYSTEM_HEAP_NAME,
 	},
+        {
+                .id     = ION_IOMMU_HEAP_ID,
+                .name   = ION_IOMMU_HEAP_NAME,
+        },
 	{
 		.id	= ION_SYSTEM_CONTIG_HEAP_ID,
 		.name	= ION_KMALLOC_HEAP_NAME,
@@ -364,6 +368,7 @@ static struct heap_types_info {
 	MAKE_HEAP_TYPE_MAPPING(CARVEOUT),
 	MAKE_HEAP_TYPE_MAPPING(CHUNK),
 	MAKE_HEAP_TYPE_MAPPING(DMA),
+        MAKE_HEAP_TYPE_MAPPING(IOMMU),
 	MAKE_HEAP_TYPE_MAPPING(SECURE_DMA),
 	MAKE_HEAP_TYPE_MAPPING(REMOVED),
 };
@@ -914,6 +919,10 @@ static struct ion_heap *msm_ion_heap_create(struct ion_platform_heap *heap_data)
 	struct ion_heap *heap = NULL;
 
 	switch ((int)heap_data->type) {
+
+	case ION_HEAP_TYPE_IOMMU:
+		heap = ion_iommu_heap_create(heap_data);
+		break;
 #ifdef CONFIG_CMA
 	case ION_HEAP_TYPE_SECURE_DMA:
 		heap = ion_secure_cma_heap_create(heap_data);
@@ -946,6 +955,9 @@ static void msm_ion_heap_destroy(struct ion_heap *heap)
 		return;
 
 	switch ((int)heap->type) {
+	case ION_HEAP_TYPE_IOMMU:
+		ion_iommu_heap_destroy(heap);
+		break;
 #ifdef CONFIG_CMA
 	case ION_HEAP_TYPE_SECURE_DMA:
 		ion_secure_cma_heap_destroy(heap);
