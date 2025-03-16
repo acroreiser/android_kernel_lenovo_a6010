@@ -33,12 +33,12 @@ int kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 				struct kgsl_pagetable *pagetable,
 				size_t size);
 
+int kgsl_sharedmem_alloc_coherent(struct kgsl_device *device,
+			struct kgsl_memdesc *memdesc, size_t size);
+
 int kgsl_cma_alloc_coherent(struct kgsl_device *device,
 			struct kgsl_memdesc *memdesc,
 			struct kgsl_pagetable *pagetable, size_t size);
-
-int kgsl_cma_alloc_secure(struct kgsl_device *device,
-			struct kgsl_memdesc *memdesc, size_t size);
 
 void kgsl_sharedmem_free(struct kgsl_memdesc *memdesc);
 
@@ -167,17 +167,6 @@ static inline int kgsl_memdesc_is_global(const struct kgsl_memdesc *memdesc)
 }
 
 /*
- * kgsl_memdesc_is_secured - is this a secure buffer?
- * @memdesc: the memdesc
- *
- * Returns true if this is a secure mapping, false otherwise
- */
-static inline bool kgsl_memdesc_is_secured(const struct kgsl_memdesc *memdesc)
-{
-	return memdesc && (memdesc->priv & KGSL_MEMDESC_SECURE);
-}
-
-/*
  * kgsl_memdesc_has_guard_page - is the last page a guard page?
  * @memdesc - the memdesc
  *
@@ -233,8 +222,7 @@ kgsl_allocate_user(struct kgsl_device *device,
 	if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_NONE) {
 		size = ALIGN(size, PAGE_SIZE);
 		ret = kgsl_cma_alloc_coherent(device, memdesc, pagetable, size);
-	} else if (flags & KGSL_MEMFLAGS_SECURE)
-		ret = kgsl_cma_alloc_secure(device, memdesc, size);
+	}
 	else
 		ret = kgsl_sharedmem_page_alloc_user(memdesc, pagetable, size);
 
@@ -245,14 +233,11 @@ static inline int
 kgsl_allocate_contiguous(struct kgsl_device *device,
 			struct kgsl_memdesc *memdesc, size_t size)
 {
-	int ret;
-
-	size = ALIGN(size, PAGE_SIZE);
-
-	ret = kgsl_cma_alloc_coherent(device, memdesc, NULL, size);
+	int ret  = kgsl_sharedmem_alloc_coherent(device, memdesc, size);
 	if (!ret && (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_NONE))
 		memdesc->gpuaddr = memdesc->physaddr;
 
+	memdesc->flags |= (KGSL_MEMTYPE_KERNEL << KGSL_MEMTYPE_SHIFT);
 	return ret;
 }
 
@@ -263,7 +248,6 @@ kgsl_allocate_contiguous(struct kgsl_device *device,
  * @memdesc: Pointer to a KGSL memory descriptor for the memory allocation
  * @size: size of the allocation
  * @flags: Allocation flags that control how the memory is mapped
- * @priv: Priv flags that controls memory attributes
  *
  * Allocate contiguous memory for internal use and add the allocation to the
  * list of global pagetable entries that will be mapped at the same address in
@@ -271,16 +255,11 @@ kgsl_allocate_contiguous(struct kgsl_device *device,
  * ringbuffers.
  */
 static inline int kgsl_allocate_global(struct kgsl_device *device,
-	struct kgsl_memdesc *memdesc, size_t size, unsigned int flags,
-	unsigned int priv)
+	struct kgsl_memdesc *memdesc, size_t size, unsigned int flags)
 {
 	int ret;
 
-	if (size == 0)
-		return -EINVAL;
-
 	memdesc->flags = flags;
-	memdesc->priv = priv;
 
 	ret = kgsl_allocate_contiguous(device, memdesc, size);
 

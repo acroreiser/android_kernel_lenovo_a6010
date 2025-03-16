@@ -630,14 +630,14 @@ struct mdp_overlay {
 	uint32_t blend_op;
 	uint32_t transp_mask;
 	uint32_t flags;
-	uint32_t pipe_type;
 	uint32_t id;
-	uint32_t user_data[6];
-	uint32_t bg_color;
+	uint32_t user_data[7];
 	uint8_t horz_deci;
 	uint8_t vert_deci;
 	struct mdp_overlay_pp_params overlay_pp_cfg;
 	struct mdp_scale_data scale;
+        uint32_t pipe_type;
+        uint32_t bg_color;
 };
 
 struct msmfb_overlay_3d {
@@ -999,9 +999,9 @@ enum {
 	metadata_op_frame_rate,
 	metadata_op_vic,
 	metadata_op_wb_format,
-	metadata_op_wb_secure,
 	metadata_op_get_caps,
 	metadata_op_crc,
+        metadata_op_wb_secure,
 	metadata_op_max
 };
 

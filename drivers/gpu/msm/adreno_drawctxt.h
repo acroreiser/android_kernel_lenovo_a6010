@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,13 +15,24 @@
 
 #include "adreno_pm4types.h"
 
+/* Symbolic table for the adreno draw context type */
+#define ADRENO_DRAWCTXT_TYPES \
+	{ KGSL_CONTEXT_TYPE_ANY, "any" }, \
+	{ KGSL_CONTEXT_TYPE_GL, "GL" }, \
+	{ KGSL_CONTEXT_TYPE_CL, "CL" }, \
+	{ KGSL_CONTEXT_TYPE_C2D, "C2D" }, \
+	{ KGSL_CONTEXT_TYPE_RS, "RS" }, \
+	{ KGSL_CONTEXT_TYPE_UNKNOWN, "UNKNOWN" }
+
 struct adreno_context_type {
 	unsigned int type;
 	const char *str;
 };
 
 #define ADRENO_CONTEXT_CMDQUEUE_SIZE 128
-#define SUBMIT_RETIRE_TICKS_SIZE 7
+
+#define ADRENO_CONTEXT_STATE_ACTIVE 0
+#define ADRENO_CONTEXT_STATE_INVALID 1
 
 struct kgsl_device;
 struct adreno_device;
@@ -33,6 +44,8 @@ struct kgsl_context;
  * @timestamp: Last issued context-specific timestamp
  * @internal_timestamp: Global timestamp of the last issued command
  *			NOTE: guarded by device->mutex, not drawctxt->mutex!
+ * @state: Current state of the context
+ * @priv: Internal flags
  * @type: Context type (GL, CL, RS)
  * @mutex: Mutex to protect the cmdqueue
  * @cmdqueue: Queue of command batches waiting to be dispatched for this context
@@ -42,22 +55,17 @@ struct kgsl_context;
  * @wq: Workqueue structure for contexts to sleep pending room in the queue
  * @waiting: Workqueue structure for contexts waiting for a timestamp or event
  * @queued: Number of commands queued in the cmdqueue
+ * @ops: Context switch functions for this context.
  * @fault_policy: GFT fault policy set in cmdbatch_skip_cmd();
- * @debug_root: debugfs entry for this context.
- * @queued_timestamp: The last timestamp that was queued on this context
- * @rb: The ringbuffer in which this context submits commands.
- * @submitted_timestamp: The last timestamp that was submitted for this context
- * @submit_retire_ticks: Array to hold cmdbatch execution times from submit
- *                       to retire
- * @ticks_index: The index into submit_retire_ticks[] where the new delta will
- *		 be written.
  */
 struct adreno_context {
 	struct kgsl_context base;
 	unsigned int timestamp;
 	unsigned int internal_timestamp;
+	int state;
+	unsigned long priv;
 	unsigned int type;
-	spinlock_t lock;
+	struct mutex mutex;
 
 	/* Dispatcher */
 	struct kgsl_cmdbatch *cmdqueue[ADRENO_CONTEXT_CMDQUEUE_SIZE];
@@ -70,18 +78,7 @@ struct adreno_context {
 
 	int queued;
 	unsigned int fault_policy;
-	struct dentry *debug_root;
-	unsigned int queued_timestamp;
-	struct adreno_ringbuffer *rb;
-	unsigned int submitted_timestamp;
-	uint64_t submit_retire_ticks[SUBMIT_RETIRE_TICKS_SIZE];
-	int ticks_index;
 };
-
-/* Flag definitions for flag field in adreno_context */
-
-/* Set when sync timer of cmdbatch belonging to the context times out */
-#define ADRENO_CONTEXT_CMDBATCH_FLAG_FENCE_LOG	BIT(0)
 
 /**
  * enum adreno_context_priv - Private flags for an adreno draw context
@@ -96,7 +93,7 @@ struct adreno_context {
 	fault tolerance.
  */
 enum adreno_context_priv {
-	ADRENO_CONTEXT_FAULT = KGSL_CONTEXT_PRIV_DEVICE_SPECIFIC,
+	ADRENO_CONTEXT_FAULT = 0,
 	ADRENO_CONTEXT_GPU_HANG,
 	ADRENO_CONTEXT_GPU_HANG_FT,
 	ADRENO_CONTEXT_SKIP_EOF,
@@ -107,16 +104,14 @@ enum adreno_context_priv {
 struct kgsl_context *adreno_drawctxt_create(struct kgsl_device_private *,
 			uint32_t *flags);
 
-void adreno_drawctxt_detach(struct kgsl_context *context);
+int adreno_drawctxt_detach(struct kgsl_context *context);
 
 void adreno_drawctxt_destroy(struct kgsl_context *context);
 
 void adreno_drawctxt_sched(struct kgsl_device *device,
 		struct kgsl_context *context);
 
-struct adreno_ringbuffer;
 int adreno_drawctxt_switch(struct adreno_device *adreno_dev,
-				struct adreno_ringbuffer *rb,
 				struct adreno_context *drawctxt,
 				unsigned int flags);
 
@@ -125,9 +120,6 @@ int adreno_drawctxt_wait(struct adreno_device *adreno_dev,
 		uint32_t timestamp, unsigned int timeout);
 
 void adreno_drawctxt_invalidate(struct kgsl_device *device,
-		struct kgsl_context *context);
-
-void adreno_drawctxt_dump(struct kgsl_device *device,
 		struct kgsl_context *context);
 
 #endif  /* __ADRENO_DRAWCTXT_H */

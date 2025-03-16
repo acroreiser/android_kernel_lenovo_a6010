@@ -23,22 +23,6 @@
 
 
 /* type3 packets */
-
-/* copy from ME scratch RAM to a register */
-#define CP_SCRATCH_TO_REG      0x4d
-
-/* Copy from REG to ME scratch RAM */
-#define CP_REG_TO_SCRATCH      0x4a
-
-/* Wait for memory writes to complete */
-#define CP_WAIT_MEM_WRITES     0x12
-
-/* Conditional execution based on register comparison */
-#define CP_COND_REG_EXEC       0x47
-
-/* Memory to REG copy */
-#define CP_MEM_TO_REG          0x42
-
 /* initialize CP's micro-engine */
 #define CP_ME_INIT		0x48
 
@@ -169,18 +153,8 @@
 /* Write register, ignoring context state for context sensitive registers */
 #define CP_REG_WR_NO_CTXT  0x78
 
-/*
- * for A4xx
- * Write to register with address that does not fit into type-0 pkt
- */
-#define CP_WIDE_REG_WRITE           0x74
-
-
 /* PFP waits until the FIFO between the PFP and the ME is empty */
 #define CP_WAIT_FOR_ME		0x13
-
-/* Record the real-time when this packet is processed by PFP */
-#define CP_RECORD_PFP_TIMESTAMP	0x11
 
 /*
  * for a20x

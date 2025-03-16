@@ -375,15 +375,11 @@ struct mdss_mdp_pipe {
 	u32 ndx;
 	char __iomem *base;
 	u32 ftch_id;
-	u32 xin_id;
-	struct mdss_mdp_shared_reg_ctrl clk_ctrl;
-	struct mdss_mdp_shared_reg_ctrl clk_status;
-
-	struct kref kref;
+	atomic_t ref_cnt;
 
 	u32 play_cnt;
 	int pid;
-	bool is_handed_off;
+
 
 	u32 flags;
 	u32 bwc_mode;
@@ -394,6 +390,8 @@ struct mdss_mdp_pipe {
 	u8 vert_deci;
 	struct mdss_rect src;
 	struct mdss_rect dst;
+	u32 phase_step_x;
+	u32 phase_step_y;
 	struct mdss_mdp_format_params *src_fmt;
 	struct mdss_mdp_plane_sizes src_planes;
 
@@ -403,7 +401,7 @@ struct mdss_mdp_pipe {
 	u8 blend_op;
 	u8 overfetch_disable;
 	u32 transp;
-	u32 bg_color;
+
 
 	struct msm_fb_data_type *mfd;
 	struct mdss_mdp_mixer *mixer;
@@ -417,12 +415,21 @@ struct mdss_mdp_pipe {
 	struct mdss_mdp_data front_buf;
 
 	struct list_head list;
+	struct list_head cleanup_list;
 
 	struct mdp_overlay_pp_params pp_cfg;
 	struct mdss_pipe_pp_res pp_res;
 	struct mdp_scale_data scale;
 	u8 chroma_sample_h;
 	u8 chroma_sample_v;
+
+	u32 xin_id;
+	struct mdss_mdp_shared_reg_ctrl clk_ctrl;
+	struct mdss_mdp_shared_reg_ctrl clk_status;
+
+	struct kref kref;
+	bool is_handed_off;
+	u32 bg_color;
 };
 
 struct mdss_mdp_writeback_arg {

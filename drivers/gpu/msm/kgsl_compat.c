@@ -19,7 +19,6 @@
 #include "kgsl.h"
 #include "kgsl_compat.h"
 #include "kgsl_device.h"
-#include "kgsl_sync.h"
 
 #include "adreno.h"
 
@@ -201,13 +200,6 @@ kgsl_ioctl_gpumem_alloc_compat(struct kgsl_device_private *dev_priv,
 	param.size = (size_t)param32->size;
 	param.flags = param32->flags;
 
-	/*
-	 * Since this is a 32 bit application the page aligned size is expected
-	 * to fit inside of 32 bits - check for overflow and return error if so
-	 */
-	if (PAGE_ALIGN(param.size) >= UINT_MAX)
-		return -EINVAL;
-
 	result = kgsl_ioctl_gpumem_alloc(dev_priv, cmd, &param);
 
 	param32->gpuaddr = gpuaddr_to_compat(param.gpuaddr);
@@ -231,13 +223,6 @@ kgsl_ioctl_gpumem_alloc_id_compat(struct kgsl_device_private *dev_priv,
 	param.mmapsize = (size_t)param32->mmapsize;
 	param.gpuaddr = (unsigned long)param32->gpuaddr;
 
-	/*
-	 * Since this is a 32 bit application the page aligned size is expected
-	 * to fit inside of 32 bits - check for overflow and return error if so
-	 */
-	if (PAGE_ALIGN(param.size) >= UINT_MAX)
-		return -EINVAL;
-
 	result = kgsl_ioctl_gpumem_alloc_id(dev_priv, cmd, &param);
 
 	param32->id = param.id;
@@ -259,10 +244,6 @@ kgsl_ioctl_gpumem_get_info_compat(struct kgsl_device_private *dev_priv,
 
 	param.gpuaddr = (unsigned long)param32->gpuaddr;
 	param.id = param32->id;
-	param.flags = param32->flags;
-	param.size = (size_t)param32->size;
-	param.mmapsize = (size_t)param32->mmapsize;
-	param.useraddr = (unsigned long)param32->useraddr;
 
 	result = kgsl_ioctl_gpumem_get_info(dev_priv, cmd, &param);
 
@@ -350,14 +331,6 @@ static const struct kgsl_ioctl kgsl_compat_ioctl_funcs[] = {
 			kgsl_ioctl_gpumem_sync_cache_compat),
 	KGSL_IOCTL_FUNC(IOCTL_KGSL_GPUMEM_SYNC_CACHE_BULK_COMPAT,
 			kgsl_ioctl_gpumem_sync_cache_bulk_compat),
-	KGSL_IOCTL_FUNC(IOCTL_KGSL_SYNCSOURCE_CREATE,
-			kgsl_ioctl_syncsource_create),
-	KGSL_IOCTL_FUNC(IOCTL_KGSL_SYNCSOURCE_DESTROY,
-			kgsl_ioctl_syncsource_destroy),
-	KGSL_IOCTL_FUNC(IOCTL_KGSL_SYNCSOURCE_CREATE_FENCE,
-			kgsl_ioctl_syncsource_create_fence),
-	KGSL_IOCTL_FUNC(IOCTL_KGSL_SYNCSOURCE_SIGNAL_FENCE,
-			kgsl_ioctl_syncsource_signal_fence),
 };
 
 long kgsl_compat_ioctl(struct file *filep, unsigned int cmd,
@@ -388,41 +361,26 @@ int kgsl_cmdbatch_create_compat(struct kgsl_device *device, unsigned int flags,
 			unsigned int numcmds, void __user *synclist,
 			unsigned int numsyncs)
 {
-	int ret = 0, i;
+	int ret = 0;
+	struct kgsl_ibdesc_compat *cmdbatch_ibdesc;
 
-	if (!(flags & (KGSL_CMDBATCH_SYNC | KGSL_CMDBATCH_MARKER))) {
-		struct kgsl_ibdesc_compat ibdesc32;
-		struct kgsl_ibdesc ibdesc;
-		void __user *uptr = cmdlist;
+	if (!(flags & KGSL_CONTEXT_SYNC)) {
+		if (copy_from_user(cmdbatch_ibdesc, cmdlist,
+			sizeof(struct kgsl_ibdesc_compat) * numcmds))
+			return -EFAULT;
 
-		for (i = 0; i < numcmds; i++) {
-			memset(&ibdesc32, 0, sizeof(ibdesc32));
-
-			if (copy_from_user(&ibdesc32, uptr, sizeof(ibdesc32))) {
-				ret = -EFAULT;
-				goto done;
-			}
-
-			ibdesc.gpuaddr = (unsigned long)ibdesc32.gpuaddr;
-			ibdesc.sizedwords = (size_t)ibdesc32.sizedwords;
-			ibdesc.ctrl = (unsigned int)ibdesc32.ctrl;
-
-			ret = kgsl_cmdbatch_add_memobj(cmdbatch, &ibdesc);
-			if (ret)
-				goto done;
-
-			uptr += sizeof(ibdesc32);
-		}
-
-		if (cmdbatch->profiling_buf_entry == NULL)
-			cmdbatch->flags &= ~KGSL_CMDBATCH_PROFILING;
-
+		cmdbatch->ibdesc->gpuaddr = (unsigned long)
+						cmdbatch_ibdesc->gpuaddr;
+		cmdbatch->ibdesc->sizedwords = (size_t)
+						cmdbatch_ibdesc->sizedwords;
+		cmdbatch->ibdesc->ctrl = cmdbatch_ibdesc->ctrl;
 	}
 	if (synclist && numsyncs) {
 
 		struct kgsl_cmd_syncpoint_compat sync32;
 		struct kgsl_cmd_syncpoint sync;
 		void __user *uptr = synclist;
+		int i;
 
 		for (i = 0; i < numsyncs; i++) {
 			memset(&sync32, 0, sizeof(sync32));
@@ -440,7 +398,5 @@ int kgsl_cmdbatch_create_compat(struct kgsl_device *device, unsigned int flags,
 			uptr += sizeof(sync32);
 		}
 	}
-
-done:
 	return ret;
 }

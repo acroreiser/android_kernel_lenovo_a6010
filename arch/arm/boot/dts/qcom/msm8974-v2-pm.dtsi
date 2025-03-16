@@ -201,24 +201,6 @@
 					qcom,energy-overhead = <34920>;
 					qcom,time-overhead = <40>;
 				};
-
-				qcom,pm-cpu-level@2 {
-					reg = <2>;
-					qcom,spm-cpu-mode = "standalone_pc";
-					qcom,latency-us = <300>;
-					qcom,ss-power = <476>;
-					qcom,energy-overhead = <225300>;
-					qcom,time-overhead = <350>;
-				};
-
-				qcom,pm-cpu-level@3 {
-					reg = <2>;
-					qcom,spm-cpu-mode = "pc";
-					qcom,latency-us = <500>;
-					qcom,ss-power = <163>;
-					qcom,energy-overhead = <577736>;
-					qcom,time-overhead = <1000>;
-				};
 			};
 		};
 

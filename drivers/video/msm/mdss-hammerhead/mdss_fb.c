@@ -3172,6 +3172,7 @@ static int mdss_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 
 	case MSMFB_DISPLAY_COMMIT:
+	case 0x40a86da4:
 		ret = mdss_fb_display_commit(info, argp);
 		break;
 
@@ -3191,7 +3192,7 @@ static int mdss_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 	}
 
-	if (ret == -ENOSYS)
+	if (ret == -ENOSYS && cmd != 5401)
 		pr_err("unsupported ioctl (%x)\n", cmd);
 
 exit:
