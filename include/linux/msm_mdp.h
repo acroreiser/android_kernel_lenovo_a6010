@@ -154,6 +154,11 @@ enum {
 	MDP_BGR_888,      /* BGR 888 */
 	MDP_Y_CBCR_H2V2_VENUS,
 	MDP_BGRX_8888,   /* BGRX 8888 */
+	MDP_YCBYCR_H2V1,  /* YCbYCr interleave */
+	MDP_IMGTYPE_LIMIT,
+	MDP_RGB_BORDERFILL,	/* border fill pipe */
+	MDP_FB_FORMAT = MDP_IMGTYPE2_START,    /* framebuffer format */
+	MDP_IMGTYPE_LIMIT2, /* Non valid image type after this enum */
 	MDP_RGBA_8888_TILE,	/* RGBA 8888 in tile format */
 	MDP_ARGB_8888_TILE,	/* ARGB 8888 in tile format */
 	MDP_ABGR_8888_TILE,	/* ABGR 8888 in tile format */
@@ -161,12 +166,7 @@ enum {
 	MDP_RGBX_8888_TILE,	/* RGBX 8888 in tile format */
 	MDP_XRGB_8888_TILE,	/* XRGB 8888 in tile format */
 	MDP_XBGR_8888_TILE,	/* XBGR 8888 in tile format */
-	MDP_BGRX_8888_TILE,	/* BGRX 8888 in tile format */
-	MDP_YCBYCR_H2V1,  /* YCbYCr interleave */
-	MDP_IMGTYPE_LIMIT,
-	MDP_RGB_BORDERFILL,	/* border fill pipe */
-	MDP_FB_FORMAT = MDP_IMGTYPE2_START,    /* framebuffer format */
-	MDP_IMGTYPE_LIMIT2 /* Non valid image type after this enum */
+	MDP_BGRX_8888_TILE	/* BGRX 8888 in tile format */
 };
 
 enum {
@@ -296,11 +296,11 @@ struct mdp_blit_req {
 	struct mdp_img dst;
 	struct mdp_rect src_rect;
 	struct mdp_rect dst_rect;
-	struct color const_color;
 	uint32_t alpha;
 	uint32_t transp_mask;
 	uint32_t flags;
 	int sharpening_strength;  /* -127 <--> 127, default 64 */
+        struct color const_color;
 };
 
 struct mdp_blit_req_list {
@@ -496,11 +496,11 @@ struct mdp_overlay_pp_params {
 	struct mdp_csc_cfg csc_cfg;
 	struct mdp_qseed_cfg qseed_cfg[2];
 	struct mdp_pa_cfg pa_cfg;
-	struct mdp_pa_v2_data pa_v2_cfg;
 	struct mdp_igc_lut_data igc_cfg;
 	struct mdp_sharp_cfg sharp_cfg;
 	struct mdp_histogram_cfg hist_cfg;
 	struct mdp_hist_lut_data hist_lut_cfg;
+        struct mdp_pa_v2_data pa_v2_cfg;
 };
 
 /**
@@ -670,9 +670,9 @@ enum {
 	DISPLAY_MISR_DSI1,
 	DISPLAY_MISR_HDMI,
 	DISPLAY_MISR_LCDC,
-	DISPLAY_MISR_MDP,
 	DISPLAY_MISR_ATV,
 	DISPLAY_MISR_DSI_CMD,
+        DISPLAY_MISR_MDP,
 	DISPLAY_MISR_MAX
 };
 
@@ -889,13 +889,14 @@ struct mdss_ad_init {
 	uint16_t frame_h;
 	uint8_t logo_v;
 	uint8_t logo_h;
-	uint32_t alpha;
-	uint32_t alpha_base;
 	uint32_t bl_lin_len;
-	uint32_t bl_att_len;
 	uint32_t *bl_lin;
 	uint32_t *bl_lin_inv;
+
 	uint32_t *bl_att_lut;
+        uint32_t alpha;
+        uint32_t alpha_base;
+        uint32_t bl_att_len;
 };
 
 #define MDSS_AD_BL_CTRL_MODE_EN 1
@@ -948,7 +949,6 @@ enum {
 	mdp_op_qseed_cfg,
 	mdp_bl_scale_cfg,
 	mdp_op_pa_cfg,
-	mdp_op_pa_v2_cfg,
 	mdp_op_dither_cfg,
 	mdp_op_gamut_cfg,
 	mdp_op_calib_cfg,
@@ -957,6 +957,7 @@ enum {
 	mdp_op_calib_mode,
 	mdp_op_calib_buffer,
 	mdp_op_calib_dcm_state,
+        mdp_op_pa_v2_cfg,
 	mdp_op_max,
 };
 
@@ -1147,3 +1148,4 @@ bool msm_fb_get_cont_splash(void);
 #endif
 
 #endif /*_MSM_MDP_H_*/
+
