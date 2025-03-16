@@ -20,6 +20,10 @@
 
 #define KGSL_RB_SIZE (32 * 1024)
 
+/* CP timestamp register */
+#define	REG_CP_TIMESTAMP		 REG_SCRATCH_REG0
+
+
 struct kgsl_device;
 struct kgsl_device_private;
 
@@ -70,8 +74,6 @@ int adreno_ringbuffer_init(struct kgsl_device *device);
 int adreno_ringbuffer_warm_start(struct adreno_ringbuffer *rb);
 
 int adreno_ringbuffer_cold_start(struct adreno_ringbuffer *rb);
-
-void adreno_ringbuffer_stop(struct adreno_ringbuffer *rb);
 
 void adreno_ringbuffer_close(struct adreno_ringbuffer *rb);
 

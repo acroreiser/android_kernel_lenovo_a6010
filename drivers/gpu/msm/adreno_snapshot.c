@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,6 +16,7 @@
 
 #include "adreno.h"
 #include "adreno_pm4types.h"
+#include "a2xx_reg.h"
 #include "a3xx_reg.h"
 #include "adreno_cp_parser.h"
 
@@ -35,6 +36,7 @@ static struct kgsl_snapshot_obj {
 	int type;
 	uint32_t gpuaddr;
 	phys_addr_t ptbase;
+	void *ptr;
 	int dwords;
 	struct kgsl_mem_entry *entry;
 } objbuf[SNAPSHOT_OBJ_BUFSIZE];
@@ -48,7 +50,8 @@ static void push_object(struct kgsl_device *device, int type,
 	uint32_t gpuaddr, int dwords)
 {
 	int index;
-	struct kgsl_mem_entry *entry;
+	void *ptr;
+	struct kgsl_mem_entry *entry = NULL;
 
 	/*
 	 * Sometimes IBs can be reused in the same dump.  Because we parse from
@@ -70,10 +73,15 @@ static void push_object(struct kgsl_device *device, int type,
 		return;
 	}
 
-	entry = kgsl_get_mem_entry(device, ptbase, gpuaddr, dwords << 2);
-	if (entry == NULL) {
+	/*
+	 * adreno_convertaddr verifies that the IB size is valid - at least in
+	 * the context of it being smaller then the allocated memory space
+	 */
+	ptr = adreno_convertaddr(device, ptbase, gpuaddr, dwords << 2, &entry);
+
+	if (ptr == NULL) {
 		KGSL_DRV_ERR(device,
-			"snapshot: Can't find entry for %X\n", gpuaddr);
+			"snapshot: Can't find GPU address for %x\n", gpuaddr);
 		return;
 	}
 
@@ -82,7 +90,8 @@ static void push_object(struct kgsl_device *device, int type,
 	objbuf[objbufptr].gpuaddr = gpuaddr;
 	objbuf[objbufptr].ptbase = ptbase;
 	objbuf[objbufptr].dwords = dwords;
-	objbuf[objbufptr++].entry = entry;
+	objbuf[objbufptr].entry = entry;
+	objbuf[objbufptr++].ptr = ptr;
 }
 
 /*
@@ -335,13 +344,23 @@ static int snapshot_rb(struct kgsl_device *device, void *snapshot,
 		if (parse_ibs && adreno_cmd_is_ib(rbptr[index])) {
 			unsigned int ibaddr = rbptr[index + 1];
 			unsigned int ibsize = rbptr[index + 2];
-			struct kgsl_memdesc *memdesc = NULL;
+
+			/*
+			 * This will return non NULL if the IB happens to be
+			 * part of the context memory (i.e - context switch
+			 * command buffers)
+			 */
+
+			struct kgsl_memdesc *memdesc =
+				adreno_find_ctxtmem(device, ptbase, ibaddr,
+					ibsize << 2);
 
 			/* IOMMU uses a NOP IB placed in setsate memory */
-			if (kgsl_gpuaddr_in_memdesc(
-					&device->mmu.setstate_memory,
-					ibaddr, ibsize << 2))
-				memdesc = &device->mmu.setstate_memory;
+			if (NULL == memdesc)
+				if (kgsl_gpuaddr_in_memdesc(
+						&device->mmu.setstate_memory,
+						ibaddr, ibsize << 2))
+					memdesc = &device->mmu.setstate_memory;
 			/*
 			 * The IB from CP_IB1_BASE and the IBs for legacy
 			 * context switch go into the snapshot all
@@ -421,7 +440,7 @@ static int snapshot_capture_mem_list(struct kgsl_device *device, void *snapshot,
 
 		*data++ = entry->memdesc.gpuaddr;
 		*data++ = entry->memdesc.size;
-		*data++ = (entry->memdesc.flags & KGSL_MEMTYPE_MASK) >>
+		*data++ = (entry->memdesc.priv & KGSL_MEMTYPE_MASK) >>
 							KGSL_MEMTYPE_SHIFT;
 	}
 	spin_unlock(&private->mem_lock);
@@ -435,18 +454,10 @@ static int snapshot_ib(struct kgsl_device *device, void *snapshot,
 	struct kgsl_snapshot_ib *header = snapshot;
 	struct kgsl_snapshot_obj *obj = priv;
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	unsigned int *src;
+	unsigned int *src = obj->ptr;
 	unsigned int *dst = snapshot + sizeof(*header);
 	struct adreno_ib_object_list *ib_obj_list;
 	unsigned int ib1base;
-
-	src = kgsl_gpuaddr_to_vaddr(&obj->entry->memdesc, obj->gpuaddr);
-	if (src == NULL) {
-		KGSL_DRV_ERR(device,
-			"snapshot: Unable to map object 0x%X into the kernel\n",
-			obj->gpuaddr);
-		return 0;
-	}
 
 	adreno_readreg(adreno_dev, ADRENO_REG_CP_IB1_BASE, &ib1base);
 

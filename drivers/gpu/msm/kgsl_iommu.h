@@ -13,18 +13,11 @@
 #ifndef __KGSL_IOMMU_H
 #define __KGSL_IOMMU_H
 
-#include <linux/iommu.h>
-#include <linux/of.h>
+#include <linux/qcom_iommu.h>
 
 #define KGSL_IOMMU_CTX_OFFSET_V0	0
 #define KGSL_IOMMU_CTX_OFFSET_V1	0x8000
-#define KGSL_IOMMU_CTX_OFFSET_V2	0x8000
 #define KGSL_IOMMU_CTX_SHIFT		12
-
-/* IOMMU V2 AHB base is fixed */
-#define KGSL_IOMMU_V2_AHB_BASE		0xA000
-/* IOMMU_V2 AHB base points to ContextBank0 */
-#define KGSL_IOMMU_CTX_AHB_OFFSET_V2   0
 
 /* TLBLKCR fields */
 #define KGSL_IOMMU_TLBLKCR_LKE_MASK		0x00000001
@@ -54,7 +47,7 @@
 #define KGSL_IOMMU_V1_FSYNR0_WNR_SHIFT		4
 
 /* TTBR0 register fields */
-#ifdef CONFIG_IOMMU_LPAE
+#ifdef CONFIG_ARM_LPAE
 #define KGSL_IOMMU_CTX_TTBR0_ADDR_MASK_LPAE	0x000000FFFFFFFFE0ULL
 #define KGSL_IOMMU_CTX_TTBR0_ADDR_MASK KGSL_IOMMU_CTX_TTBR0_ADDR_MASK_LPAE
 #else
@@ -65,8 +58,8 @@
 #define KGSL_IOMMU_CTX_TLBSTATUS_SACTIVE BIT(0)
 
 /* IMPLDEF_MICRO_MMU_CTRL register fields */
-#define KGSL_IOMMU_IMPLDEF_MICRO_MMU_CTRL_HALT  0x00000004
-#define KGSL_IOMMU_IMPLDEF_MICRO_MMU_CTRL_IDLE  0x00000008
+#define KGSL_IOMMU_IMPLDEF_MICRO_MMU_CTRL_HALT BIT(2)
+#define KGSL_IOMMU_IMPLDEF_MICRO_MMU_CTRL_IDLE BIT(3)
 
 /* SCTLR fields */
 #define KGSL_IOMMU_SCTLR_HUPCF_SHIFT		8
@@ -108,18 +101,27 @@ enum kgsl_iommu_units {
 /* Max number of iommu contexts per IOMMU unit */
 #define KGSL_IOMMU_MAX_DEVS_PER_UNIT 2
 /* Max number of iommu clks per IOMMU unit */
-#define KGSL_IOMMU_MAX_CLKS 4
+#define KGSL_IOMMU_MAX_CLKS 3
+
+#define __raw_readll_no_log(a)		(__chk_io_ptr(a), *(volatile unsigned long long __force *)(a))
+#define __raw_writell_no_log(v, a)	(__chk_io_ptr(a), *(volatile unsigned long long __force *)(a) = (v))
+#define __raw_readll(a)		__raw_read_logged((a), ll, long long)
+#define __raw_writell(v, a)	__raw_write_logged((v), (a), ll)
+#define readll_relaxed(c) ({ u64 __r = le64_to_cpu((__force __le64) \
+					__raw_readll(c)); __r; })
+#define writell_relaxed(v, c)	((void)__raw_writell((__force u64) \
+					cpu_to_le64(v), c))
 
 /* Macros to read/write IOMMU registers */
-#define KGSL_IOMMU_SET_CTX_REG_Q(iommu, iommu_unit, ctx, REG, val)	\
-		writeq_relaxed(val,					\
+#define KGSL_IOMMU_SET_CTX_REG_LL(iommu, iommu_unit, ctx, REG, val)	\
+		writell_relaxed(val,					\
 		iommu_unit->reg_map.hostptr +				\
 		iommu->iommu_reg_list[KGSL_IOMMU_CTX_##REG].reg_offset +\
 		(ctx << KGSL_IOMMU_CTX_SHIFT) +				\
 		iommu->ctx_offset)
 
-#define KGSL_IOMMU_GET_CTX_REG_Q(iommu, iommu_unit, ctx, REG)		\
-		readq_relaxed(						\
+#define KGSL_IOMMU_GET_CTX_REG_LL(iommu, iommu_unit, ctx, REG)		\
+		readll_relaxed(						\
 		iommu_unit->reg_map.hostptr +				\
 		iommu->iommu_reg_list[KGSL_IOMMU_CTX_##REG].reg_offset +\
 		(ctx << KGSL_IOMMU_CTX_SHIFT) +				\
@@ -138,28 +140,6 @@ enum kgsl_iommu_units {
 		iommu->iommu_reg_list[KGSL_IOMMU_CTX_##REG].reg_offset +\
 		(ctx << KGSL_IOMMU_CTX_SHIFT) +				\
 		iommu->ctx_offset)
-
-#ifdef CONFIG_IOMMU_LPAE
-#define KGSL_IOMMU_GET_CTX_REG_TTBR0(iommu, iommu_unit, ctx)		\
-		KGSL_IOMMU_GET_CTX_REG_Q(iommu, iommu_unit, ctx, TTBR0)
-#define KGSL_IOMMU_SET_CTX_REG_TTBR0(iommu, iommu_unit, ctx, val)	\
-		KGSL_IOMMU_SET_CTX_REG_Q(iommu, iommu_unit, ctx, TTBR0, val)
-
-#define KGSL_IOMMU_GET_CTX_REG_FAR(iommu, iommu_unit, ctx)		\
-		KGSL_IOMMU_GET_CTX_REG_Q(iommu, iommu_unit, ctx, FAR)
-#define KGSL_IOMMU_SET_CTX_REG_FAR(iommu, iommu_unit, ctx, val)		\
-		KGSL_IOMMU_GET_CTX_REG_Q(iommu, iommu_unit, ctx, FAR, val)
-#else
-#define KGSL_IOMMU_GET_CTX_REG_TTBR0(iommu, iommu_unit, ctx)		\
-		KGSL_IOMMU_GET_CTX_REG(iommu, iommu_unit, ctx, TTBR0)
-#define KGSL_IOMMU_SET_CTX_REG_TTBR0(iommu, iommu_unit, ctx, val)	\
-		KGSL_IOMMU_SET_CTX_REG(iommu, iommu_unit, ctx, TTBR0, val)
-
-#define KGSL_IOMMU_GET_CTX_REG_FAR(iommu, iommu_unit, ctx)		\
-		KGSL_IOMMU_GET_CTX_REG(iommu, iommu_unit, ctx, FAR)
-#define KGSL_IOMMU_SET_CTX_REG_FAR(iommu, iommu_unit, ctx, val)		\
-		KGSL_IOMMU_GET_CTX_REG(iommu, iommu_unit, ctx, FAR, val)
-#endif
 
 /* Gets the lsb value of pagetable */
 #define KGSL_IOMMMU_PT_LSB(iommu, pt_val)				\
@@ -183,7 +163,7 @@ enum kgsl_iommu_units {
 struct kgsl_iommu_device {
 	struct device *dev;
 	bool attached;
-	uint64_t default_ttbr0;
+	phys_addr_t default_ttbr0;
 	enum kgsl_iommu_context_id ctx_id;
 	bool clk_enabled;
 	struct kgsl_device *kgsldev;
@@ -224,9 +204,7 @@ struct kgsl_iommu_unit {
  * instance of the IOMMU driver
  * @device: Pointer to kgsl device
  * @ctx_offset: The context offset to be added to base address when
- * accessing IOMMU registers from the CPU
- * @ctx_ahb_offset: The context offset to be added to base address when
- * accessing IOMMU registers from the GPU
+ * accessing IOMMU registers
  * @iommu_reg_list: List of IOMMU registers { offset, map, shift } array
  * @sync_lock_vars: Pointer to the IOMMU spinlock for serializing access to the
  * IOMMU registers
@@ -241,7 +219,6 @@ struct kgsl_iommu {
 	unsigned int unit_count;
 	struct kgsl_device *device;
 	unsigned int ctx_offset;
-	unsigned int ctx_ahb_offset;
 	struct kgsl_iommu_register_list *iommu_reg_list;
 	struct remote_iommu_petersons_spinlock *sync_lock_vars;
 	struct kgsl_memdesc sync_lock_desc;
@@ -272,42 +249,5 @@ struct kgsl_iommu_disable_clk_param {
 	int unit;
 	unsigned int ts;
 };
-
-/*
- * kgsl_msm_supports_iommu_v2 - Checks whether IOMMU version is V2 or not
- *
- * Checks whether IOMMU version is V2 or not by parsing nodes.
- * Return: 1 if IOMMU v2 is found else 0
- */
-#ifdef CONFIG_OF
-static inline int _kgsl_msm_checks_iommu_v2(void)
-{
-	struct device_node *node;
-	node = of_find_compatible_node(NULL, NULL, "qcom,msm-smmu-v2");
-	if (node) {
-		of_node_put(node);
-		return 1;
-	}
-	return 0;
-}
-#endif
-
-#if !defined(CONFIG_MSM_IOMMU_V0) && defined(CONFIG_OF)
-static int soc_supports_v2 = -1;
-static inline int kgsl_msm_supports_iommu_v2(void)
-{
-	if (soc_supports_v2 != -1)
-		return soc_supports_v2;
-
-	soc_supports_v2 = _kgsl_msm_checks_iommu_v2();
-
-	return soc_supports_v2;
-}
-#else
-static inline int kgsl_msm_supports_iommu_v2(void)
-{
-	return 0;
-}
-#endif
 
 #endif
