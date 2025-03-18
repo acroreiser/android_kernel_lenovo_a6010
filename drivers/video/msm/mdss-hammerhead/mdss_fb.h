@@ -123,7 +123,7 @@ struct msm_mdp_interface {
 	/* called to release resources associated to the process */
 	int (*release_fnc)(struct msm_fb_data_type *mfd, bool release_all);
 	int (*kickoff_fnc)(struct msm_fb_data_type *mfd,
-					struct mdp_display_commit *data);
+					struct mdp_display_commit_internal *data);
 	int (*ioctl_handler)(struct msm_fb_data_type *mfd, u32 cmd, void *arg);
 	void (*dma_fnc)(struct msm_fb_data_type *mfd);
 	int (*cursor_update)(struct msm_fb_data_type *mfd,
@@ -158,7 +158,7 @@ struct mdss_fb_proc_info {
 
 struct msm_fb_backup_type {
 	struct fb_info info;
-	struct mdp_display_commit disp_commit;
+	struct mdp_display_commit_internal disp_commit;
 };
 
 struct msm_fb_data_type {

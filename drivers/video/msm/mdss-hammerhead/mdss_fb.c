@@ -2434,7 +2434,7 @@ static int mdss_fb_wait_for_kickoff(struct msm_fb_data_type *mfd)
 }
 
 static int mdss_fb_pan_display_ex(struct fb_info *info,
-		struct mdp_display_commit *disp_commit)
+		struct mdp_display_commit_internal *disp_commit)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct fb_var_screeninfo *var = &disp_commit->var;
@@ -2489,7 +2489,7 @@ static int mdss_fb_pan_display_ex(struct fb_info *info,
 static int mdss_fb_pan_display(struct fb_var_screeninfo *var,
 		struct fb_info *info)
 {
-	struct mdp_display_commit disp_commit;
+	struct mdp_display_commit_internal disp_commit;
 	memset(&disp_commit, 0, sizeof(disp_commit));
 	disp_commit.wait_for_finish = true;
 	memcpy(&disp_commit.var, var, sizeof(struct fb_var_screeninfo));
@@ -3064,7 +3064,7 @@ static int mdss_fb_display_commit(struct fb_info *info,
 						unsigned long *argp)
 {
 	int ret;
-	struct mdp_display_commit disp_commit;
+	struct mdp_display_commit_internal disp_commit;
 	ret = copy_from_user(&disp_commit, argp,
 			sizeof(disp_commit));
 	if (ret) {
@@ -3172,7 +3172,6 @@ static int mdss_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 
 	case MSMFB_DISPLAY_COMMIT:
-	case 0x40a86da4:
 		ret = mdss_fb_display_commit(info, argp);
 		break;
 

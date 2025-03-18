@@ -2030,7 +2030,7 @@ int mdss_mdp_ctl_reset(struct mdss_mdp_ctl *ctl)
 }
 
 void mdss_mdp_set_roi(struct mdss_mdp_ctl *ctl,
-		struct mdp_display_commit *data)
+		struct mdp_display_commit_internal *data)
 {
 	struct mdss_rect l_roi, r_roi;
 

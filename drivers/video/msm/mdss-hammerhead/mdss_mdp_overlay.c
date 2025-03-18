@@ -1184,12 +1184,12 @@ static void __overlay_kickoff_requeue(struct msm_fb_data_type *mfd)
 }
 
 int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
-				struct mdp_display_commit *data)
+				struct mdp_display_commit_internal *data)
 {
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_mdp_pipe *pipe, *tmp;
 	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
-	struct mdp_display_commit temp_data;
+	struct mdp_display_commit_internal temp_data;
 	int ret = 0;
 	int sd_in_pipe = 0;
 	bool need_cleanup = false;
@@ -2277,7 +2277,7 @@ static int mdss_mdp_pp_ioctl(struct msm_fb_data_type *mfd,
 				void __user *argp)
 {
 	int ret;
-	struct msmfb_mdp_pp mdp_pp;
+	struct msmfb_mdp_pp_310 mdp_pp;
 	u32 copyback = 0;
 	u32 copy_from_kernel = 0;
 
@@ -2380,7 +2380,7 @@ static int mdss_mdp_pp_ioctl(struct msm_fb_data_type *mfd,
 		break;
 	}
 	if ((ret == 0) && copyback)
-		ret = copy_to_user(argp, &mdp_pp, sizeof(struct msmfb_mdp_pp));
+		ret = copy_to_user(argp, &mdp_pp, sizeof(struct msmfb_mdp_pp_310));
 	return ret;
 }
 
@@ -2450,7 +2450,7 @@ static int mdss_mdp_histo_ioctl(struct msm_fb_data_type *mfd, u32 cmd,
 }
 
 static int mdss_fb_set_metadata(struct msm_fb_data_type *mfd,
-				struct msmfb_metadata *metadata)
+				struct msmfb_metadata_310 *metadata)
 {
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
 	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
@@ -2505,7 +2505,7 @@ static int mdss_fb_get_hw_caps(struct msm_fb_data_type *mfd,
 }
 
 static int mdss_fb_get_metadata(struct msm_fb_data_type *mfd,
-				struct msmfb_metadata *metadata)
+				struct msmfb_metadata_310 *metadata)
 {
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
 	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
@@ -2673,7 +2673,7 @@ static int mdss_mdp_overlay_ioctl_handler(struct msm_fb_data_type *mfd,
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdp_overlay *req = NULL;
 	int val, ret = -ENOSYS;
-	struct msmfb_metadata metadata;
+	struct msmfb_metadata_310 metadata;
 
 	switch (cmd) {
 	case MSMFB_MDP_PP:

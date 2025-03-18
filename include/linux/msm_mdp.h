@@ -981,6 +981,26 @@ struct msmfb_mdp_pp {
 		struct mdp_qseed_cfg_data qseed_cfg_data;
 		struct mdp_bl_scale_data bl_scale_data;
 		struct mdp_pa_cfg_data pa_cfg_data;
+		struct mdp_dither_cfg_data dither_cfg_data;
+		struct mdp_gamut_cfg_data gamut_cfg_data;
+		struct mdp_calib_config_data calib_cfg;
+		struct mdss_ad_init_cfg ad_init_cfg;
+		struct mdss_calib_cfg mdss_calib_cfg;
+		struct mdss_ad_input ad_input;
+		struct mdp_calib_config_buffer calib_buffer;
+		struct mdp_calib_dcm_state calib_dcm;
+	} data;
+};
+
+struct msmfb_mdp_pp_310 {
+	uint32_t op;
+	union {
+		struct mdp_pcc_cfg_data pcc_cfg_data;
+		struct mdp_csc_cfg_data csc_cfg_data;
+		struct mdp_lut_cfg_data lut_cfg_data;
+		struct mdp_qseed_cfg_data qseed_cfg_data;
+		struct mdp_bl_scale_data bl_scale_data;
+		struct mdp_pa_cfg_data pa_cfg_data;
 		struct mdp_pa_v2_cfg_data pa_v2_cfg_data;
 		struct mdp_dither_cfg_data dither_cfg_data;
 		struct mdp_gamut_cfg_data gamut_cfg_data;
@@ -1035,6 +1055,19 @@ struct msmfb_metadata {
 		uint32_t panel_frame_rate;
 		uint32_t video_info_code;
 		struct mdss_hw_caps caps;
+	} data;
+};
+
+struct msmfb_metadata_310 {
+	uint32_t op;
+	uint32_t flags;
+	union {
+		struct mdp_misr misr_request;
+		struct mdp_blend_cfg blend_cfg;
+		struct mdp_mixer_cfg mixer_cfg;
+		uint32_t panel_frame_rate;
+		uint32_t video_info_code;
+		struct mdss_hw_caps caps;
 		uint8_t secure_en;
 	} data;
 };
@@ -1060,12 +1093,18 @@ struct mdp_async_blit_req_list {
 
 #define MDP_DISPLAY_COMMIT_OVERLAY	1
 
-struct mdp_display_commit {
+struct mdp_display_commit_internal {
 	uint32_t flags;
 	uint32_t wait_for_finish;
 	struct fb_var_screeninfo var;
 	struct mdp_rect l_roi;
 	struct mdp_rect r_roi;
+};
+
+struct mdp_display_commit {
+	uint32_t flags;
+	uint32_t wait_for_finish;
+	struct fb_var_screeninfo var;
 };
 
 /**

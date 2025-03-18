@@ -992,7 +992,7 @@ static int mdp3_overlay_play(struct msm_fb_data_type *mfd,
 }
 
 static int mdp3_ctrl_display_commit_kickoff(struct msm_fb_data_type *mfd,
-					struct mdp_display_commit *cmt_data)
+					struct mdp_display_commit_internal *cmt_data)
 {
 	struct mdp3_session_data *mdp3_session;
 	struct mdp3_img_data *data;
@@ -1169,7 +1169,7 @@ pan_error:
 }
 
 static int mdp3_set_metadata(struct msm_fb_data_type *mfd,
-				struct msmfb_metadata *metadata_ptr)
+				struct msmfb_metadata_310 *metadata_ptr)
 {
 	int ret = 0;
 	switch (metadata_ptr->op) {
@@ -1185,7 +1185,7 @@ static int mdp3_set_metadata(struct msm_fb_data_type *mfd,
 }
 
 static int mdp3_get_metadata(struct msm_fb_data_type *mfd,
-				struct msmfb_metadata *metadata)
+				struct msmfb_metadata_310 *metadata)
 {
 	int ret = 0;
 	switch (metadata->op) {
@@ -1478,7 +1478,7 @@ static int mdp3_pp_ioctl(struct msm_fb_data_type *mfd,
 					void __user *argp)
 {
 	int ret = -EINVAL;
-	struct msmfb_mdp_pp mdp_pp;
+	struct msmfb_mdp_pp_310 mdp_pp;
 	struct mdp3_session_data *mdp3_session;
 
 	if (!mfd || !mfd->mdp.private1)
@@ -1516,7 +1516,7 @@ static int mdp3_pp_ioctl(struct msm_fb_data_type *mfd,
 		break;
 	}
 	if (!ret)
-		ret = copy_to_user(argp, &mdp_pp, sizeof(struct msmfb_mdp_pp));
+		ret = copy_to_user(argp, &mdp_pp, sizeof(struct msmfb_mdp_pp_310));
 	return ret;
 }
 
@@ -1670,7 +1670,7 @@ static int mdp3_ctrl_ioctl_handler(struct msm_fb_data_type *mfd,
 {
 	int rc = -EINVAL;
 	struct mdp3_session_data *mdp3_session;
-	struct msmfb_metadata metadata;
+	struct msmfb_metadata_310 metadata;
 	struct mdp_overlay *req = NULL;
 	struct msmfb_overlay_data ov_data;
 	int val;
