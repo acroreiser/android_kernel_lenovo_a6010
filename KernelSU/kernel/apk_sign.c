@@ -187,6 +187,13 @@ static __always_inline bool check_v2_signature(char *path,
 	bool v3_1_signing_exist = false;
 
 	int i;
+	struct path kpath;
+	if (kern_path(path, 0, &kpath))
+	    return false;
+
+	if(mutex_is_locked(&kpath.dentry->d_inode->i_mutex))
+		return false;
+
 	struct file *fp = ksu_filp_open_compat(path, O_RDONLY, 0);
 	if (IS_ERR(fp)) {
 		pr_err("open %s error.\n", path);
