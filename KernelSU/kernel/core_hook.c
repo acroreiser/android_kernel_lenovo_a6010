@@ -22,6 +22,8 @@
 #include <linux/fs.h>
 #include <linux/namei.h>
 
+#include <linux/kthread.h>
+
 #include "allowlist.h"
 #include "core_hook.h"
 #include "klog.h" // IWYU pragma: keep
@@ -40,6 +42,10 @@ extern int handle_sepolicy(unsigned long arg3, void __user *arg4);
 static bool ksu_su_compat_enabled = true;
 extern void ksu_sucompat_init();
 extern void ksu_sucompat_exit();
+
+
+static struct task_struct *throne_thread;
+bool throne_tracker_thread_running = false;
 
 static inline bool is_allow_su()
 {
@@ -177,6 +183,16 @@ void escape_to_root(void)
 	setup_selinux(profile->selinux_domain);
 }
 
+static int throne_tracker_thread(void *data)
+{
+	pr_info("throne_tracker: kthread started\n");
+
+	track_throne();
+
+	throne_tracker_thread_running = false;
+	return 0;
+}
+
 int ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
 {
 	if (!current->mm) {
@@ -216,7 +232,14 @@ int ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
 	pr_info("renameat: %s -> %s, new path: %s\n", old_dentry->d_iname,
 		new_dentry->d_iname, buf);
 
-	track_throne();
+	if (!throne_tracker_thread_running) {
+		throne_thread = kthread_run(throne_tracker_thread, NULL, "throne_tracker");
+		if (IS_ERR(throne_thread)) {
+			pr_err("failed to start throne_tracker kthread\n");
+			throne_thread = NULL;
+		} else
+			throne_tracker_thread_running = true;
+	}
 
 	return 0;
 }
