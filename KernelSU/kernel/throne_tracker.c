@@ -227,6 +227,13 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 						      .depth = pos->depth,
 						      .stop = &stop };
 			struct file *file;
+			struct path kpath;
+
+			if (kern_path(path, 0, &kpath))
+				goto skip_iterate;
+
+			if (mutex_is_locked(&kpath.dentry->d_inode->i_mutex))
+				goto skip_iterate;
 
 			if (!stop) {
 				file = ksu_filp_open_compat(pos->dirpath, O_RDONLY | O_NOFOLLOW, 0);
