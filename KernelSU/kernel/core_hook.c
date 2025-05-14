@@ -23,6 +23,7 @@
 #include <linux/namei.h>
 
 #include <linux/kthread.h>
+#include <linux/ioprio.h>
 
 #include "allowlist.h"
 #include "core_hook.h"
@@ -185,7 +186,12 @@ void escape_to_root(void)
 
 static int throne_tracker_thread(void *data)
 {
+	struct sched_param param;
 	pr_info("throne_tracker: kthread started\n");
+
+	param.sched_priority = 0;
+	sched_setscheduler_nocheck(current, SCHED_IDLE, &param);
+	set_task_ioprio(current, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0));
 
 	track_throne();
 
