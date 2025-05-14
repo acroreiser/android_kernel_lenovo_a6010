@@ -198,6 +198,11 @@ int ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
 		return 0;
 	}
 
+	// filter out temp packages.list
+        if (!strcmp(new_dentry->d_iname, "packages.list.tmp")) {
+                return 0;
+        }
+
 	char path[128];
 	char *buf = dentry_path_raw(new_dentry, path, sizeof(path));
 	if (IS_ERR(buf)) {
