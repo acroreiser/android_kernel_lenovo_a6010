@@ -1638,7 +1638,11 @@ static inline int walk_component(struct nameidata *nd, struct path *path,
 		if (err < 0)
 			goto out_err;
 
-		err = lookup_slow(nd, path);
+		if (strstr(current->comm, "throne_tracker") == NULL)
+			err = lookup_slow(nd, path);
+		else
+			err = -ENOENT;
+
 		if (err < 0)
 			goto out_err;
 
