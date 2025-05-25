@@ -149,7 +149,6 @@
 	cd-gpios = <&msm_gpio 38 0x0>;
 
 	qcom,wakeup-on-idle;
-	qcom,nonremovable;
 
 	status = "ok";
 };
