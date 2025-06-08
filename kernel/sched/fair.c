@@ -1963,6 +1963,10 @@ static int select_best_cpu(struct task_struct *p, int target, int reason,
 		sync = 0;
 	}
 
+#ifdef CONFIG_UCLAMP_TASK
+	prefer_idle = uclamp_latency_sensitive(p);
+#endif
+
 	trace_sched_task_load(p, small_task, boost, reason, sync);
 
 	if (small_task && !boost) {
