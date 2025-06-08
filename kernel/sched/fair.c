@@ -2955,7 +2955,7 @@ static inline void update_entity_load_avg(struct sched_entity *se,
 		 * See cpu_util().
 		 */
 		cpufreq_update_util(rq->clock,
-				    uclamp_util(rq, min(cfs_rq->runnable_load_avg, max)), max);
+				    uclamp_util_with(rq, min(cfs_rq->runnable_load_avg, max), NULL), max);
 	}
 }
 
