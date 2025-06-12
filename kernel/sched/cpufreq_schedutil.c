@@ -114,6 +114,8 @@ static void sugov_update_commit(struct sugov_policy *sg_policy, u64 time,
 		return;
 
 	if (sg_policy->next_freq != next_freq) {
+		if (sg_policy->next_freq > next_freq)
+			next_freq = (sg_policy->next_freq + next_freq) >> 1;
 		sg_policy->next_freq = next_freq;
 		sg_policy->last_freq_update_time = time;
 		sg_policy->work_in_progress = true;
