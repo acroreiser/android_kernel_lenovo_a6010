@@ -17,7 +17,7 @@
 #include <linux/hrtimer.h>
 #include <linux/ioprio.h>
 #include <linux/rbtree.h>
-#include <linux/blk-cgroup.h>
+#include "blk-cgroup.h"
 
 #define BFQ_IOPRIO_CLASSES	3
 #define BFQ_CL_IDLE_TIMEOUT	(HZ/5)
@@ -690,7 +690,7 @@ struct bfqg_stats {
  */
 struct bfq_group_data {
 	/* must be the first member */
-	struct blkcg_policy_data pd;
+	struct blkg_policy_data pd;
 
 	unsigned short weight;
 };

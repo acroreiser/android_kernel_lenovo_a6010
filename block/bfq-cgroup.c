@@ -276,20 +276,20 @@ static void bfqg_stats_merge(struct bfqg_stats *to, struct bfqg_stats *from)
 		return;
 
 	/* queued stats shouldn't be cleared */
-	blkg_rwstat_add_aux(&to->service_bytes, &from->service_bytes);
-	blkg_rwstat_add_aux(&to->serviced, &from->serviced);
-	blkg_rwstat_add_aux(&to->merged, &from->merged);
-	blkg_rwstat_add_aux(&to->service_time, &from->service_time);
-	blkg_rwstat_add_aux(&to->wait_time, &from->wait_time);
-	blkg_stat_add_aux(&from->time, &from->time);
-	blkg_stat_add_aux(&to->unaccounted_time, &from->unaccounted_time);
-	blkg_stat_add_aux(&to->avg_queue_size_sum, &from->avg_queue_size_sum);
-	blkg_stat_add_aux(&to->avg_queue_size_samples,
+	blkg_rwstat_merge(&to->service_bytes, &from->service_bytes);
+	blkg_rwstat_merge(&to->serviced, &from->serviced);
+	blkg_rwstat_merge(&to->merged, &from->merged);
+	blkg_rwstat_merge(&to->service_time, &from->service_time);
+	blkg_rwstat_merge(&to->wait_time, &from->wait_time);
+	blkg_stat_merge(&from->time, &from->time);
+	blkg_stat_merge(&to->unaccounted_time, &from->unaccounted_time);
+	blkg_stat_merge(&to->avg_queue_size_sum, &from->avg_queue_size_sum);
+	blkg_stat_merge(&to->avg_queue_size_samples,
 			  &from->avg_queue_size_samples);
-	blkg_stat_add_aux(&to->dequeue, &from->dequeue);
-	blkg_stat_add_aux(&to->group_wait_time, &from->group_wait_time);
-	blkg_stat_add_aux(&to->idle_time, &from->idle_time);
-	blkg_stat_add_aux(&to->empty_time, &from->empty_time);
+	blkg_stat_merge(&to->dequeue, &from->dequeue);
+	blkg_stat_merge(&to->group_wait_time, &from->group_wait_time);
+	blkg_stat_merge(&to->idle_time, &from->idle_time);
+	blkg_stat_merge(&to->empty_time, &from->empty_time);
 }
 
 /*
@@ -335,48 +335,45 @@ static void bfq_init_entity(struct bfq_entity *entity,
 
 static void bfqg_stats_exit(struct bfqg_stats *stats)
 {
-	blkg_rwstat_exit(&stats->service_bytes);
-	blkg_rwstat_exit(&stats->serviced);
-	blkg_rwstat_exit(&stats->merged);
-	blkg_rwstat_exit(&stats->service_time);
-	blkg_rwstat_exit(&stats->wait_time);
-	blkg_rwstat_exit(&stats->queued);
-	blkg_stat_exit(&stats->sectors);
-	blkg_stat_exit(&stats->time);
-	blkg_stat_exit(&stats->unaccounted_time);
-	blkg_stat_exit(&stats->avg_queue_size_sum);
-	blkg_stat_exit(&stats->avg_queue_size_samples);
-	blkg_stat_exit(&stats->dequeue);
-	blkg_stat_exit(&stats->group_wait_time);
-	blkg_stat_exit(&stats->idle_time);
-	blkg_stat_exit(&stats->empty_time);
+	blkg_rwstat_reset(&stats->service_bytes);
+	blkg_rwstat_reset(&stats->serviced);
+	blkg_rwstat_reset(&stats->merged);
+	blkg_rwstat_reset(&stats->service_time);
+	blkg_rwstat_reset(&stats->wait_time);
+	blkg_rwstat_reset(&stats->queued);
+	blkg_stat_reset(&stats->sectors);
+	blkg_stat_reset(&stats->time);
+	blkg_stat_reset(&stats->unaccounted_time);
+	blkg_stat_reset(&stats->avg_queue_size_sum);
+	blkg_stat_reset(&stats->avg_queue_size_samples);
+	blkg_stat_reset(&stats->dequeue);
+	blkg_stat_reset(&stats->group_wait_time);
+	blkg_stat_reset(&stats->idle_time);
+	blkg_stat_reset(&stats->empty_time);
 }
 
 static int bfqg_stats_init(struct bfqg_stats *stats, gfp_t gfp)
 {
-	if (blkg_rwstat_init(&stats->service_bytes, gfp) ||
-	    blkg_rwstat_init(&stats->serviced, gfp) ||
-	    blkg_rwstat_init(&stats->merged, gfp) ||
-	    blkg_rwstat_init(&stats->service_time, gfp) ||
-	    blkg_rwstat_init(&stats->wait_time, gfp) ||
-	    blkg_rwstat_init(&stats->queued, gfp) ||
-	    blkg_stat_init(&stats->sectors, gfp) ||
-	    blkg_stat_init(&stats->time, gfp) ||
-	    blkg_stat_init(&stats->unaccounted_time, gfp) ||
-	    blkg_stat_init(&stats->avg_queue_size_sum, gfp) ||
-	    blkg_stat_init(&stats->avg_queue_size_samples, gfp) ||
-	    blkg_stat_init(&stats->dequeue, gfp) ||
-	    blkg_stat_init(&stats->group_wait_time, gfp) ||
-	    blkg_stat_init(&stats->idle_time, gfp) ||
-	    blkg_stat_init(&stats->empty_time, gfp)) {
-		bfqg_stats_exit(stats);
-		return -ENOMEM;
-	}
+	blkg_rwstat_init(&stats->service_bytes);
+	blkg_rwstat_init(&stats->serviced);
+	blkg_rwstat_init(&stats->merged);
+	blkg_rwstat_init(&stats->service_time);
+	blkg_rwstat_init(&stats->wait_time);
+	blkg_rwstat_init(&stats->queued);
+	blkg_stat_init(&stats->sectors);
+	blkg_stat_init(&stats->time);
+	blkg_stat_init(&stats->unaccounted_time);
+	blkg_stat_init(&stats->avg_queue_size_sum);
+	blkg_stat_init(&stats->avg_queue_size_samples);
+	blkg_stat_init(&stats->dequeue);
+	blkg_stat_init(&stats->group_wait_time);
+	blkg_stat_init(&stats->idle_time);
+	blkg_stat_init(&stats->empty_time);
 
 	return 0;
 }
 
-static struct bfq_group_data *cpd_to_bfqgd(struct blkcg_policy_data *cpd)
+static struct bfq_group_data *cpd_to_bfqgd(struct blkg_policy_data *cpd)
 {
 	return cpd ? container_of(cpd, struct bfq_group_data, pd) : NULL;
 }
@@ -386,7 +383,7 @@ static struct bfq_group_data *blkcg_to_bfqgd(struct blkcg *blkcg)
 	return cpd_to_bfqgd(blkcg_to_cpd(blkcg, &blkcg_policy_bfq));
 }
 
-static void bfq_cpd_init(struct blkcg_policy_data *cpd)
+static void bfq_cpd_init(struct blkg_policy_data *cpd)
 {
 	struct bfq_group_data *d = cpd_to_bfqgd(cpd);
 
@@ -424,9 +421,8 @@ static void bfq_group_set_parent(struct bfq_group *bfqg,
 	entity->sched_data = &parent->sched_data;
 }
 
-static void bfq_pd_init(struct blkg_policy_data *pd)
+static void bfq_pd_init(struct blkcg_gq *blkg)
 {
-	struct blkcg_gq *blkg = pd_to_blkg(pd);
 	struct bfq_group *bfqg = blkg_to_bfqg(blkg);
 	struct bfq_data *bfqd = blkg->q->elevator->elevator_data;
 	struct bfq_entity *entity = &bfqg->entity;
@@ -462,8 +458,8 @@ static u64 bfqg_stat_pd_recursive_sum(struct blkg_policy_data *pd, int off)
 {
 	u64 sum = 0;
 
-	sum += blkg_stat_recursive_sum(pd_to_blkg(pd), &blkcg_policy_bfq, off);
-	sum += blkg_stat_recursive_sum(pd_to_blkg(pd), &blkcg_policy_bfq,
+	sum += blkg_stat_recursive_sum(pd, off);
+	sum += blkg_stat_recursive_sum(pd,
 				       off + dead_stats_off_delta);
 	return sum;
 }
@@ -474,15 +470,16 @@ bfqg_rwstat_pd_recursive_sum(struct blkg_policy_data *pd, int off)
 {
 	struct blkg_rwstat a, b;
 
-	a = blkg_rwstat_recursive_sum(pd_to_blkg(pd), &blkcg_policy_bfq, off);
-	b = blkg_rwstat_recursive_sum(pd_to_blkg(pd), &blkcg_policy_bfq,
+	a = blkg_rwstat_recursive_sum(pd, off);
+	b = blkg_rwstat_recursive_sum(pd,
 				      off + dead_stats_off_delta);
-	blkg_rwstat_add_aux(&a, &b);
+	blkg_rwstat_merge(&a, &b);
 	return a;
 }
 
-static void bfq_pd_reset_stats(struct blkg_policy_data *pd)
+static void bfq_pd_reset_stats(struct blkcg_gq *blkg)
 {
+	struct blkg_policy_data *pd = blkg_to_pd(blkg, &blkcg_policy_bfq);
 	struct bfq_group *bfqg = pd_to_bfqg(pd);
 
 	bfqg_stats_reset(&bfqg->stats);
@@ -723,8 +720,9 @@ static void bfq_reparent_active_entities(struct bfq_data *bfqd,
  * Destroy @bfqg, making sure that it is not referenced from its parent.
  * blkio already grabs the queue_lock for us, so no need to use RCU-based magic
  */
-static void bfq_pd_offline(struct blkg_policy_data *pd)
+static void bfq_pd_offline(struct blkcg_gq *blkg)
 {
+	struct blkg_policy_data *pd = blkg_to_pd(blkg, &blkcg_policy_bfq);
 	struct bfq_service_tree *st;
 	struct bfq_group *bfqg;
 	struct bfq_data *bfqd;
@@ -964,7 +962,7 @@ bfq_create_group_hierarchy(struct bfq_data *bfqd, int node)
 	return blkg_to_bfqg(bfqd->queue->root_blkg);
 }
 
-static struct blkcg_policy_data *bfq_cpd_alloc(gfp_t gfp)
+static struct blkg_policy_data *bfq_cpd_alloc(gfp_t gfp)
 {
 	struct bfq_group_data *bgd;
 
@@ -974,7 +972,7 @@ static struct blkcg_policy_data *bfq_cpd_alloc(gfp_t gfp)
 	return &bgd->pd;
 }
 
-static void bfq_cpd_free(struct blkcg_policy_data *cpd)
+static void bfq_cpd_free(struct blkg_policy_data *cpd)
 {
 	kfree(cpd_to_bfqgd(cpd));
 }
@@ -1111,19 +1109,15 @@ static struct cftype bfqio_files[] = {
 };
 
 static struct blkcg_policy blkcg_policy_bfq = {
-	.dfl_cftypes            = bfqio_files_dfl,
-	.legacy_cftypes		= bfqio_files,
+	.pd_size		= sizeof(struct bfq_group),
+	.cpd_size		= sizeof(struct bfq_group_data),
+	.cftypes		= bfqio_files,
 
-	.pd_alloc_fn		= bfq_pd_alloc,
 	.pd_init_fn		= bfq_pd_init,
 	.pd_offline_fn		= bfq_pd_offline,
-	.pd_free_fn		= bfq_pd_free,
 	.pd_reset_stats_fn	= bfq_pd_reset_stats,
 
-	.cpd_alloc_fn		= bfq_cpd_alloc,
 	.cpd_init_fn		= bfq_cpd_init,
-	.cpd_bind_fn		= bfq_cpd_init,
-	.cpd_free_fn		= bfq_cpd_free,
 };
 
 #else

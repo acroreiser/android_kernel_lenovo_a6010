@@ -197,7 +197,7 @@ static void bfq_schedule_dispatch(struct bfq_data *bfqd)
 {
 	if (bfqd->queued != 0) {
 		bfq_log(bfqd, "schedule dispatch");
-		kblockd_schedule_work(&bfqd->unplug_work);
+		kblockd_schedule_work(bfqd->queue, &bfqd->unplug_work);
 	}
 }
 
@@ -1145,7 +1145,7 @@ static int bfq_merge(struct request_queue *q, struct request **req,
 	struct request *__rq;
 
 	__rq = bfq_find_rq_fmerge(bfqd, bio);
-	if (__rq && elv_rq_merge_ok(__rq, bio)) {
+	if (__rq && blk_rq_merge_ok(__rq, bio)) {
 		*req = __rq;
 		return ELEVATOR_FRONT_MERGE;
 	}
@@ -1270,7 +1270,7 @@ static sector_t bfq_io_struct_pos(void *io_struct, bool request)
 	if (request)
 		return blk_rq_pos(io_struct);
 	else
-		return ((struct bio *)io_struct)->bi_iter.bi_sector;
+		return ((struct bio *)io_struct)->bi_sector;
 }
 
 static int bfq_rq_close_to_sector(void *io_struct, bool request,
@@ -3214,7 +3214,7 @@ retry:
 		if (new_bfqq) {
 			bfqq = new_bfqq;
 			new_bfqq = NULL;
-		} else if (gfpflags_allow_blocking(gfp_mask)) {
+		} else if (gfp_mask & __GFP_WAIT) {
 			rcu_read_unlock();
 			spin_unlock_irq(bfqd->queue->queue_lock);
 			new_bfqq = kmem_cache_alloc_node(bfq_pool,
@@ -3732,7 +3732,7 @@ static int bfq_set_request(struct request_queue *q, struct request *rq,
 	unsigned long flags;
 	bool split = false;
 
-	might_sleep_if(gfpflags_allow_blocking(gfp_mask));
+	might_sleep_if(gfp_mask & __GFP_WAIT);
 
 	bfq_check_ioprio_change(bic, bio);
 
@@ -4328,7 +4328,7 @@ static struct elevator_type iosched_bfq = {
 #ifdef CONFIG_BFQ_GROUP_IOSCHED
 		.elevator_bio_merged_fn =	bfq_bio_merged,
 #endif
-		.elevator_allow_merge_fn =	bfq_allow_merge,
+		.elevator_allow_rq_merge_fn =	bfq_allow_merge,
 		.elevator_dispatch_fn =		bfq_dispatch_requests,
 		.elevator_add_req_fn =		bfq_insert_request,
 		.elevator_activate_req_fn =	bfq_activate_request,
