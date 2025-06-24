@@ -694,7 +694,7 @@ struct bfqg_stats {
  */
 struct bfq_group_data {
 	/* must be the first member */
-	struct blkg_policy_data pd;
+	struct blkcg_policy_data pd;
 
 	unsigned short weight;
 };

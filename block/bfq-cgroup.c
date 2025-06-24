@@ -371,7 +371,7 @@ static int bfqg_stats_init(struct bfqg_stats *stats, gfp_t gfp)
 	return 0;
 }
 
-static struct bfq_group_data *cpd_to_bfqgd(struct blkg_policy_data *cpd)
+static struct bfq_group_data *cpd_to_bfqgd(struct blkcg_policy_data *cpd)
 {
 	return cpd ? container_of(cpd, struct bfq_group_data, pd) : NULL;
 }
@@ -381,9 +381,9 @@ static struct bfq_group_data *blkcg_to_bfqgd(struct blkcg *blkcg)
 	return cpd_to_bfqgd(blkcg_to_cpd(blkcg, &blkcg_policy_bfq));
 }
 
-static void bfq_cpd_init(struct blkg_policy_data *cpd)
+static void bfq_cpd_init(const struct blkcg *blkcg)
 {
-	struct bfq_group_data *d = cpd_to_bfqgd(cpd);
+	struct bfq_group_data *d = blkcg_to_bfqgd(blkcg);
 
 	d->weight = BFQ_DEFAULT_GRP_WEIGHT;
 }
@@ -990,7 +990,7 @@ bfq_create_group_hierarchy(struct bfq_data *bfqd, int node)
 	return blkg_to_bfqg(bfqd->queue->root_blkg);
 }
 
-static struct blkg_policy_data *bfq_cpd_alloc(gfp_t gfp)
+static struct blkcg_policy_data *bfq_cpd_alloc(gfp_t gfp)
 {
 	struct bfq_group_data *bgd;
 
@@ -1000,7 +1000,7 @@ static struct blkg_policy_data *bfq_cpd_alloc(gfp_t gfp)
 	return &bgd->pd;
 }
 
-static void bfq_cpd_free(struct blkg_policy_data *cpd)
+static void bfq_cpd_free(struct blkcg_policy_data *cpd)
 {
 	kfree(cpd_to_bfqgd(cpd));
 }
@@ -1018,6 +1018,7 @@ static struct cftype bfqio_files_dfl[] = {
 static struct cftype bfqio_files[] = {
 	{
 		.name = "bfq.weight",
+//		.flags = CFTYPE_NOT_ON_ROOT,
 		.read_u64 = bfqio_cgroup_weight_read,
 		.write_u64 = bfqio_cgroup_weight_write,
 	},
