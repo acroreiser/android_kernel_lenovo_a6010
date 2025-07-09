@@ -412,4 +412,5 @@ static inline ktime_t ms_to_ktime(u64 ms)
 }
 
 u64 notrace ktime_get_mono_fast_ns(void);
+u64 notrace ktime_get_boot_fast_ns(void);
 #endif
