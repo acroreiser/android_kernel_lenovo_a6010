@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011,2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2011,2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,6 +15,7 @@
 #define __KGSL_CFFDUMP_H
 
 #include <linux/types.h>
+#include "kgsl_device.h"
 
 extern unsigned int kgsl_cff_dump_enable;
 
@@ -29,7 +30,7 @@ void kgsl_cffdump_destroy(void);
 void kgsl_cffdump_open(struct kgsl_device *device);
 void kgsl_cffdump_close(struct kgsl_device *device);
 void kgsl_cffdump_syncmem(struct kgsl_device *,
-	struct kgsl_memdesc *memdesc, uint physaddr, uint sizebytes,
+	struct kgsl_memdesc *memdesc, uint physaddr, size_t sizebytes,
 	bool clean_cache);
 void kgsl_cffdump_setmem(struct kgsl_device *device, uint addr,
 			uint value, uint sizebytes);
@@ -51,6 +52,10 @@ void kgsl_cffdump_memory_base(struct kgsl_device *device, unsigned int base,
 void kgsl_cffdump_hang(struct kgsl_device *device);
 int kgsl_cff_dump_enable_set(void *data, u64 val);
 int kgsl_cff_dump_enable_get(void *data, u64 *val);
+int kgsl_cffdump_capture_ib_desc(struct kgsl_device *device,
+				struct kgsl_context *context,
+				struct kgsl_ibdesc *ibdesc,
+				unsigned int numibs);
 
 #else
 
@@ -75,7 +80,7 @@ static inline void kgsl_cffdump_close(struct kgsl_device *device)
 }
 
 static inline void kgsl_cffdump_syncmem(struct kgsl_device *device,
-		struct kgsl_memdesc *memdesc, uint physaddr, uint sizebytes,
+		struct kgsl_memdesc *memdesc, uint physaddr, size_t sizebytes,
 		bool clean_cache)
 {
 	return;
@@ -124,16 +129,24 @@ static inline void kgsl_cffdump_user_event(struct kgsl_device *device,
 {
 	return;
 }
+
+static inline int kgsl_cffdump_capture_ib_desc(struct kgsl_device *device,
+				struct kgsl_context *context,
+				struct kgsl_ibdesc *ibdesc,
+				unsigned int numibs)
+{
+	return 0;
+}
+
 static inline int kgsl_cff_dump_enable_set(void *data, u64 val)
 {
-	return -EINVAL;
+	return -ENODEV;
 }
 
 static inline int kgsl_cff_dump_enable_get(void *data, u64 *val)
 {
-	return -EINVAL;
+	return -ENODEV;
 }
 
 #endif /* CONFIG_MSM_KGSL_CFF_DUMP */
-
 #endif /* __KGSL_CFFDUMP_H */

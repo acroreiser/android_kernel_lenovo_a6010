@@ -16,61 +16,23 @@
 
 #include "adreno.h"
 #include "adreno_pm4types.h"
-#include "a2xx_reg.h"
 #include "a3xx_reg.h"
 #include "adreno_cp_parser.h"
 
 #define MAX_IB_OBJS 1000
+#define NUM_SET_DRAW_GROUPS 32
 
-/*
- * This structure keeps track of type0 writes to VSC_PIPE_DATA_ADDRESS_x and
- * VSC_PIPE_DATA_LENGTH_x. When a draw initator is called these registers
- * point to buffers that we need to freeze for a snapshot
- */
-
-struct ib_vsc_pipe {
-	unsigned int base;
-	unsigned int size;
-};
-
-/*
- * This struct keeps track of type0 writes to VFD_FETCH_INSTR_0_X and
- * VFD_FETCH_INSTR_1_X registers. When a draw initator is called the addresses
- * and sizes in these registers point to VBOs that we need to freeze for a
- * snapshot
- */
-
-struct ib_vbo {
-	unsigned int base;
-	unsigned int stride;
+struct set_draw_state {
+	unsigned int cmd_stream_addr;
+	unsigned int cmd_stream_dwords;
 };
 
 /* List of variables used when parsing an IB */
 struct ib_parser_variables {
-	struct ib_vsc_pipe vsc_pipe[8];
-	/*
-	 * This is the cached value of type0 writes to the VSC_SIZE_ADDRESS
-	 * which contains the buffer address of the visiblity stream size
-	 * buffer during a binning pass
-	 */
-	unsigned int vsc_size_address;
-	struct ib_vbo vbo[16];
-	/* This is the cached value of type0 writes to VFD_INDEX_MAX. */
-	unsigned int vfd_index_max;
-	/*
-	 * This is the cached value of type0 writes to VFD_CONTROL_0 which
-	 * tells us how many VBOs are active when the draw initator is called
-	 */
-	unsigned int vfd_control_0;
-	/* Cached value of type0 writes to SP_VS_PVT_MEM_ADDR and
-	 * SP_FS_PVT_MEM_ADDR. This is a buffer that contains private
-	 * stack information for the shader
-	 */
-	unsigned int sp_vs_pvt_mem_addr;
-	unsigned int sp_fs_pvt_mem_addr;
-	/* Cached value of SP_VS_OBJ_START_REG and SP_FS_OBJ_START_REG. */
-	unsigned int sp_vs_obj_start_reg;
-	unsigned int sp_fs_obj_start_reg;
+	/* List of registers containing addresses and their sizes */
+	unsigned int cp_addr_regs[ADRENO_CP_ADDR_MAX];
+	/* 32 groups of command streams in set draw state packets */
+	struct set_draw_state set_draw_groups[NUM_SET_DRAW_GROUPS];
 };
 
 /*
@@ -87,6 +49,17 @@ static int load_state_unit_sizes[7][2] = {
 	{ 8, 2 },
 	{ 8, 2 },
 };
+
+static int adreno_ib_find_objs(struct kgsl_device *device,
+				phys_addr_t ptbase,
+				unsigned int gpuaddr, unsigned int dwords,
+				int obj_type,
+				struct adreno_ib_object_list *ib_obj_list);
+
+static int ib_parse_set_draw_state(struct kgsl_device *device,
+	unsigned int *ptr,
+	phys_addr_t ptbase, struct adreno_ib_object_list *ib_obj_list,
+	struct ib_parser_variables *ib_parse_vars);
 
 /*
  * adreno_ib_merge_range() - Increases the address range tracked by an ib
@@ -112,20 +85,23 @@ static void adreno_ib_merge_range(struct adreno_ib_object *ib_obj,
  * adreno_ib_check_overlap() - Checks if an address range overlap
  * @gpuaddr: The start address range to check for overlap
  * @size: Size of the address range
+ * @type: The type of address range
  * @ib_obj_list: The list of address ranges to check for overlap
  *
  * Checks if an address range overlaps with a list of address ranges
  * Returns the entry from list which overlaps else NULL
  */
 static struct adreno_ib_object *adreno_ib_check_overlap(unsigned int gpuaddr,
-		unsigned int size, struct adreno_ib_object_list *ib_obj_list)
+		unsigned int size, int type,
+		struct adreno_ib_object_list *ib_obj_list)
 {
 	struct adreno_ib_object *ib_obj;
 	int i;
 
 	for (i = 0; i < ib_obj_list->num_objs; i++) {
 		ib_obj = &(ib_obj_list->obj_list[i]);
-		if (kgsl_addr_range_overlap(ib_obj->gpuaddr, ib_obj->size,
+		if ((type == ib_obj->snapshot_obj_type) &&
+			kgsl_addr_range_overlap(ib_obj->gpuaddr, ib_obj->size,
 			gpuaddr, size))
 			/* regions overlap */
 			return ib_obj;
@@ -171,7 +147,7 @@ static int adreno_ib_add_range(struct kgsl_device *device,
 		gpuaddr = entry->memdesc.gpuaddr;
 	}
 
-	ib_obj = adreno_ib_check_overlap(gpuaddr, size, ib_obj_list);
+	ib_obj = adreno_ib_check_overlap(gpuaddr, size, type, ib_obj_list);
 	if (ib_obj) {
 		adreno_ib_merge_range(ib_obj, gpuaddr, size);
 	} else {
@@ -221,7 +197,7 @@ static int ib_save_mip_addresses(struct kgsl_device *device, unsigned int *pkt,
 		if (!ent)
 			return -EINVAL;
 
-		hostptr = (unsigned int *)kgsl_gpuaddr_to_vaddr(&ent->memdesc,
+		hostptr = kgsl_gpuaddr_to_vaddr(&ent->memdesc,
 				pkt[2] & 0xFFFFFFFC);
 		if (!hostptr) {
 			kgsl_mem_entry_put(ent);
@@ -292,8 +268,7 @@ static int ib_parse_load_state(struct kgsl_device *device, unsigned int *pkt,
 		/* Freeze the GPU buffer containing the shader */
 
 		ret = adreno_ib_add_range(device, ptbase, pkt[2] & 0xFFFFFFFC,
-				(((pkt[1] >> 22) & 0x03FF) * unitsize) << 2,
-				SNAPSHOT_GPU_OBJECT_SHADER,
+				0, SNAPSHOT_GPU_OBJECT_SHADER,
 				ib_obj_list);
 		if (ret < 0)
 			return ret;
@@ -324,7 +299,7 @@ static int ib_parse_set_bin_data(struct kgsl_device *device, unsigned int *pkt,
 		return ret;
 
 	/* visiblity stream size buffer (fixed size 8 dwords) */
-	ret = adreno_ib_add_range(device, ptbase, pkt[2], 32,
+	ret = adreno_ib_add_range(device, ptbase, pkt[2], 0,
 		SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
 
 	return ret;
@@ -373,109 +348,69 @@ static int ib_add_type0_entries(struct kgsl_device *device,
 	phys_addr_t ptbase, struct adreno_ib_object_list *ib_obj_list,
 	struct ib_parser_variables *ib_parse_vars)
 {
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	int ret = 0;
 	int i;
+	int vfd_end;
+	unsigned int mask;
 	/* First up the visiblity stream buffer */
-
-	for (i = 0; i < ARRAY_SIZE(ib_parse_vars->vsc_pipe); i++) {
-		if (ib_parse_vars->vsc_pipe[i].base != 0 &&
-			ib_parse_vars->vsc_pipe[i].size != 0) {
+	if (adreno_is_a4xx(adreno_dev))
+		mask = 0xFFFFFFFC;
+	else
+		mask = 0xFFFFFFFF;
+	for (i = ADRENO_CP_ADDR_VSC_PIPE_DATA_ADDRESS_0;
+		i < ADRENO_CP_ADDR_VSC_PIPE_DATA_LENGTH_7; i++) {
+		if (ib_parse_vars->cp_addr_regs[i]) {
 			ret = adreno_ib_add_range(device, ptbase,
-				ib_parse_vars->vsc_pipe[i].base,
-				ib_parse_vars->vsc_pipe[i].size,
-				SNAPSHOT_GPU_OBJECT_GENERIC,
+				ib_parse_vars->cp_addr_regs[i] & mask,
+				0, SNAPSHOT_GPU_OBJECT_GENERIC,
 				ib_obj_list);
 			if (ret < 0)
 				return ret;
-			ib_parse_vars->vsc_pipe[i].size = 0;
-			ib_parse_vars->vsc_pipe[i].base = 0;
+			ib_parse_vars->cp_addr_regs[i] = 0;
+			ib_parse_vars->cp_addr_regs[i + 1] = 0;
+			i++;
 		}
 	}
 
-	/* Next the visibility stream size buffer */
-
-	if (ib_parse_vars->vsc_size_address) {
-		ret = adreno_ib_add_range(device, ptbase,
-			ib_parse_vars->vsc_size_address, 32,
-			SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
-		if (ret < 0)
-			return ret;
-		ib_parse_vars->vsc_size_address = 0;
-	}
-
-	/* Next private shader buffer memory */
-	if (ib_parse_vars->sp_vs_pvt_mem_addr) {
-		ret = adreno_ib_add_range(device, ptbase,
-			ib_parse_vars->sp_vs_pvt_mem_addr, 8192,
-			SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
-		if (ret < 0)
-			return ret;
-
-		ib_parse_vars->sp_vs_pvt_mem_addr = 0;
-	}
-
-	if (ib_parse_vars->sp_fs_pvt_mem_addr) {
-		ret = adreno_ib_add_range(device, ptbase,
-				ib_parse_vars->sp_fs_pvt_mem_addr, 8192,
-				SNAPSHOT_GPU_OBJECT_GENERIC,
-				ib_obj_list);
-		if (ret < 0)
-			return ret;
-
-		ib_parse_vars->sp_fs_pvt_mem_addr = 0;
-	}
-
-	if (ib_parse_vars->sp_vs_obj_start_reg) {
-		ret = adreno_ib_add_range(device, ptbase,
-			ib_parse_vars->sp_vs_obj_start_reg & 0xFFFFFFE0,
-			0, SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
-		if (ret < 0)
-			return -ret;
-		ib_parse_vars->sp_vs_obj_start_reg = 0;
-	}
-
-	if (ib_parse_vars->sp_fs_obj_start_reg) {
-		ret = adreno_ib_add_range(device, ptbase,
-			ib_parse_vars->sp_fs_obj_start_reg & 0xFFFFFFE0,
-			0, SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
-		if (ret < 0)
-			return ret;
-		ib_parse_vars->sp_fs_obj_start_reg = 0;
-	}
-
-	/* Finally: VBOs */
-
-	/* The number of active VBOs is stored in VFD_CONTROL_O[31:27] */
-	for (i = 0; i < (ib_parse_vars->vfd_control_0) >> 27; i++) {
-		int size;
-
-		/*
-		 * The size of the VBO is the stride stored in
-		 * VFD_FETCH_INSTR_0_X.BUFSTRIDE * VFD_INDEX_MAX. The base
-		 * is stored in VFD_FETCH_INSTR_1_X
-		 */
-
-		if (ib_parse_vars->vbo[i].base != 0) {
-			size = ib_parse_vars->vbo[i].stride *
-					ib_parse_vars->vfd_index_max;
-
+	vfd_end = adreno_is_a4xx(adreno_dev) ?
+		ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_31 :
+		ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_15;
+	for (i = ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_0;
+		i <= vfd_end; i++) {
+		if (ib_parse_vars->cp_addr_regs[i]) {
 			ret = adreno_ib_add_range(device, ptbase,
-				ib_parse_vars->vbo[i].base,
-				0, SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+				ib_parse_vars->cp_addr_regs[i],
+				0, SNAPSHOT_GPU_OBJECT_GENERIC,
+				ib_obj_list);
 			if (ret < 0)
 				return ret;
+			ib_parse_vars->cp_addr_regs[i] = 0;
 		}
-
-		ib_parse_vars->vbo[i].base = 0;
-		ib_parse_vars->vbo[i].stride = 0;
 	}
 
-	ib_parse_vars->vfd_control_0 = 0;
-	ib_parse_vars->vfd_index_max = 0;
-
+	if (ib_parse_vars->cp_addr_regs[ADRENO_CP_ADDR_VSC_SIZE_ADDRESS]) {
+		ret = adreno_ib_add_range(device, ptbase,
+			ib_parse_vars->cp_addr_regs[
+				ADRENO_CP_ADDR_VSC_SIZE_ADDRESS] & mask,
+			0, SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+		if (ret < 0)
+			return ret;
+		ib_parse_vars->cp_addr_regs[
+			ADRENO_CP_ADDR_VSC_SIZE_ADDRESS] = 0;
+	}
+	mask = 0xFFFFFFE0;
+	for (i = ADRENO_CP_ADDR_SP_VS_PVT_MEM_ADDR;
+		i <= ADRENO_CP_ADDR_SP_FS_OBJ_START_REG; i++) {
+		ret = adreno_ib_add_range(device, ptbase,
+			ib_parse_vars->cp_addr_regs[i] & mask,
+			0, SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+		if (ret < 0)
+			return ret;
+		ib_parse_vars->cp_addr_regs[i] = 0;
+	}
 	return ret;
 }
-
 /*
  * The DRAW_INDX opcode sends a draw initator which starts a draw operation in
  * the GPU, so this is the point where all the registers and buffers become
@@ -488,25 +423,78 @@ static int ib_parse_draw_indx(struct kgsl_device *device, unsigned int *pkt,
 	struct ib_parser_variables *ib_parse_vars)
 {
 	int ret = 0;
+	int i;
+	int opcode = cp_type3_opcode(pkt[0]);
 
-	if (type3_pkt_size(pkt[0]) < 3)
-		return 0;
-
-	/*  DRAW_IDX may have a index buffer pointer */
-
-	if (type3_pkt_size(pkt[0]) > 3) {
-		ret = adreno_ib_add_range(device, ptbase, pkt[4], pkt[5],
-			SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
-		if (ret < 0)
-			return ret;
+	switch (opcode) {
+	case CP_DRAW_INDX:
+		if (type3_pkt_size(pkt[0]) > 3) {
+			ret = adreno_ib_add_range(device, ptbase,
+				pkt[4], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+		}
+		break;
+	case CP_DRAW_INDX_OFFSET:
+		if (type3_pkt_size(pkt[0]) == 6) {
+			ret = adreno_ib_add_range(device, ptbase,
+				pkt[5], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+		}
+		break;
+	case CP_DRAW_INDIRECT:
+		if (type3_pkt_size(pkt[0]) == 2) {
+			ret = adreno_ib_add_range(device, ptbase,
+				pkt[2], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+		}
+		break;
+	case CP_DRAW_INDX_INDIRECT:
+		if (type3_pkt_size(pkt[0]) == 4) {
+			ret = adreno_ib_add_range(device, ptbase,
+				pkt[2], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+			if (ret)
+				break;
+			ret = adreno_ib_add_range(device, ptbase,
+				pkt[4], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+		}
+		break;
+	case CP_DRAW_AUTO:
+		if (type3_pkt_size(pkt[0]) == 6) {
+			ret = adreno_ib_add_range(device, ptbase,
+				 pkt[3], 0, SNAPSHOT_GPU_OBJECT_GENERIC,
+				ib_obj_list);
+			if (ret)
+				break;
+			ret = adreno_ib_add_range(device, ptbase,
+				pkt[4], 0,
+				SNAPSHOT_GPU_OBJECT_GENERIC, ib_obj_list);
+		}
+		break;
 	}
 
+	if (ret)
+		return ret;
 	/*
 	 * All of the type0 writes are valid at a draw initiator, so freeze
 	 * the various buffers that we are tracking
 	 */
 	ret = ib_add_type0_entries(device, ptbase, ib_obj_list,
 				ib_parse_vars);
+
+	/* Process set draw state command streams if any */
+	for (i = 0; i < NUM_SET_DRAW_GROUPS; i++) {
+		if (ib_parse_vars->set_draw_groups[i].cmd_stream_dwords)
+			ret =
+			adreno_ib_find_objs(device, ptbase,
+			ib_parse_vars->set_draw_groups[i].cmd_stream_addr,
+			ib_parse_vars->set_draw_groups[i].cmd_stream_dwords,
+			SNAPSHOT_GPU_OBJECT_DRAW,
+			ib_obj_list);
+		if (ret)
+			break;
+	}
 	return ret;
 }
 
@@ -521,18 +509,26 @@ static int ib_parse_type3(struct kgsl_device *device, unsigned int *ptr,
 {
 	int opcode = cp_type3_opcode(*ptr);
 
-	if (opcode == CP_LOAD_STATE)
+	switch (opcode) {
+	case  CP_LOAD_STATE:
 		return ib_parse_load_state(device, ptr, ptbase, ib_obj_list,
 					ib_parse_vars);
-	else if (opcode == CP_SET_BIN_DATA)
+	case CP_SET_BIN_DATA:
 		return ib_parse_set_bin_data(device, ptr, ptbase, ib_obj_list,
 					ib_parse_vars);
-	else if (opcode == CP_MEM_WRITE)
+	case CP_MEM_WRITE:
 		return ib_parse_mem_write(device, ptr, ptbase, ib_obj_list,
 					ib_parse_vars);
-	else if (opcode == CP_DRAW_INDX)
+	case CP_DRAW_INDX:
+	case CP_DRAW_INDX_OFFSET:
+	case CP_DRAW_INDIRECT:
+	case CP_DRAW_INDX_INDIRECT:
 		return ib_parse_draw_indx(device, ptr, ptbase, ib_obj_list,
 					ib_parse_vars);
+	case CP_SET_DRAW_STATE:
+		return ib_parse_set_draw_state(device, ptr, ptbase,
+					ib_obj_list, ib_parse_vars);
+	}
 
 	return 0;
 }
@@ -553,90 +549,144 @@ static void ib_parse_type0(struct kgsl_device *device, unsigned int *ptr,
 	int size = type0_pkt_size(*ptr);
 	int offset = type0_pkt_offset(*ptr);
 	int i;
+	int reg_index;
 
 	for (i = 0; i < size; i++, offset++) {
-
 		/* Visiblity stream buffer */
-
-		if (offset >= adreno_getreg(adreno_dev,
-				ADRENO_REG_VSC_PIPE_DATA_ADDRESS_0) &&
-			offset <= adreno_getreg(adreno_dev,
-					ADRENO_REG_VSC_PIPE_DATA_LENGTH_7)) {
-			int index = offset - adreno_getreg(adreno_dev,
-					ADRENO_REG_VSC_PIPE_DATA_ADDRESS_0);
-
-			/* Each bank of address and length registers are
-			 * interleaved with an empty register:
-			 *
-			 * address 0
-			 * length 0
-			 * empty
-			 * address 1
-			 * length 1
-			 * empty
-			 * ...
-			 */
-
-			if ((index % 3) == 0)
-				ib_parse_vars->vsc_pipe[index / 3].base =
+		if (offset >= adreno_cp_parser_getreg(adreno_dev,
+				ADRENO_CP_ADDR_VSC_PIPE_DATA_ADDRESS_0) &&
+			offset <= adreno_cp_parser_getreg(adreno_dev,
+				ADRENO_CP_ADDR_VSC_PIPE_DATA_LENGTH_7)) {
+			reg_index = adreno_cp_parser_regindex(
+					adreno_dev, offset,
+					ADRENO_CP_ADDR_VSC_PIPE_DATA_ADDRESS_0,
+					ADRENO_CP_ADDR_VSC_PIPE_DATA_LENGTH_7);
+			if (reg_index >= 0)
+				ib_parse_vars->cp_addr_regs[reg_index] =
 								ptr[i + 1];
-			else if ((index % 3) == 1)
-				ib_parse_vars->vsc_pipe[index / 3].size =
+			continue;
+		} else if ((offset >= adreno_cp_parser_getreg(adreno_dev,
+					ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_0)) &&
+			(offset <= adreno_cp_parser_getreg(adreno_dev,
+				ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_15))) {
+			reg_index = adreno_cp_parser_regindex(adreno_dev,
+					offset,
+					ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_0,
+					ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_15);
+			if (reg_index >= 0)
+				ib_parse_vars->cp_addr_regs[reg_index] =
 								ptr[i + 1];
-		} else if ((offset >= adreno_getreg(adreno_dev,
-					ADRENO_REG_VFD_FETCH_INSTR_0_0)) &&
-			(offset <= adreno_getreg(adreno_dev,
-					ADRENO_REG_VFD_FETCH_INSTR_1_F))) {
-			int index = offset -
-				adreno_getreg(adreno_dev,
-					ADRENO_REG_VFD_FETCH_INSTR_0_0);
-
-			/*
-			 * FETCH_INSTR_0_X and FETCH_INSTR_1_X banks are
-			 * interleaved as above but without the empty register
-			 * in between
-			 */
-
-			if ((index % 2) == 0)
-				ib_parse_vars->vbo[index >> 1].stride =
-					(ptr[i + 1] >> 7) & 0x1FF;
-			else
-				ib_parse_vars->vbo[index >> 1].base =
-					ptr[i + 1];
+			continue;
+		} else if ((offset >= adreno_cp_parser_getreg(adreno_dev,
+					ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_16)) &&
+			(offset <= adreno_cp_parser_getreg(adreno_dev,
+				ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_31))) {
+			reg_index = adreno_cp_parser_regindex(adreno_dev,
+					offset,
+					ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_16,
+					ADRENO_CP_ADDR_VFD_FETCH_INSTR_1_31);
+			if (reg_index >= 0)
+				ib_parse_vars->cp_addr_regs[reg_index] =
+								ptr[i + 1];
+			continue;
 		} else {
-			/*
-			 * Cache various support registers for calculating
-			 * buffer sizes
-			 */
-
 			if (offset ==
-				adreno_getreg(adreno_dev,
-						ADRENO_REG_VFD_CONTROL_0))
-				ib_parse_vars->vfd_control_0 = ptr[i + 1];
-			else if (offset ==
-				adreno_getreg(adreno_dev,
-						ADRENO_REG_VFD_INDEX_MAX))
-				ib_parse_vars->vfd_index_max = ptr[i + 1];
-			else if (offset ==
-				adreno_getreg(adreno_dev,
-						ADRENO_REG_VSC_SIZE_ADDRESS))
-				ib_parse_vars->vsc_size_address = ptr[i + 1];
-			else if (offset == adreno_getreg(adreno_dev,
-					ADRENO_REG_SP_VS_PVT_MEM_ADDR_REG))
-				ib_parse_vars->sp_vs_pvt_mem_addr = ptr[i + 1];
-			else if (offset == adreno_getreg(adreno_dev,
-					ADRENO_REG_SP_FS_PVT_MEM_ADDR_REG))
-				ib_parse_vars->sp_fs_pvt_mem_addr = ptr[i + 1];
-			else if (offset == adreno_getreg(adreno_dev,
-					ADRENO_REG_SP_VS_OBJ_START_REG))
-				ib_parse_vars->sp_vs_obj_start_reg = ptr[i + 1];
-			else if (offset == adreno_getreg(adreno_dev,
-					ADRENO_REG_SP_FS_OBJ_START_REG))
-				ib_parse_vars->sp_fs_obj_start_reg = ptr[i + 1];
+				adreno_cp_parser_getreg(adreno_dev,
+					ADRENO_CP_ADDR_VSC_SIZE_ADDRESS))
+				ib_parse_vars->cp_addr_regs[
+					ADRENO_CP_ADDR_VSC_SIZE_ADDRESS] =
+						ptr[i + 1];
+			else if (offset == adreno_cp_parser_getreg(adreno_dev,
+					ADRENO_CP_ADDR_SP_VS_PVT_MEM_ADDR))
+				ib_parse_vars->cp_addr_regs[
+					ADRENO_CP_ADDR_SP_VS_PVT_MEM_ADDR] =
+						ptr[i + 1];
+			else if (offset == adreno_cp_parser_getreg(adreno_dev,
+					ADRENO_CP_ADDR_SP_FS_PVT_MEM_ADDR))
+				ib_parse_vars->cp_addr_regs[
+					ADRENO_CP_ADDR_SP_FS_PVT_MEM_ADDR] =
+						ptr[i + 1];
+			else if (offset == adreno_cp_parser_getreg(adreno_dev,
+					ADRENO_CP_ADDR_SP_VS_OBJ_START_REG))
+				ib_parse_vars->cp_addr_regs[
+					ADRENO_CP_ADDR_SP_VS_OBJ_START_REG] =
+						ptr[i + 1];
+			else if (offset == adreno_cp_parser_getreg(adreno_dev,
+					ADRENO_CP_ADDR_SP_FS_OBJ_START_REG))
+				ib_parse_vars->cp_addr_regs[
+					ADRENO_CP_ADDR_SP_FS_OBJ_START_REG] =
+						ptr[i + 1];
+			else if ((offset == adreno_cp_parser_getreg(adreno_dev,
+					ADRENO_CP_UCHE_INVALIDATE0)) ||
+				(offset == adreno_cp_parser_getreg(adreno_dev,
+					ADRENO_CP_UCHE_INVALIDATE1)))
+					adreno_ib_add_range(device, ptbase,
+					ptr[i + 1] & 0xFFFFFFC0, 0,
+					SNAPSHOT_GPU_OBJECT_GENERIC,
+					ib_obj_list);
 		}
 	}
-	ib_add_type0_entries(device, ptbase, ib_obj_list,
-				ib_parse_vars);
+}
+
+static int ib_parse_set_draw_state(struct kgsl_device *device,
+	unsigned int *ptr,
+	phys_addr_t ptbase, struct adreno_ib_object_list *ib_obj_list,
+	struct ib_parser_variables *ib_parse_vars)
+{
+	int size = type0_pkt_size(*ptr);
+	int i;
+	int grp_id;
+	int ret = 0;
+	int flags;
+
+	/*
+	 * size is the size of the packet that does not include the DWORD
+	 * for the packet header, we only want to loop here through the
+	 * packet parameters from ptr[1] till ptr[size] where ptr[0] is the
+	 * packet header. In each loop we look at 2 DWRODS hence increment
+	 * loop counter by 2 always
+	 */
+	for (i = 1; i <= size; i += 2) {
+		grp_id = (ptr[i] & 0x1F000000) >> 24;
+		/* take action based on flags */
+		flags = (ptr[i] & 0x000F0000) >> 16;
+		/* Disable all groups */
+		if (flags & 0x4) {
+			int j;
+			for (j = 0; j < NUM_SET_DRAW_GROUPS; j++)
+				ib_parse_vars->set_draw_groups[j].
+					cmd_stream_dwords = 0;
+			continue;
+		}
+		/* disable flag */
+		if (flags & 0x2) {
+			ib_parse_vars->set_draw_groups[grp_id].
+						cmd_stream_dwords = 0;
+			continue;
+		}
+		/*
+		 * dirty flag or no flags both mean we need to load it for
+		 * next draw. No flags is used when the group is activated
+		 * or initialized for the first time in the IB
+		 */
+		if (flags & 0x1 || !flags) {
+			ib_parse_vars->set_draw_groups[grp_id].
+				cmd_stream_dwords = ptr[i] & 0x0000FFFF;
+			ib_parse_vars->set_draw_groups[grp_id].
+				cmd_stream_addr = ptr[i + 1];
+			continue;
+		}
+		/* load immediate */
+		if (flags & 0x8) {
+			ret = adreno_ib_find_objs(device, ptbase,
+				ptr[i + 1], (ptr[i] & 0x0000FFFF),
+				SNAPSHOT_GPU_OBJECT_IB,
+				ib_obj_list);
+			if (ret)
+				break;
+		}
+	}
+	return ret;
 }
 
 /*
@@ -646,6 +696,7 @@ static void ib_parse_type0(struct kgsl_device *device, unsigned int *ptr,
  * objects in it
  * @gpuaddr: The gpu address of the IB
  * @dwords: Size of ib in dwords
+ * @obj_type: The object type can be either an IB or a draw state sequence
  * @ib_obj_list: The list in which the IB and the objects in it are added.
  *
  * Finds all IB objects in a given IB and puts then in a list. Can be called
@@ -655,6 +706,7 @@ static void ib_parse_type0(struct kgsl_device *device, unsigned int *ptr,
 static int adreno_ib_find_objs(struct kgsl_device *device,
 				phys_addr_t ptbase,
 				unsigned int gpuaddr, unsigned int dwords,
+				int obj_type,
 				struct adreno_ib_object_list *ib_obj_list)
 {
 	int ret = 0;
@@ -668,7 +720,8 @@ static int adreno_ib_find_objs(struct kgsl_device *device,
 	/* check that this IB is not already on list */
 	for (i = 0; i < ib_obj_list->num_objs; i++) {
 		ib_obj = &(ib_obj_list->obj_list[i]);
-		if ((ib_obj->gpuaddr <= gpuaddr) &&
+		if ((obj_type == ib_obj->snapshot_obj_type) &&
+			(ib_obj->gpuaddr <= gpuaddr) &&
 			((ib_obj->gpuaddr + ib_obj->size) >=
 			(gpuaddr + (dwords << 2))))
 			return 0;
@@ -678,7 +731,7 @@ static int adreno_ib_find_objs(struct kgsl_device *device,
 	if (!entry)
 		return -EINVAL;
 
-	src = (unsigned int *)kgsl_gpuaddr_to_vaddr(&entry->memdesc, gpuaddr);
+	src = kgsl_gpuaddr_to_vaddr(&entry->memdesc, gpuaddr);
 	if (!src) {
 		kgsl_mem_entry_put(entry);
 		return -EINVAL;
@@ -687,7 +740,7 @@ static int adreno_ib_find_objs(struct kgsl_device *device,
 	memset(&ib_parse_vars, 0, sizeof(struct ib_parser_variables));
 
 	ret = adreno_ib_add_range(device, ptbase, gpuaddr, dwords << 2,
-				SNAPSHOT_GPU_OBJECT_IB, ib_obj_list);
+				obj_type, ib_obj_list);
 	if (ret)
 		goto done;
 
@@ -714,6 +767,7 @@ static int adreno_ib_find_objs(struct kgsl_device *device,
 				ret = adreno_ib_find_objs(
 						device, ptbase,
 						gpuaddrib2, size,
+						SNAPSHOT_GPU_OBJECT_IB,
 						ib_obj_list);
 				if (ret < 0)
 					goto done;
@@ -738,16 +792,17 @@ static int adreno_ib_find_objs(struct kgsl_device *device,
 		i += pktsize;
 		rem -= pktsize;
 	}
-	/*
-	 * If any type objects got missed because we did not come across draw
-	 * indx packets then catch them here. This works better for the replay
-	 * tool and also if the draw indx packet is in an IB2 and these setups
-	 * are in IB1 then these objects are definitely valid and should be
-	 * dumped
-	 */
-	ret = ib_add_type0_entries(device, ptbase, ib_obj_list,
-				&ib_parse_vars);
+
 done:
+	/*
+	 * For set draw objects there may not be a draw_indx packet at its end
+	 * to signal that we need to save the found objects in it, so just save
+	 * it here.
+	 */
+	if (!ret && SNAPSHOT_GPU_OBJECT_DRAW == obj_type)
+		ret = ib_add_type0_entries(device, ptbase, ib_obj_list,
+			&ib_parse_vars);
+
 	kgsl_memdesc_unmap(&entry->memdesc);
 	kgsl_mem_entry_put(entry);
 	return ret;
@@ -791,7 +846,7 @@ int adreno_ib_create_object_list(struct kgsl_device *device,
 	}
 
 	ret = adreno_ib_find_objs(device, ptbase, gpuaddr, dwords,
-		ib_obj_list);
+		SNAPSHOT_GPU_OBJECT_IB, ib_obj_list);
 
 	if (ret)
 		adreno_ib_destroy_obj_list(ib_obj_list);

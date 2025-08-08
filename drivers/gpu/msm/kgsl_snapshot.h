@@ -171,6 +171,7 @@ struct kgsl_snapshot_debugbus {
 #define SNAPSHOT_GPU_OBJECT_SHADER  1
 #define SNAPSHOT_GPU_OBJECT_IB      2
 #define SNAPSHOT_GPU_OBJECT_GENERIC 3
+#define SNAPSHOT_GPU_OBJECT_DRAW    4
 
 struct kgsl_snapshot_gpu_object {
 	int type;      /* Type of GPU object */
@@ -278,6 +279,8 @@ static inline void *kgsl_snapshot_add_section(struct kgsl_device *device,
 struct kgsl_snapshot_registers {
 	unsigned int *regs;  /* Pointer to the array of register ranges */
 	int count;	     /* Number of entries in the array */
+	int dump;
+	unsigned int *snap_addr;
 };
 
 struct kgsl_snapshot_registers_list {
@@ -331,6 +334,9 @@ struct adreno_ib_object_list;
 int kgsl_snapshot_add_ib_obj_list(struct kgsl_device *device,
 	phys_addr_t ptbase,
 	struct adreno_ib_object_list *ib_obj_list);
+
+void kgsl_snapshot_dump_skipped_regs(struct kgsl_device *device,
+	struct kgsl_snapshot_registers_list *list);
 
 #endif
 #endif
