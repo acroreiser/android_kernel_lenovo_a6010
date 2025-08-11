@@ -2,7 +2,7 @@
  *  linux/drivers/mmc/host/msmsdcc.h - QCT MSM7K SDC Controller
  *
  *  Copyright (C) 2008 Google, All Rights Reserved.
- *  Copyright (c) 2009-2014, The Linux Foundation. All rights reserved.
+ *  Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -197,8 +197,6 @@
 #define MAX_TESTBUS		8
 #define MCI_TESTBUS_ENA		(1 << 3)
 
-#define MCI_CORE_HC_MODE	0x78
-
 #define MCI_SDCC_DEBUG_REG	0x124
 
 #define MCI_IRQENABLE	\
@@ -330,7 +328,7 @@ struct msmsdcc_sps_data {
 	enum dma_data_direction		dir;
 	struct scatterlist		*sg;
 	int				num_ents;
-	unsigned long			bam_handle;
+	u32				bam_handle;
 	unsigned int			src_pipe_index;
 	unsigned int			dest_pipe_index;
 	unsigned int			busy;
@@ -458,7 +456,6 @@ struct msmsdcc_host {
 #define MSMSDCC_SW_RST_CFG_BROKEN	(1 << 11)
 #define MSMSDCC_DATA_PEND_FOR_CMD53	(1 << 12)
 #define MSMSDCC_TESTBUS_DEBUG		(1 << 13)
-#define MSMSDCC_SDHCI_MODE_SUPPORTED	(1 << 14)
 
 #define set_hw_caps(h, val)		((h)->hw_caps |= val)
 #define is_sps_mode(h)			((h)->hw_caps & MSMSDCC_SPS_BAM_SUP)
@@ -476,7 +473,6 @@ struct msmsdcc_host {
 				((h)->hw_caps & MSMSDCC_SW_RST_CFG_BROKEN)
 #define is_data_pend_for_cmd53(h) ((h)->hw_caps & MSMSDCC_DATA_PEND_FOR_CMD53)
 #define is_testbus_debug(h) ((h)->hw_caps & MSMSDCC_TESTBUS_DEBUG)
-#define is_sdhci_supported(h) ((h)->hw_caps & MSMSDCC_SDHCI_MODE_SUPPORTED)
 
 /* Set controller capabilities based on version */
 static inline void set_default_hw_caps(struct msmsdcc_host *host)
@@ -515,8 +511,7 @@ static inline void set_default_hw_caps(struct msmsdcc_host *host)
 				 MSMSDCC_AUTO_CMD21 |
 				 MSMSDCC_DATA_PEND_FOR_CMD53 |
 				 MSMSDCC_TESTBUS_DEBUG |
-				 MSMSDCC_SW_RST_CFG_BROKEN |
-				 MSMSDCC_SDHCI_MODE_SUPPORTED;
+				 MSMSDCC_SW_RST_CFG_BROKEN;
 }
 
 int msmsdcc_set_pwrsave(struct mmc_host *mmc, int pwrsave);
