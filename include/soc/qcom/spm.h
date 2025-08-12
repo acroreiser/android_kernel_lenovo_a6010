@@ -45,6 +45,7 @@ void msm_spm_dump_regs(unsigned int cpu);
 
 /* Public functions */
 
+int msm_spm_l2_set_low_power_mode(unsigned int mode, bool notify_rpm);
 int msm_spm_apcs_set_phase(int cpu, unsigned int phase_cnt);
 int msm_spm_enable_fts_lpm(int cpu, uint32_t mode);
 
