@@ -170,7 +170,7 @@ static void batt_tm_worker(struct work_struct *work)
 		break;
 	case CHG_STOP:
 		pr_info("Stop charging !!\n");
-		power_supply_set_chg_enable(batt_tm->ac_psy, false);
+	//	power_supply_set_chg_enable(batt_tm->ac_psy, false);
 		break;
 	case CHG_NONE:
 		pr_info("No charger.\n");
