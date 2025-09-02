@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,7 +24,6 @@
 
 #define Q6_PIL_GET_DELAY_MS 100
 #define BOOT_CMD 1
-#define IMAGE_UNLOAD_CMD 0
 
 static ssize_t adsp_boot_store(struct kobject *kobj,
 	struct kobj_attribute *attr,
@@ -45,7 +44,6 @@ static struct attribute *attrs[] = {
 };
 
 static struct platform_device *adsp_private;
-static void adsp_loader_unload(struct platform_device *pdev);
 
 static void adsp_loader_do(struct platform_device *pdev)
 {
@@ -85,12 +83,7 @@ static void adsp_loader_do(struct platform_device *pdev)
 		goto load_adsp;
 	}
 	if (!strcmp(img_name, "modem")) {
-		/*
-                 * adsp_state always returns "0". So load modem image based on
-		 * apr_modem_state to prevent loading of image twice
-                 */
-		adsp_state = apr_get_modem_state();
-		if (adsp_state != APR_SUBSYS_LOADED) {
+		if (adsp_state == APR_SUBSYS_DOWN) {
 			priv = platform_get_drvdata(pdev);
 			if (!priv) {
 				dev_err(&pdev->dev,
@@ -110,6 +103,7 @@ static void adsp_loader_do(struct platform_device *pdev)
 		} else if (adsp_state == APR_SUBSYS_LOADED) {
 			dev_dbg(&pdev->dev,
 			"%s: MDSP state = %x\n", __func__, adsp_state);
+			apr_set_modem_state(APR_SUBSYS_LOADED);
 		}
 
 		dev_dbg(&pdev->dev, "%s: Q6/MDSP image is loaded\n", __func__);
@@ -117,8 +111,7 @@ static void adsp_loader_do(struct platform_device *pdev)
 	}
 load_adsp:
 	{
-		adsp_state = apr_get_q6_state();
-		if (adsp_state != APR_SUBSYS_LOADED) {
+		if (adsp_state == APR_SUBSYS_DOWN) {
 			priv = platform_get_drvdata(pdev);
 			if (!priv) {
 				dev_err(&pdev->dev,
@@ -138,6 +131,7 @@ load_adsp:
 		} else if (adsp_state == APR_SUBSYS_LOADED) {
 			dev_dbg(&pdev->dev,
 			"%s: ADSP state = %x\n", __func__, adsp_state);
+			apr_set_q6_state(APR_SUBSYS_LOADED);
 		}
 
 		dev_dbg(&pdev->dev, "%s: Q6/ADSP image is loaded\n", __func__);
@@ -158,29 +152,10 @@ static ssize_t adsp_boot_store(struct kobject *kobj,
 	sscanf(buf, "%du", &boot);
 
 	if (boot == BOOT_CMD) {
-		pr_debug("%s: going to call adsp_loader_do\n", __func__);
+		pr_debug("%s:going to call adsp_loader_do", __func__);
 		adsp_loader_do(adsp_private);
-	} else if (boot == IMAGE_UNLOAD_CMD) {
-		pr_debug("%s: going to call adsp_loader_unloader\n", __func__);
-		adsp_loader_unload(adsp_private);
 	}
 	return count;
-}
-
-static void adsp_loader_unload(struct platform_device *pdev)
-{
-	struct adsp_loader_private *priv = NULL;
-
-	priv = platform_get_drvdata(pdev);
-
-	if (!priv)
-		return;
-
-	if (priv->pil_h) {
-		dev_dbg(&pdev->dev, "%s: calling subsystem put\n", __func__);
-		subsystem_put(priv->pil_h);
-		priv->pil_h = NULL;
-	}
 }
 
 static int adsp_loader_init_sysfs(struct platform_device *pdev)
@@ -305,3 +280,4 @@ module_exit(adsp_loader_exit);
 
 MODULE_DESCRIPTION("ADSP Loader module");
 MODULE_LICENSE("GPL v2");
+
