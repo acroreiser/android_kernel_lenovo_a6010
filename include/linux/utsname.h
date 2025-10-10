@@ -98,6 +98,12 @@ static inline struct new_utsname *utsname(void)
 		utsname_spoofed = current->nsproxy->uts_ns->name;
 		strcpy(utsname_spoofed.release, fake_release_prepended);
 
+#ifdef CONFIG_ANDROID_TREBLE_SPOOF_BPF_KERNEL_BITNESS
+		if (!strcmp(current->comm, "bpfloader") ||
+			!strcmp(current->comm, "netbpfload"))
+				strcpy(utsname_spoofed.machine, "aarch64");
+#endif
+
 		return &utsname_spoofed;
 #ifdef CONFIG_ANDROID_TREBLE_BYPASS_KERNEL_VERSION_CHECKS
 	} else
