@@ -77,11 +77,11 @@ static inline struct new_utsname *utsname(void)
 #ifdef CONFIG_ANDROID_TREBLE_SPOOF_KERNEL_VERSION
 #ifdef CONFIG_ANDROID_TREBLE_BYPASS_KERNEL_VERSION_CHECKS
 	if (!strcmp(current->comm, "system_server") ||
-            !strcmp(current->comm, "zygote") ||
-	    !strcmp(current->comm, "bpfloader") ||
-            !strcmp(current->comm, "netbpfload") ||
-            !strcmp(current->comm, "perfetto") ||
-            !strcmp(current->comm, "init"))
+		!strcmp(current->comm, "zygote") ||
+		!strcmp(current->comm, "bpfloader") ||
+		!strcmp(current->comm, "netbpfload") ||
+		!strcmp(current->comm, "perfetto") ||
+		!strcmp(current->comm, "init"))
 	{
 #endif
 		char fake_release_prepended[64];
@@ -90,10 +90,11 @@ static inline struct new_utsname *utsname(void)
 			!strcmp(current->comm, "netbpfload"))
 			strcpy(fake_release_prepended, CONFIG_ANDROID_TREBLE_SPOOF_BPF_KERNEL_VERSION_PREFIX);
 		else
-                        strcpy(fake_release_prepended, CONFIG_ANDROID_TREBLE_SPOOF_KERNEL_VERSION_PREFIX);
+			strcpy(fake_release_prepended, CONFIG_ANDROID_TREBLE_SPOOF_KERNEL_VERSION_PREFIX);
 
-	        strcat(fake_release_prepended, "-");
+		strcat(fake_release_prepended, "-");
 		strcat(fake_release_prepended, current->nsproxy->uts_ns->name.release);
+
 		utsname_spoofed = current->nsproxy->uts_ns->name;
 		strcpy(utsname_spoofed.release, fake_release_prepended);
 
