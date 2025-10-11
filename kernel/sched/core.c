@@ -6379,7 +6379,7 @@ static void __setscheduler(struct rq *rq, struct task_struct *p,
 		policy &= ~SCHED_RESET_ON_FORK;
 
 	/* Replace SCHED_FIFO with SCHED_RR to reduce latency */
-	p->policy = (policy == SCHED_FIFO && attr->sched_priority < 90) ? SCHED_RR : policy;
+	p->policy = policy == SCHED_FIFO ? SCHED_RR : policy;
 
 	if (fair_policy(policy))
 		p->static_prio = NICE_TO_PRIO(attr->sched_nice);
