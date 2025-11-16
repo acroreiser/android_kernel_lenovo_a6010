@@ -331,11 +331,19 @@ static void row_add_request(struct request_queue *q,
 	struct row_queue *rqueue = RQ_ROWQ(rq);
 	s64 diff_ms;
 	bool queue_was_empty = list_empty(&rqueue->fifo);
+	bool urgent = false;
 
 	list_add_tail(&rq->queuelist, &rqueue->fifo);
 	rd->nr_reqs[rq_data_dir(rq)]++;
 	rqueue->nr_req++;
 	rq->fifo_time = jiffies; /* for statistics*/
+
+	if (current->policy == SCHED_FIFO|SCHED_RESET_ON_FORK &&
+	    current->rt_priority == 1)
+		if (current->cred->uid.val > 10000 ||
+		    current->cred->uid.val == 1000)
+			if (rq_data_dir(rq) == READ)
+				urgent = true;
 
 	if (rq->cmd_flags & REQ_URGENT) {
 		WARN_ON(1);
@@ -374,24 +382,13 @@ static void row_add_request(struct request_queue *q,
 
 		rqueue->idle_data.last_insert_time = ktime_get();
 	}
-	if (row_queues_def[rqueue->prio].is_urgent &&
+	if (urgent &&
 	    !rd->pending_urgent_rq && !rd->urgent_in_flight) {
-		/* Handle High Priority queues */
-		if (rqueue->prio < ROWQ_REG_PRIO_IDX &&
-		    rd->last_served_ioprio_class != IOPRIO_CLASS_RT &&
-		    queue_was_empty) {
-			row_log_rowq(rd, rqueue->prio,
-				"added (high prio) urgent request");
-			rq->cmd_flags |= REQ_URGENT;
-			rd->pending_urgent_rq = rq;
-		} else  if (row_rowq_unserved(rd, rqueue->prio)) {
-			/* Handle Regular priotity queues */
-			row_log_rowq(rd, rqueue->prio,
-				"added urgent request (total on queue=%d)",
-				rqueue->nr_req);
-			rq->cmd_flags |= REQ_URGENT;
-			rd->pending_urgent_rq = rq;
-		}
+		rq->cmd_flags |= REQ_URGENT;
+		rd->pending_urgent_rq = rq;
+		row_log_rowq(rd, rqueue->prio,
+			"added urgent request (total on queue=%d)",
+			rqueue->nr_req);
 	} else
 		row_log_rowq(rd, rqueue->prio,
 			"added request (total on queue=%d)", rqueue->nr_req);
