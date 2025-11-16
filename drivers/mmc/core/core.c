@@ -655,7 +655,6 @@ static bool mmc_should_stop_curr_req(struct mmc_host *host)
 	int remainder;
 
 	if (host->areq->cmd_flags & REQ_URGENT ||
-	    !(host->areq->cmd_flags & REQ_WRITE) ||
 	    (host->areq->cmd_flags & REQ_FUA))
 		return false;
 
