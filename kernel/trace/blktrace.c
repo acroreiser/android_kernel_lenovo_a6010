@@ -1911,6 +1911,9 @@ void blk_fill_rwbs(char *rwbs, u32 rw, int bytes)
 	if (rw & REQ_SECURE)
 		rwbs[i++] = 'E';
 
+	if (rw & REQ_URGENT)
+		rwbs[i++] = 'U';
+
 	rwbs[i] = '\0';
 }
 EXPORT_SYMBOL_GPL(blk_fill_rwbs);
