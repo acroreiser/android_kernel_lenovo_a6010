@@ -1428,9 +1428,6 @@ static void subsys_free_irqs(struct subsys_device *subsys)
 		devm_free_irq(desc->dev, desc->err_ready_irq, subsys);
 }
 
-struct subsys_desc *desc_modem;
-struct subsys_desc *desc_adsp;
-
 struct subsys_device *subsys_register(struct subsys_desc *desc)
 {
 	struct subsys_device *subsys;
@@ -1519,13 +1516,6 @@ struct subsys_device *subsys_register(struct subsys_desc *desc)
 	INIT_LIST_HEAD(&subsys->list);
 	list_add_tail(&subsys->list, &subsys_list);
 	mutex_unlock(&subsys_list_lock);
-
-	if(!strcmp(desc->name, "modem") ||
-		!strcmp(desc->name, "mba"))
-		desc_modem = desc;
-
-	if(!strcmp(desc->name, "adsp"))
-		desc_adsp = desc;
 
 	return subsys;
 err_sysmon_notifier:
