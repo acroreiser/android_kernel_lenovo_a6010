@@ -324,11 +324,11 @@ int sysmon_send_event(struct subsys_desc *dest_desc,
 		return -EINVAL;
 
 	if (!data->clnt_handle) {
-		pr_debug("No SSCTL_V2 support for %s. Revert to SSCTL_V0\n",
+		pr_err("No SSCTL_V2 support for %s. Revert to SSCTL_V0\n",
 								dest_ss);
 		ret = sysmon_send_event_no_qmi(dest_desc, event_desc, notif);
 		if (ret)
-			pr_debug("SSCTL_V0 implementation failed - %d\n", ret);
+			pr_err("SSCTL_V0 implementation failed - %d\n", ret);
 
 		return ret;
 	}

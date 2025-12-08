@@ -66,7 +66,7 @@ static int sysmon_send_smd(struct sysmon_subsys *ss, const char *tx_buf,
 		return -ENODEV;
 
 	init_completion(&ss->resp_ready);
-	pr_debug("Sending SMD message: %s\n", tx_buf);
+	pr_err("Sending SMD message: %s\n", tx_buf);
 	smd_write(ss->chan, tx_buf, len);
 	ret = wait_for_completion_timeout(&ss->resp_ready,
 				  msecs_to_jiffies(TIMEOUT_MS));
@@ -82,7 +82,7 @@ static int sysmon_send_hsic(struct sysmon_subsys *ss, const char *tx_buf,
 	int ret;
 	size_t actual_len;
 
-	pr_debug("Sending HSIC message: %s\n", tx_buf);
+	pr_err("Sending HSIC message: %s\n", tx_buf);
 	ret = hsic_sysmon_write(HSIC_SYSMON_DEV_EXT_MODEM,
 				tx_buf, len, TIMEOUT_MS);
 	if (ret)
@@ -105,11 +105,11 @@ static int sysmon_send_msg(struct sysmon_subsys *ss, const char *tx_buf,
 		ret = sysmon_send_hsic(ss, tx_buf, len);
 		break;
 	default:
-		ret = -EINVAL;
+		ret = sysmon_send_smd(ss, tx_buf, len);
 	}
 
 	if (!ret)
-		pr_debug("Received response: %s\n", ss->rx_buf);
+		pr_err("Received response: %s\n", ss->rx_buf);
 
 	return ret;
 }
@@ -135,26 +135,37 @@ int sysmon_send_event_no_qmi(struct subsys_desc *dest_desc,
 {
 
 	char tx_buf[TX_BUF_SIZE];
-	int ret;
+	int ret, pid;
 	struct sysmon_subsys *tmp, *ss = NULL;
 	const char *event_ss = event_desc->name;
 
+	if (!strcmp(dest_desc->name, "modem"))
+		pid = 0;
+
+	if (!strcmp(dest_desc->name, "adsp"))
+		pid = 1;
+
 	mutex_lock(&sysmon_list_lock);
 	list_for_each_entry(tmp, &sysmon_list, list)
-		if (tmp->pid == dest_desc->sysmon_pid)
+		if (tmp->pid == pid)
 			ss = tmp;
 	mutex_unlock(&sysmon_list_lock);
 
-	if (ss == NULL)
+	if (ss == NULL) {
+				pr_err("ss == NULL\n");
+
 		return -EINVAL;
+	}
 
 	if (ss->dev == NULL)
 		return -ENODEV;
 
 	if (notif < 0 || notif >= SUBSYS_NOTIF_TYPE_COUNT || event_ss == NULL ||
-						notif_name[notif] == NULL)
-		return -EINVAL;
+						notif_name[notif] == NULL){
+				pr_err("notif < 0 || notif >= SUBSYS_NOTIF_TYPE_COUNT || event_ss == NULL || notif_name[notif] == NULL\n");
 
+		notif = SUBSYS_AFTER_POWERUP;
+}
 	snprintf(tx_buf, ARRAY_SIZE(tx_buf), "ssr:%s:%s", event_ss,
 		 notif_name[notif]);
 
@@ -166,7 +177,7 @@ int sysmon_send_event_no_qmi(struct subsys_desc *dest_desc,
 	}
 
 	if (strcmp(ss->rx_buf, "ssr:ack")) {
-		pr_debug("Unexpected response %s\n", ss->rx_buf);
+		pr_err("Unexpected response %s\n", ss->rx_buf);
 		ret = -ENOSYS;
 	}
 out:

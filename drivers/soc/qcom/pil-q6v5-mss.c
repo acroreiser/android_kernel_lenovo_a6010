@@ -187,11 +187,18 @@ static int modem_ramdump(int enable, const struct subsys_desc *subsys)
 	return ret;
 }
 
+extern struct subsys_desc *desc_modem;
+extern struct subsys_desc *desc_adsp;
+
 static int adsp_state_notifier_fn(struct notifier_block *this,
 				unsigned long code, void *ss_handle)
 {
 	int ret;
-	ret = sysmon_send_event(SYSMON_SS_MODEM, "adsp", code);
+	if (desc_modem != NULL && desc_adsp != NULL)
+		ret = sysmon_send_event(desc_modem, desc_adsp, code);
+	else
+		ret = -ENODEV;
+
 	if (ret < 0)
 		pr_err("%s: sysmon_send_event failed (%d).", __func__, ret);
 	return NOTIFY_DONE;
