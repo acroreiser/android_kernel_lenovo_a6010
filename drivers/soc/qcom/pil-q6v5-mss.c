@@ -49,7 +49,6 @@ struct modem_data {
 	struct q6v5_data *q6;
 	struct subsys_device *subsys;
 	struct subsys_desc subsys_desc;
-	void *adsp_state_notifier;
 	void *ramdump_dev;
 	bool crash_shutdown;
 	bool ignore_errors;
@@ -187,19 +186,6 @@ static int modem_ramdump(int enable, const struct subsys_desc *subsys)
 	return ret;
 }
 
-static int adsp_state_notifier_fn(struct notifier_block *this,
-				unsigned long code, void *ss_handle)
-{
-	int ret;
-	ret = sysmon_send_event(SYSMON_SS_MODEM, "adsp", code);
-	if (ret < 0)
-		pr_err("%s: sysmon_send_event failed (%d).", __func__, ret);
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block adsp_state_notifier_block = {
-	.notifier_call = adsp_state_notifier_fn,
-};
 
 static irqreturn_t modem_wdog_bite_intr_handler(int irq, void *dev_id)
 {
@@ -240,15 +226,6 @@ static int pil_subsys_init(struct modem_data *drv,
 			__func__);
 		ret = -ENOMEM;
 		goto err_ramdump;
-	}
-
-	drv->adsp_state_notifier = subsys_notif_register_notifier("adsp",
-						&adsp_state_notifier_block);
-	if (IS_ERR(drv->adsp_state_notifier)) {
-		ret = PTR_ERR(drv->adsp_state_notifier);
-		dev_err(&pdev->dev, "%s: Registration with the SSR notification driver failed (%d)",
-			__func__, ret);
-		goto err_irq;
 	}
 
 	return 0;
@@ -400,8 +377,6 @@ static int pil_mss_driver_exit(struct platform_device *pdev)
 {
 	struct modem_data *drv = platform_get_drvdata(pdev);
 
-	subsys_notif_unregister_notifier(drv->adsp_state_notifier,
-						&adsp_state_notifier_block);
 	subsys_unregister(drv->subsys);
 	destroy_ramdump_device(drv->ramdump_dev);
 	pil_desc_release(&drv->mba->desc);
