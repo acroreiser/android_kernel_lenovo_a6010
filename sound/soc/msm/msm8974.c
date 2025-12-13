@@ -2135,12 +2135,13 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.codec_name = "snd-soc-dummy",
 		.be_id = MSM_FRONTEND_DAI_LSM1,
 	},
+#if 0
 	/* Multiple Tunnel instances */
 	{
 		.name = "MSM8974 Compr2",
 		.stream_name = "COMPR2",
 		.cpu_dai_name	= "MultiMedia6",
-		.platform_name  = "msm-compress-dsp",
+		.platform_name  = "msm-compr-dsp",
 		.dynamic = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			 SND_SOC_DPCM_TRIGGER_POST},
@@ -2155,7 +2156,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.name = "MSM8974 Compr3",
 		.stream_name = "COMPR3",
 		.cpu_dai_name	= "MultiMedia7",
-		.platform_name  = "msm-compress-dsp",
+		.platform_name  = "msm-compr-dsp",
 		.dynamic = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			 SND_SOC_DPCM_TRIGGER_POST},
@@ -2167,10 +2168,10 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA7,
 	},
 	{
-		.name = "MSM8974 Compr8",
-		.stream_name = "COMPR8",
+		.name = "MSM8974 Compr4",
+		.stream_name = "COMPR4",
 		.cpu_dai_name	= "MultiMedia8",
-		.platform_name  = "msm-compress-dsp",
+		.platform_name  = "msm-compr-dsp",
 		.dynamic = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			 SND_SOC_DPCM_TRIGGER_POST},
@@ -2181,6 +2182,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		 /* this dainlink has playback support */
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA8,
 	},
+#endif
 	{
 		.name = "QCHAT",
 		.stream_name = "QCHAT",
@@ -2273,6 +2275,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ignore_suspend = 1,
 	},
+#if 0
 	/* Ultrasound RX Back End DAI Link */
 	{
 		.name = "SLIMBUS_2 Hostless Playback",
@@ -2297,6 +2300,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ops = &msm8974_slimbus_2_be_ops,
 	},
+#endif
 	/* LSM FE */
 	{
 		.name = "Listen 2 Audio Service",
@@ -2864,6 +2868,93 @@ static int msm8974_prepare_us_euro(struct snd_soc_card *card)
 	return 0;
 }
 
+
+static int msm8974_populate_dai_link_component_of_node(
+					struct snd_soc_card *card)
+{
+	int i, index, ret = 0;
+	struct device *cdev = card->dev;
+	struct snd_soc_dai_link *dai_link = card->dai_link;
+	struct device_node *phandle;
+
+	if (!cdev) {
+		pr_err("%s: Sound card device memory NULL\n", __func__);
+		return -ENODEV;
+	}
+
+	for (i = 0; i < card->num_links; i++) {
+		if (dai_link[i].platform_of_node && dai_link[i].cpu_of_node)
+			continue;
+
+		/* populate platform_of_node for snd card dai links */
+		if (dai_link[i].platform_name &&
+		    !dai_link[i].platform_of_node) {
+			index = of_property_match_string(cdev->of_node,
+						"asoc-platform-names",
+						dai_link[i].platform_name);
+			if (index < 0) {
+				pr_err("%s: No match found for platform\n"
+					"name: %s\n", __func__,
+					dai_link[i].platform_name);
+				ret = index;
+				goto cpu_dai;
+			}
+			phandle = of_parse_phandle(cdev->of_node,
+						"asoc-platform",
+						index);
+			if (!phandle) {
+				pr_err("%s: retrieving phandle for platform %s, index %d failed\n",
+					__func__, dai_link[i].platform_name,
+					index);
+				ret = -ENODEV;
+				goto err;
+			}
+			dai_link[i].platform_of_node = phandle;
+			dai_link[i].platform_name = NULL;
+		}
+cpu_dai:
+		/* populate cpu_of_node for snd card dai links */
+		if (dai_link[i].cpu_dai_name && !dai_link[i].cpu_of_node) {
+			index = of_property_match_string(cdev->of_node,
+						 "asoc-cpu-names",
+						 dai_link[i].cpu_dai_name);
+			if (index < 0)
+				goto codec_dai;
+			phandle = of_parse_phandle(cdev->of_node, "asoc-cpu",
+					      index);
+			if (!phandle) {
+				pr_err("%s: retrieving phandle for cpu dai %s failed\n",
+					__func__, dai_link[i].cpu_dai_name);
+				ret = -ENODEV;
+				goto err;
+			}
+			dai_link[i].cpu_of_node = phandle;
+			dai_link[i].cpu_dai_name = NULL;
+		}
+codec_dai:
+		/* populate codec_of_node for snd card dai links */
+		if (dai_link[i].codec_name && !dai_link[i].codec_of_node) {
+			index = of_property_match_string(cdev->of_node,
+						 "asoc-codec-names",
+						 dai_link[i].codec_name);
+			if (index < 0)
+				continue;
+			phandle = of_parse_phandle(cdev->of_node, "asoc-codec",
+					      index);
+			if (!phandle) {
+				pr_err("%s: retrieving phandle for codec dai %s failed\n",
+					__func__, dai_link[i].codec_name);
+				ret = -ENODEV;
+				goto err;
+			}
+			dai_link[i].codec_of_node = phandle;
+			dai_link[i].codec_name = NULL;
+		}
+	}
+err:
+	return ret;
+}
+
 static int msm8974_asoc_machine_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &snd_soc_card_msm8974;
@@ -2959,6 +3050,7 @@ static int msm8974_asoc_machine_probe(struct platform_device *pdev)
 			dev_dbg(&pdev->dev, "Unknown value, hence setting to default");
 		}
 	}
+#if 0
 	if (of_property_read_bool(pdev->dev.of_node, "qcom,hdmi-audio-rx")) {
 		dev_info(&pdev->dev, "%s(): hdmi audio support present\n",
 				__func__);
@@ -2972,17 +3064,24 @@ static int msm8974_asoc_machine_probe(struct platform_device *pdev)
 		card->dai_link	= msm8974_dai_links;
 		card->num_links	= ARRAY_SIZE(msm8974_dai_links);
 	} else {
+#endif
 		dev_info(&pdev->dev, "%s(): No hdmi audio support\n", __func__);
 
 		card->dai_link	= msm8974_common_dai_links;
 		card->num_links	= ARRAY_SIZE(msm8974_common_dai_links);
-	}
+//	}
 	mutex_init(&cdc_mclk_mutex);
 	atomic_set(&prim_auxpcm_rsc_ref, 0);
 	atomic_set(&sec_auxpcm_rsc_ref, 0);
 	spdev = pdev;
 	ext_spk_amp_regulator = NULL;
 	msm8974_liquid_dock_dev = NULL;
+
+	ret = msm8974_populate_dai_link_component_of_node(card);
+	if (ret) {
+		ret = -EPROBE_DEFER;
+		goto err;
+	}
 
 	ret = snd_soc_register_card(card);
 	if (ret) {
