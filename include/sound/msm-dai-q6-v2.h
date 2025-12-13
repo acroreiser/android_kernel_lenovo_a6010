@@ -25,15 +25,16 @@
 #define MSM_SEC_MI2S  1
 #define MSM_TERT_MI2S 2
 #define MSM_QUAT_MI2S  3
-#define MSM_SEC_MI2S_SD1  4
 
 struct msm_dai_auxpcm_config {
 	u16 mode;
 	u16 sync;
 	u16 frame;
 	u16 quant;
-	u16 num_slots;
-	u16 *slot_mapping;
+	/* modify slot to arr[4] to specify
+	* the slot number for each channel
+	* in multichannel scenario */
+	u16 slot;
 	u16 data;
 	u32 pcm_clk_rate;
 };
@@ -46,7 +47,6 @@ struct msm_dai_auxpcm_pdata {
 struct msm_mi2s_pdata {
 	u16 rx_sd_lines;
 	u16 tx_sd_lines;
-	u16 intf_id;
 };
 
 struct msm_i2s_data {

@@ -1826,7 +1826,7 @@ static struct snd_soc_dai_link apq8084_dai_links[] = {
 		.name = "APQ8084 Compr8",
 		.stream_name = "COMPR8",
 		.cpu_dai_name	= "MultiMedia8",
-		.platform_name  = "msm-compress-dsp",
+		.platform_name  = "msm-compr-dsp",
 		.dynamic = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			 SND_SOC_DPCM_TRIGGER_POST},
@@ -2289,11 +2289,11 @@ static int apq8084_asoc_machine_probe(struct platform_device *pdev)
 		goto err;
 
 	ret = of_property_read_u32(pdev->dev.of_node,
-			"qcom,taiko-mclk-clk-freq", &pdata->mclk_freq);
+			"qcom,codec-mclk-clk-freq", &pdata->mclk_freq);
 	if (ret) {
 		dev_err(&pdev->dev,
 			"%s: Looking up %s property in node %s failed\n",
-			__func__, "qcom,taiko-mclk-clk-freq",
+			__func__, "qcom,codec-mclk-clk-freq",
 			pdev->dev.of_node->full_name);
 		goto err;
 	}

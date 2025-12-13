@@ -18,18 +18,17 @@
 
 union srs_trumedia_params_u {
 	struct srs_trumedia_params srs_params;
-	__u16 raw_params[1];
+	unsigned short int raw_params[1];
 };
 
-struct param_outband;
-
-void msm_dts_srs_tm_ion_memmap(struct param_outband *po_);
-void msm_dts_srs_tm_init(int port_id, int copp_idx);
-void msm_dts_srs_tm_deinit(int port_id);
+void msm_dts_srs_tm_set_port_id(int port_id);
+void msm_dts_srs_tm_send_params(int port_id, unsigned int techs,
+				int param_block_idx);
 void msm_dts_srs_tm_add_controls(struct snd_soc_platform *platform);
 #else
-void msm_dts_srs_tm_init(int port_id, int copp_idx) { }
-void msm_dts_srs_tm_deinit(int port_id) { }
+void msm_dts_srs_tm_set_port_id(int port_id) { }
+void msm_dts_srs_tm_send_params(int port_id, unsigned int techs,
+				int param_block_idx) { }
 void msm_dts_srs_tm_add_controls(struct snd_soc_platform *platform) { }
 
 #endif

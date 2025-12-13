@@ -15,20 +15,9 @@
 #include <sound/soc.h>
 #include "msm-pcm-routing-v2.h"
 
-#ifdef CONFIG_SND_HWDEP
 int msm_pcm_routing_hwdep_new(struct snd_soc_pcm_runtime *runtime,
 			      struct msm_pcm_routing_bdai_data *msm_bedais);
 void msm_pcm_routing_hwdep_free(struct snd_pcm *pcm);
-#else
-static inline int msm_pcm_routing_hwdep_new(struct snd_soc_pcm_runtime *runtime,
-				struct msm_pcm_routing_bdai_data *msm_bedais)
-{
-	return 0;
-}
 
-static inline void msm_pcm_routing_hwdep_free(struct snd_pcm *pcm)
-{
-	return;
-}
 #endif
-#endif
+

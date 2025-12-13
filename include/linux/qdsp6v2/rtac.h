@@ -23,7 +23,6 @@ enum {
 	ADM_RTAC_CAL,
 	ASM_RTAC_CAL,
 	VOICE_RTAC_CAL,
-	AFE_RTAC_CAL,
 	MAX_RTAC_BLOCKS
 };
 
@@ -45,8 +44,7 @@ struct rtac_cal_block_data {
 	struct rtac_cal_data		cal_data;
 };
 
-void rtac_add_adm_device(u32 port_id, u32 copp_id, u32 path_id, u32 popp_id,
-			u32 app_type, u32 acdb_dev_id);
+void rtac_add_adm_device(u32 port_id, u32 copp_id, u32 path_id, u32 popp_id);
 void rtac_remove_adm_device(u32 port_id, u32 copp_id);
 void rtac_remove_popp_from_adm_devices(u32 popp_id);
 void rtac_add_voice(u32 cvs_handle, u32 cvp_handle, u32 rx_afe_port,
@@ -63,6 +61,5 @@ void rtac_set_voice_handle(u32 mode, void *handle);
 bool rtac_make_voice_callback(u32 mode, uint32_t *payload, u32 payload_size);
 void rtac_copy_voice_payload_to_user(void *payload, u32 payload_size);
 int rtac_clear_mapping(uint32_t cal_type);
-bool rtac_make_afe_callback(uint32_t *payload, u32 payload_size);
-void rtac_set_afe_handle(void *handle);
+
 #endif

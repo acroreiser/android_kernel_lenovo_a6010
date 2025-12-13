@@ -23,7 +23,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/slimbus/slimbus.h>
 #include <soc/qcom/subsystem_notif.h>
-#include <soc/qcom/liquid_dock.h>
+#include <soc/qcom/apq8084_dock.h>
 #include <sound/core.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
@@ -3046,7 +3046,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.name = "APQ8084 Compr8",
 		.stream_name = "COMPR8",
 		.cpu_dai_name	= "MultiMedia8",
-		.platform_name  = "msm-compress-dsp",
+		.platform_name  = "msm-compr-dsp",
 		.dynamic = 1,
 		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
 			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
@@ -3283,109 +3283,6 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.be_id = MSM_FRONTEND_DAI_QCHAT,
-	},
-	/* Multiple Offload instances */
-	{
-		.name = "APQ8084 Compress4",
-		.stream_name = "Compress4",
-		.cpu_dai_name	= "MultiMedia11",
-		.platform_name  = "msm-compress-dsp",
-		.dynamic = 1,
-		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
-			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			 SND_SOC_DPCM_TRIGGER_POST},
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		 /* this dai link has playback support */
-		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA11,
-	},
-	{
-		.name = "APQ8084 Compress5",
-		.stream_name = "Compress5",
-		.cpu_dai_name	= "MultiMedia12",
-		.platform_name  = "msm-compress-dsp",
-		.dynamic = 1,
-		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
-			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			 SND_SOC_DPCM_TRIGGER_POST},
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		 /* this dai link has playback support */
-		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA12,
-	},
-	{
-		.name = "APQ8084 Compress6",
-		.stream_name = "Compress6",
-		.cpu_dai_name	= "MultiMedia13",
-		.platform_name  = "msm-compress-dsp",
-		.dynamic = 1,
-		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
-			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			 SND_SOC_DPCM_TRIGGER_POST},
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		 /* this dai link has playback support */
-		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA13,
-	},
-	{
-		.name = "APQ8084 Compress7",
-		.stream_name = "Compress7",
-		.cpu_dai_name	= "MultiMedia14",
-		.platform_name  = "msm-compress-dsp",
-		.dynamic = 1,
-		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
-			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			 SND_SOC_DPCM_TRIGGER_POST},
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		 /* this dai link has playback support */
-		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA14,
-	},
-	{
-		.name = "APQ8084 Compress8",
-		.stream_name = "Compress8",
-		.cpu_dai_name	= "MultiMedia15",
-		.platform_name  = "msm-compress-dsp",
-		.dynamic = 1,
-		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
-			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			 SND_SOC_DPCM_TRIGGER_POST},
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		 /* this dai link has playback support */
-		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA15,
-	},
-	{
-		.name = "APQ8084 Compress9",
-		.stream_name = "Compress9",
-		.cpu_dai_name	= "MultiMedia16",
-		.platform_name  = "msm-compress-dsp",
-		.dynamic = 1,
-		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
-			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			 SND_SOC_DPCM_TRIGGER_POST},
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		 /* this dai link has playback support */
-		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA16,
 	},
 	{
 		.name = "APQ8084 Media9",
@@ -4040,92 +3937,6 @@ struct snd_soc_card snd_soc_card_taiko_apq8084 = {
 	.name		= "apq8084-taiko-snd-card",
 };
 
-static int apq8084_populate_dai_link_component_of_node(
-					struct snd_soc_card *card)
-{
-	int i, index, ret = 0;
-	struct device *cdev = card->dev;
-	struct snd_soc_dai_link *dai_link = card->dai_link;
-	struct device_node *np;
-
-	if (!cdev) {
-		pr_err("%s: Sound card device memory NULL\n", __func__);
-		return -ENODEV;
-	}
-
-	for (i = 0; i < card->num_links; i++) {
-		if (dai_link[i].platform_of_node && dai_link[i].cpu_of_node)
-			continue;
-
-		/* populate platform_of_node for snd card dai links */
-		if (dai_link[i].platform_name &&
-		    !dai_link[i].platform_of_node) {
-			index = of_property_match_string(cdev->of_node,
-						"asoc-platform-names",
-						dai_link[i].platform_name);
-			if (index < 0) {
-				pr_debug("%s: No match found for platform name: %s\n",
-					__func__, dai_link[i].platform_name);
-				ret = index;
-				goto err;
-			}
-			np = of_parse_phandle(cdev->of_node, "asoc-platform",
-					      index);
-			if (!np) {
-				pr_err("%s: retrieving phandle for platform %s, index %d failed\n",
-					__func__, dai_link[i].platform_name,
-					index);
-				ret = -ENODEV;
-				goto err;
-			}
-			dai_link[i].platform_of_node = np;
-			dai_link[i].platform_name = NULL;
-		}
-
-		/* populate cpu_of_node for snd card dai links */
-		if (dai_link[i].cpu_dai_name && !dai_link[i].cpu_of_node) {
-			index = of_property_match_string(cdev->of_node,
-						 "asoc-cpu-names",
-						 dai_link[i].cpu_dai_name);
-			if (index >= 0) {
-				np = of_parse_phandle(cdev->of_node, "asoc-cpu",
-						index);
-				if (!np) {
-					pr_err("%s: retrieving phandle for cpu dai %s failed\n",
-						__func__,
-						dai_link[i].cpu_dai_name);
-					ret = -ENODEV;
-					goto err;
-				}
-				dai_link[i].cpu_of_node = np;
-				dai_link[i].cpu_dai_name = NULL;
-			}
-		}
-
-		/* populate codec_of_node for snd card dai links */
-		if (dai_link[i].codec_name && !dai_link[i].codec_of_node) {
-			index = of_property_match_string(cdev->of_node,
-						 "asoc-codec-names",
-						 dai_link[i].codec_name);
-			if (index < 0)
-				continue;
-			np = of_parse_phandle(cdev->of_node, "asoc-codec",
-					      index);
-			if (!np) {
-				pr_err("%s: retrieving phandle for codec %s failed\n",
-					__func__, dai_link[i].codec_name);
-				ret = -ENODEV;
-				goto err;
-			}
-			dai_link[i].codec_of_node = np;
-			dai_link[i].codec_name = NULL;
-		}
-	}
-
-err:
-	return ret;
-}
-
 static int apq8084_dtparse_auxpcm(struct platform_device *pdev,
 				  struct msm_auxpcm_ctrl **auxpcm_ctrl,
 				  char *msm_auxpcm_gpio_name[][2])
@@ -4282,11 +4093,6 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	const struct of_device_id *match;
 
 	match = of_match_node(apq8084_asoc_machine_of_match, dev->of_node);
-	if (!match) {
-		dev_err(dev, "%s: No DT match found for sound card\n",
-			__func__);
-		return NULL;
-	}
 
 	if (!strcmp(match->data, "tomtom_codec")) {
 		card = &snd_soc_card_tomtom_apq8084;
@@ -4361,8 +4167,6 @@ static int apq8084_asoc_machine_probe(struct platform_device *pdev)
 	struct apq8084_asoc_mach_data *pdata;
 	int ret;
 	const char *auxpcm_pri_gpio_set = NULL;
-	const struct of_device_id *match;
-	char *mclk_freq_prop_name;
 
 	if (!pdev->dev.of_node) {
 		dev_err(&pdev->dev, "No platform supplied from device tree\n");
@@ -4394,24 +4198,11 @@ static int apq8084_asoc_machine_probe(struct platform_device *pdev)
 	if (ret)
 		goto err;
 
-	match = of_match_node(apq8084_asoc_machine_of_match,
-			      pdev->dev.of_node);
-	if (!match) {
-		dev_err(&pdev->dev, "%s: No DT match found for sound card\n",
-			__func__);
-		ret = -EINVAL;
-		goto err;
-	}
-	if (!strcmp(match->data, "tomtom_codec"))
-		mclk_freq_prop_name = "qcom,tomtom-mclk-clk-freq";
-	else
-		mclk_freq_prop_name = "qcom,taiko-mclk-clk-freq";
-
 	ret = of_property_read_u32(pdev->dev.of_node,
-			mclk_freq_prop_name, &pdata->mclk_freq);
+			"qcom,codec-mclk-clk-freq", &pdata->mclk_freq);
 	if (ret) {
 		dev_err(&pdev->dev, "Looking up %s property in node %s failed",
-			mclk_freq_prop_name,
+			"qcom,codec-mclk-clk-freq",
 			pdev->dev.of_node->full_name);
 		goto err;
 	}
@@ -4427,12 +4218,6 @@ static int apq8084_asoc_machine_probe(struct platform_device *pdev)
 	atomic_set(&prim_auxpcm_rsc_ref, 0);
 	atomic_set(&sec_auxpcm_rsc_ref, 0);
 	spdev = pdev;
-
-	ret = apq8084_populate_dai_link_component_of_node(card);
-	if (ret) {
-		ret = -EPROBE_DEFER;
-		goto err;
-	}
 
 	ret = snd_soc_register_card(card);
 	if (ret == -EPROBE_DEFER) {

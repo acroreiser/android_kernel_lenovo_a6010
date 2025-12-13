@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, 2016-2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -45,12 +45,6 @@
 #define FORMAT_AC3          0x0013
 #define FORMAT_EAC3         0x0014
 #define FORMAT_MP2          0x0015
-#define FORMAT_FLAC         0x0016
-#define FORMAT_ALAC         0x0017
-#define FORMAT_VORBIS       0x0018
-#define FORMAT_APE          0x0019
-#define FORMAT_G711_ALAW_FS 0x001a
-#define FORMAT_G711_MLAW_FS 0x001b
 
 #define ENCDEC_SBCBITRATE   0x0001
 #define ENCDEC_IMMEDIATE_DECODE 0x0002
@@ -70,11 +64,6 @@
 
 /* bit 4 represents META enable of encoded data buffer */
 #define BUFFER_META_ENABLE	0x0010
-
-/* bit 5 represents timestamp */
-/* bit 5 - 0 -- ASM_DATA_EVENT_READ_DONE will have relative time-stamp*/
-/* bit 5 - 1 -- ASM_DATA_EVENT_READ_DONE will have absolute time-stamp*/
-#define ABSOLUTE_TIMESTAMP_ENABLE  0x0020
 
 /* Enable Sample_Rate/Channel_Mode notification event from Decoder */
 #define SR_CM_NOTIFY_ENABLE	0x0004
@@ -120,16 +109,16 @@ enum {
 	SOFT_PAUSE_CURVE_LOG,
 };
 
-#define SOFT_VOLUME_PERIOD       30   /* ramp up/down for 30ms    */
-#define SOFT_VOLUME_STEP         0 /* Step value 0ms or 0us */
+/* ramp up/down for 30ms    */
+#define SOFT_VOLUME_PERIOD       30
+/* Step value 0ms or 0us */
+#define SOFT_VOLUME_STEP         0
+
 enum {
 	SOFT_VOLUME_CURVE_LINEAR = 0,
 	SOFT_VOLUME_CURVE_EXP,
 	SOFT_VOLUME_CURVE_LOG,
 };
-
-#define SOFT_VOLUME_INSTANCE_1	1
-#define SOFT_VOLUME_INSTANCE_2	2
 
 typedef void (*app_cb)(uint32_t opcode, uint32_t token,
 			uint32_t *payload, void *priv);
@@ -159,7 +148,6 @@ struct audio_aio_read_param {
 	phys_addr_t   paddr;
 	uint32_t      len;
 	uint32_t      uid;
-	uint32_t      flags;/*meta data flags*/
 };
 
 struct audio_port_data {
@@ -197,11 +185,9 @@ struct audio_client {
 	int                    perf_mode;
 	int					   stream_id;
 	struct device *dev;
-	int		       topology;
 	/* audio cache operations fptr*/
 	int (*fptr_cache_ops)(struct audio_buffer *abuff, int cache_op);
 	atomic_t               unmap_cb_success;
-	atomic_t               reset;
 };
 
 void q6asm_audio_client_free(struct audio_client *ac);
@@ -213,7 +199,7 @@ struct audio_client *q6asm_get_audio_client(int session_id);
 int q6asm_audio_client_buf_alloc(unsigned int dir/* 1:Out,0:In */,
 				struct audio_client *ac,
 				unsigned int bufsz,
-				uint32_t bufcnt);
+				unsigned int bufcnt);
 int q6asm_audio_client_buf_alloc_contiguous(unsigned int dir
 				/* 1:Out,0:In */,
 				struct audio_client *ac,
@@ -227,12 +213,6 @@ int q6asm_open_read(struct audio_client *ac, uint32_t format
 		/*, uint16_t bits_per_sample*/);
 
 int q6asm_open_read_v2(struct audio_client *ac, uint32_t format,
-			uint16_t bits_per_sample);
-
-int q6asm_open_read_v3(struct audio_client *ac, uint32_t format,
-		       uint16_t bits_per_sample);
-
-int q6asm_open_read_v4(struct audio_client *ac, uint32_t format,
 			uint16_t bits_per_sample);
 
 int q6asm_open_write(struct audio_client *ac, uint32_t format
@@ -252,11 +232,6 @@ int q6asm_open_read_write(struct audio_client *ac,
 			uint32_t rd_format,
 			uint32_t wr_format);
 
-int q6asm_open_read_write_v2(struct audio_client *ac, uint32_t rd_format,
-			     uint32_t wr_format, bool is_meta_data_mode,
-			     uint32_t bits_per_sample, bool overwrite_topology,
-			     int topology);
-
 int q6asm_open_loopback_v2(struct audio_client *ac,
 			   uint16_t bits_per_sample);
 
@@ -272,7 +247,6 @@ int q6asm_async_read(struct audio_client *ac,
 					  struct audio_aio_read_param *param);
 
 int q6asm_read(struct audio_client *ac);
-int q6asm_read_v2(struct audio_client *ac, uint32_t len);
 int q6asm_read_nolock(struct audio_client *ac);
 
 int q6asm_memory_map(struct audio_client *ac, phys_addr_t buf_add,
@@ -280,6 +254,8 @@ int q6asm_memory_map(struct audio_client *ac, phys_addr_t buf_add,
 
 int q6asm_memory_unmap(struct audio_client *ac, phys_addr_t buf_add,
 							int dir);
+
+int q6asm_unmap_cal_blocks(void);
 
 int q6asm_map_rtac_block(struct rtac_cal_block_data *cal_block);
 
@@ -323,33 +299,12 @@ int q6asm_enc_cfg_blk_aac(struct audio_client *ac,
 			 uint32_t bit_rate,
 			 uint32_t mode, uint32_t format);
 
-int q6asm_enc_cfg_blk_g711(struct audio_client *ac,
-			 uint32_t frames_per_buf,
-			uint32_t sample_rate);
-
 int q6asm_enc_cfg_blk_pcm(struct audio_client *ac,
 			uint32_t rate, uint32_t channels);
-
-int q6asm_enc_cfg_blk_pcm_v2(struct audio_client *ac,
-			uint32_t rate, uint32_t channels,
-			uint16_t bits_per_sample,
-			bool use_default_chmap, bool use_back_flavor,
-			u8 *channel_map);
-
-int q6asm_enc_cfg_blk_pcm_v3(struct audio_client *ac,
-			     uint32_t rate, uint32_t channels,
-			     uint16_t bits_per_sample, bool use_default_chmap,
-			     bool use_back_flavor, u8 *channel_map,
-			     uint16_t sample_word_size);
 
 int q6asm_enc_cfg_blk_pcm_format_support(struct audio_client *ac,
 			uint32_t rate, uint32_t channels,
 			uint16_t bits_per_sample);
-
-int q6asm_enc_cfg_blk_pcm_format_support_v3(struct audio_client *ac,
-					    uint32_t rate, uint32_t channels,
-					    uint16_t bits_per_sample,
-					    uint16_t sample_word_size);
 
 int q6asm_set_encdec_chan_map(struct audio_client *ac,
 		uint32_t num_channels);
@@ -388,17 +343,7 @@ int q6asm_media_format_block_pcm_format_support(struct audio_client *ac,
 
 int q6asm_media_format_block_pcm_format_support_v2(struct audio_client *ac,
 				uint32_t rate, uint32_t channels,
-				uint16_t bits_per_sample, int stream_id,
-				bool use_default_chmap, char *channel_map);
-
-int q6asm_media_format_block_pcm_format_support_v3(struct audio_client *ac,
-						   uint32_t rate,
-						   uint32_t channels,
-						   uint16_t bits_per_sample,
-						   int stream_id,
-						   bool use_default_chmap,
-						   char *channel_map,
-						   uint16_t sample_word_size);
+				uint16_t bits_per_sample, int stream_id);
 
 int q6asm_media_format_block_multi_ch_pcm(struct audio_client *ac,
 			uint32_t rate, uint32_t channels,
@@ -409,13 +354,6 @@ int q6asm_media_format_block_multi_ch_pcm_v2(
 			uint32_t rate, uint32_t channels,
 			bool use_default_chmap, char *channel_map,
 			uint16_t bits_per_sample);
-
-int q6asm_media_format_block_multi_ch_pcm_v3(struct audio_client *ac,
-					     uint32_t rate, uint32_t channels,
-					     bool use_default_chmap,
-					     char *channel_map,
-					     uint16_t bits_per_sample,
-					     uint16_t sample_word_size);
 
 int q6asm_media_format_block_aac(struct audio_client *ac,
 			struct asm_aac_cfg *cfg);
@@ -435,18 +373,6 @@ int q6asm_media_format_block_wmapro(struct audio_client *ac,
 int q6asm_media_format_block_amrwbplus(struct audio_client *ac,
 			struct asm_amrwbplus_cfg *cfg);
 
-int q6asm_stream_media_format_block_flac(struct audio_client *ac,
-			struct asm_flac_cfg *cfg, int stream_id);
-
-int q6asm_media_format_block_alac(struct audio_client *ac,
-			struct asm_alac_cfg *cfg, int stream_id);
-
-int q6asm_stream_media_format_block_vorbis(struct audio_client *ac,
-			struct asm_vorbis_cfg *cfg, int stream_id);
-
-int q6asm_media_format_block_ape(struct audio_client *ac,
-			struct asm_ape_cfg *cfg, int stream_id);
-
 int q6asm_ds1_set_endp_params(struct audio_client *ac,
 				int param_id, int param_value);
 
@@ -460,13 +386,6 @@ int q6asm_equalizer(struct audio_client *ac, void *eq);
 /* Send Volume Command */
 int q6asm_set_volume(struct audio_client *ac, int volume);
 
-/* Send Volume Command */
-int q6asm_set_volume_v2(struct audio_client *ac, int volume, int instance);
-
-int q6asm_dts_eagle_set(struct audio_client *ac, int param_id, uint32_t size,
-			void *data);
-int q6asm_dts_eagle_get(struct audio_client *ac, int param_id,
-			uint32_t size, void *data);
 /* Set SoftPause Params */
 int q6asm_set_softpause(struct audio_client *ac,
 			struct asm_softpause_params *param);
@@ -475,22 +394,13 @@ int q6asm_set_softpause(struct audio_client *ac,
 int q6asm_set_softvolume(struct audio_client *ac,
 			struct asm_softvolume_params *param);
 
-/* Set Softvolume Params */
-int q6asm_set_softvolume_v2(struct audio_client *ac,
-			    struct asm_softvolume_params *param, int instance);
-
 /* Send left-right channel gain */
 int q6asm_set_lrgain(struct audio_client *ac, int left_gain, int right_gain);
-
-/* Send multi channel gain */
-int q6asm_set_multich_gain(struct audio_client *ac, uint32_t channels,
-			   uint32_t *gains, uint8_t *ch_map, bool use_default);
 
 /* Enable Mute/unmute flag */
 int q6asm_set_mute(struct audio_client *ac, int muteflag);
 
 int q6asm_get_session_time(struct audio_client *ac, uint64_t *tstamp);
-int q6asm_get_session_time_legacy(struct audio_client *ac, uint64_t *tstamp);
 
 int q6asm_send_audio_effects_params(struct audio_client *ac, char *params,
 				    uint32_t params_length);
@@ -512,13 +422,5 @@ int q6asm_send_meta_data(struct audio_client *ac, uint32_t initial_samples,
 /* Send the stream meta data to remove initial and trailing silence */
 int q6asm_stream_send_meta_data(struct audio_client *ac, uint32_t stream_id,
 		uint32_t initial_samples, uint32_t trailing_samples);
-
-/* Get current ASM topology */
-int q6asm_get_asm_topology(void);
-
-int q6asm_send_mtmx_strtr_window(struct audio_client *ac,
-		struct asm_session_mtmx_strtr_param_window_v2_t *window_param,
-		uint32_t param_id);
-
 
 #endif /* __Q6_ASM_H__ */

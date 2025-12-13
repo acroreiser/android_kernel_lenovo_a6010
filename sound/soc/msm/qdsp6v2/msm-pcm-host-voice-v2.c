@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, 2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -504,7 +504,7 @@ static int hpcm_allocate_shared_memory(struct hpcm_drv *prtd)
 
 	sess->tp_mem_table.size = sizeof(struct vss_imemory_table_t);
 
-	pr_debug("%s: data %pK phys %pK\n", __func__,
+	pr_debug("%s: data %p phys %pa\n", __func__,
 		 sess->tp_mem_table.data, &sess->tp_mem_table.phys);
 
 	/* Split 4096 block into four 1024 byte blocks for each dai */
@@ -673,20 +673,6 @@ void hpcm_notify_evt_processing(uint8_t *data, char *session,
 		return;
 	}
 
-	if (prtd->mixer_conf.sess_indx < VOICE_INDEX ||
-		prtd->mixer_conf.sess_indx >= MAX_SESSION) {
-		pr_err("%s:: Invalid session idx %d\n",
-			__func__, prtd->mixer_conf.sess_indx);
-		return;
-	}
-
-	if (prtd->mixer_conf.sess_indx < VOICE_INDEX ||
-		prtd->mixer_conf.sess_indx >= MAX_SESSION) {
-		pr_err("%s:: Invalid session idx %d\n",
-			__func__, prtd->mixer_conf.sess_indx);
-		return;
-	}
-
 	if (notify_evt->tap_point == VSS_IVPCM_TAP_POINT_TX_DEFAULT) {
 		tp = &prtd->session[prtd->mixer_conf.sess_indx].tx_tap_point;
 		tmd = &prtd->mixer_conf.tx;
@@ -696,7 +682,7 @@ void hpcm_notify_evt_processing(uint8_t *data, char *session,
 	}
 
 	if (tp == NULL || tmd == NULL) {
-		pr_err("%s: tp = %pK or tmd = %pK is null\n", __func__,
+		pr_err("%s: tp = %p or tmd = %p is null\n", __func__,
 		       tp, tmd);
 
 		return;
@@ -1152,7 +1138,6 @@ static int msm_pcm_prepare(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct hpcm_drv *prtd = runtime->private_data;
 	struct dai_data *dai_data = NULL;
-	struct tap_point *tp = NULL;
 
 	pr_debug("%s, %s\n", __func__, substream->pcm->id);
 	mutex_lock(&prtd->lock);
@@ -1177,16 +1162,14 @@ static int msm_pcm_prepare(struct snd_pcm_substream *substream)
 	 */
 	voc_register_hpcm_evt_cb(hpcm_notify_evt_processing, &hpcm_drv);
 
-	tp = hpcm_get_tappoint_data(substream->pcm->id, prtd);
-	if (tp != NULL) {
-		ret = hpcm_start_vocpcm(substream->pcm->id, prtd, tp);
-		if (ret) {
-			pr_err("error sending start cmd err=%d\n", ret);
-			goto done;
-		}
-	} else {
-		pr_err("%s tp is NULL\n", __func__);
+	ret = hpcm_start_vocpcm(substream->pcm->id, prtd,
+				hpcm_get_tappoint_data(substream->pcm->id,
+						       prtd));
+	if (ret) {
+		pr_err("error sending start cmd err=%d\n", ret);
+		goto done;
 	}
+
 done:
 	mutex_unlock(&prtd->lock);
 	return ret;
@@ -1342,6 +1325,8 @@ static struct snd_soc_platform_driver msm_soc_platform = {
 
 static int msm_pcm_probe(struct platform_device *pdev)
 {
+	if (pdev->dev.of_node)
+		dev_set_name(&pdev->dev, "%s", "msm-voice-host-pcm");
 
 	pr_info("%s: dev name %s\n", __func__, dev_name(&pdev->dev));
 	return snd_soc_register_platform(&pdev->dev, &msm_soc_platform);

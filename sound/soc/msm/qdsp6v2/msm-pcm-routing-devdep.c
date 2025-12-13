@@ -18,7 +18,6 @@
 #include "msm-pcm-routing-devdep.h"
 #include "msm-ds2-dap-config.h"
 
-#ifdef CONFIG_SND_HWDEP
 static int msm_pcm_routing_hwdep_open(struct snd_hwdep *hw, struct file *file)
 {
 	pr_debug("%s\n", __func__);
@@ -65,36 +64,6 @@ void msm_pcm_routing_hwdep_free(struct snd_pcm *pcm)
 	pr_debug("%s\n", __func__);
 }
 
-#ifdef CONFIG_COMPAT
-static int msm_pcm_routing_hwdep_compat_ioctl(struct snd_hwdep *hw,
-					      struct file *file,
-					      unsigned int cmd,
-					      unsigned long arg)
-{
-	int ret = 0;
-	void __user *argp = (void __user *)arg;
-	pr_debug("%s:cmd %x\n", __func__, cmd);
-	switch (cmd) {
-	case SNDRV_DEVDEP_DAP_IOCTL_SET_PARAM32:
-	case SNDRV_DEVDEP_DAP_IOCTL_GET_PARAM32:
-	case SNDRV_DEVDEP_DAP_IOCTL_DAP_COMMAND32:
-	case SNDRV_DEVDEP_DAP_IOCTL_DAP_LICENSE32:
-		msm_pcm_routing_acquire_lock();
-		ret = msm_ds2_dap_compat_ioctl(hw, file, cmd, argp);
-		msm_pcm_routing_release_lock();
-		break;
-	case SNDRV_DEVDEP_DAP_IOCTL_GET_VISUALIZER32:
-		ret = msm_ds2_dap_compat_ioctl(hw, file, cmd, argp);
-		break;
-	default:
-		pr_err("%s called with invalid control 0x%X\n", __func__, cmd);
-		ret = -EINVAL;
-		break;
-	}
-	return ret;
-
-}
-#endif
 
 int msm_pcm_routing_hwdep_new(struct snd_soc_pcm_runtime *runtime,
 			      struct msm_pcm_routing_bdai_data *msm_bedais)
@@ -129,10 +98,6 @@ int msm_pcm_routing_hwdep_new(struct snd_soc_pcm_runtime *runtime,
 	hwdep->ops.open = msm_pcm_routing_hwdep_open;
 	hwdep->ops.ioctl = msm_pcm_routing_hwdep_ioctl;
 	hwdep->ops.release = msm_pcm_routing_hwdep_release;
-#ifdef CONFIG_COMPAT
-	hwdep->ops.ioctl_compat = msm_pcm_routing_hwdep_compat_ioctl;
-#endif
 
 	return 0;
 }
-#endif

@@ -17,6 +17,7 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
+#include <sound/q6afe-v2.h>
 #include <linux/msm_hdmi.h>
 
 #define MSM_HDMI_PCM_RATES	SNDRV_PCM_RATE_48000
@@ -205,6 +206,23 @@ static struct snd_soc_dai_ops msm_hdmi_audio_codec_rx_dai_ops = {
 	.shutdown	= msm_hdmi_audio_codec_rx_dai_shutdown
 };
 
+static u32 msm_hdmi_audio_codec_silent_play(void *data)
+{
+	int rc;
+
+	struct msm_hdmi_audio_codec_rx_data *codec_data =
+		(struct msm_hdmi_audio_codec_rx_data *) data;
+
+	rc = codec_data->hdmi_ops.audio_info_setup(
+			codec_data->hdmi_core_pdev, 48000, 2, 0, 0, 0);
+	if (IS_ERR_VALUE(rc))
+		return rc;
+
+	afe_short_silence(100);
+
+	return 0;
+}
+
 static int msm_hdmi_audio_codec_rx_probe(struct snd_soc_codec *codec)
 {
 	struct msm_hdmi_audio_codec_rx_data *codec_data;
@@ -233,6 +251,10 @@ static int msm_hdmi_audio_codec_rx_probe(struct snd_soc_codec *codec)
 		kfree(codec_data);
 		return -ENODEV;
 	}
+
+	codec_data->hdmi_ops.play_silent_audio_callback =
+		msm_hdmi_audio_codec_silent_play;
+	codec_data->hdmi_ops.callback_data = codec_data;
 
 	if (msm_hdmi_register_audio_codec(codec_data->hdmi_core_pdev,
 				&codec_data->hdmi_ops)) {
@@ -286,7 +308,19 @@ static struct snd_soc_codec_driver msm_hdmi_audio_codec_rx_soc_driver = {
 static int msm_hdmi_audio_codec_rx_plat_probe(
 		struct platform_device *pdev)
 {
-	dev_dbg(&pdev->dev, "%s(): dev name %s\n", __func__,
+	dev_dbg(&pdev->dev, "%s(): orginal dev name  = %s, id = %d\n",
+		__func__, dev_name(&pdev->dev), pdev->id);
+
+	if (pdev->dev.of_node) {
+		dev_dbg(&pdev->dev, "%s(): node full name = %s,  name = %s\n",
+			__func__, pdev->dev.of_node->full_name,
+			pdev->dev.of_node->name);
+		dev_set_name(&pdev->dev, "%s", "msm-hdmi-audio-codec-rx");
+	} else
+		dev_err(&pdev->dev, "%s(): platfrom data not from device tree\n",
+				__func__);
+
+	dev_dbg(&pdev->dev, "%s(): new dev name %s\n", __func__,
 		dev_name(&pdev->dev));
 
 	return snd_soc_register_codec(&pdev->dev,

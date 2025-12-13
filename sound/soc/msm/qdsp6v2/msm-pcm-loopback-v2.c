@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
 
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License version 2 and
@@ -48,7 +48,7 @@ struct msm_pcm_loopback {
 	int capture_start;
 	int session_id;
 	struct audio_client *audio_client;
-	uint32_t volume;
+	int volume;
 };
 
 static void stop_pcm(struct msm_pcm_loopback *pcm);
@@ -108,8 +108,7 @@ static void msm_pcm_loopback_event_handler(uint32_t opcode, uint32_t token,
 	}
 }
 
-static int pcm_loopback_set_volume(struct msm_pcm_loopback *prtd,
-				   uint32_t volume)
+static int pcm_loopback_set_volume(struct msm_pcm_loopback *prtd, int volume)
 {
 	int rc = -EINVAL;
 
@@ -135,8 +134,6 @@ static int msm_pcm_open(struct snd_pcm_substream *substream)
 	int ret = 0;
 	uint16_t bits_per_sample = 16;
 	struct msm_pcm_routing_evt event;
-	struct asm_session_mtmx_strtr_param_window_v2_t asm_mtmx_strtr_window;
-	uint32_t param_id;
 
 	pcm = dev_get_drvdata(rtd->platform->dev);
 	mutex_lock(&pcm->lock);
@@ -195,20 +192,6 @@ static int msm_pcm_open(struct snd_pcm_substream *substream)
 				dev_err(rtd->platform->dev,
 					"Error %d setting volume", ret);
 		}
-		/* Set to largest negative value */
-		asm_mtmx_strtr_window.window_lsw = 0x00000000;
-		asm_mtmx_strtr_window.window_msw = 0x80000000;
-		param_id = ASM_SESSION_MTMX_STRTR_PARAM_RENDER_WINDOW_START_V2;
-		q6asm_send_mtmx_strtr_window(pcm->audio_client,
-					     &asm_mtmx_strtr_window,
-					     param_id);
-		/* Set to largest positive value */
-		asm_mtmx_strtr_window.window_lsw = 0xffffffff;
-		asm_mtmx_strtr_window.window_msw = 0x7fffffff;
-		param_id = ASM_SESSION_MTMX_STRTR_PARAM_RENDER_WINDOW_END_V2;
-		q6asm_send_mtmx_strtr_window(pcm->audio_client,
-					     &asm_mtmx_strtr_window,
-					     param_id);
 	}
 	dev_info(rtd->platform->dev, "%s: Instance = %d, Stream ID = %s\n",
 			__func__ , pcm->instance, substream->pcm->id);
@@ -355,49 +338,10 @@ static int msm_pcm_volume_ctl_put(struct snd_kcontrol *kcontrol,
 	int rc = 0;
 	struct snd_pcm_volume *vol = kcontrol->private_data;
 	struct snd_pcm_substream *substream = vol->pcm->streams[0].substream;
-	struct msm_pcm_loopback *prtd;
+	struct msm_pcm_loopback *prtd = substream->runtime->private_data;
 	int volume = ucontrol->value.integer.value[0];
 
-	pr_debug("%s: volume : 0x%x\n", __func__, volume);
-	if ((!substream) || (!substream->runtime)) {
-		pr_err("%s substream or runtime not found\n", __func__);
-		rc = -ENODEV;
-		goto exit;
-	}
-	prtd = substream->runtime->private_data;
-	if (!prtd) {
-		rc = -ENODEV;
-		goto exit;
-	}
 	rc = pcm_loopback_set_volume(prtd, volume);
-
-exit:
-	return rc;
-}
-
-static int msm_pcm_volume_ctl_get(struct snd_kcontrol *kcontrol,
-				  struct snd_ctl_elem_value *ucontrol)
-{
-	int rc = 0;
-	struct snd_pcm_volume *vol = snd_kcontrol_chip(kcontrol);
-	struct snd_pcm_substream *substream =
-		vol->pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream;
-	struct msm_pcm_loopback *prtd;
-
-	pr_debug("%s\n", __func__);
-	if ((!substream) || (!substream->runtime)) {
-		pr_err("%s substream or runtime not found\n", __func__);
-		rc = -ENODEV;
-		goto exit;
-	}
-	prtd = substream->runtime->private_data;
-	if (!prtd) {
-		rc = -ENODEV;
-		goto exit;
-	}
-	ucontrol->value.integer.value[0] = prtd->volume;
-
-exit:
 	return rc;
 }
 
@@ -417,7 +361,6 @@ static int msm_pcm_add_controls(struct snd_soc_pcm_runtime *rtd)
 		return ret;
 	kctl = volume_info->kctl;
 	kctl->put = msm_pcm_volume_ctl_put;
-	kctl->get = msm_pcm_volume_ctl_get;
 	kctl->tlv.p = loopback_rx_vol_gain;
 	return 0;
 }
@@ -445,6 +388,7 @@ static int msm_pcm_probe(struct platform_device *pdev)
 {
 	struct msm_pcm_loopback *pcm;
 
+	dev_set_name(&pdev->dev, "%s", "msm-pcm-loopback");
 
 	dev_dbg(&pdev->dev, "%s: dev name %s\n",
 		__func__, dev_name(&pdev->dev));

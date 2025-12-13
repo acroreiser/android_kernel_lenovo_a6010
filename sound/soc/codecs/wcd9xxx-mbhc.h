@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -46,27 +46,10 @@ enum mbhc_cal_type {
 enum mbhc_impedance_detect_stages {
 	MBHC_ZDET_PRE_MEASURE,
 	MBHC_ZDET_POST_MEASURE,
-	MBHC_ZDET_GAIN_0,
 	MBHC_ZDET_GAIN_1,
 	MBHC_ZDET_GAIN_2,
-	MBHC_ZDET_HPHR_RAMP_DISABLE,
-	MBHC_ZDET_HPHL_RAMP_DISABLE,
 	MBHC_ZDET_RAMP_DISABLE,
-	MBHC_ZDET_HPHR_PA_DISABLE,
 	MBHC_ZDET_PA_DISABLE,
-	MBHC_ZDET_GAIN_UPDATE_1X,
-};
-
-/* Zone assignments used in WCD9330 for Zdet */
-enum mbhc_zdet_zones {
-	ZL_ZONE1__ZR_ZONE1,
-	ZL_ZONE2__ZR_ZONE2,
-	ZL_ZONE3__ZR_ZONE3,
-	ZL_ZONE2__ZR_ZONE1,
-	ZL_ZONE3__ZR_ZONE1,
-	ZL_ZONE1__ZR_ZONE2,
-	ZL_ZONE1__ZR_ZONE3,
-	ZL_ZR_NOT_IN_ZONE1,
 };
 
 /* Data used by MBHC */
@@ -159,12 +142,6 @@ enum wcd9xxx_mbhc_event_state {
 	MBHC_EVENT_PA_HPHR,
 	MBHC_EVENT_PRE_TX_1_3_ON,
 	MBHC_EVENT_POST_TX_1_3_OFF,
-};
-
-enum mbhc_hph_type {
-	MBHC_HPH_NONE = 0,
-	MBHC_HPH_MONO,
-	MBHC_HPH_STEREO,
 };
 
 struct wcd9xxx_mbhc_general_cfg {
@@ -275,7 +252,6 @@ struct wcd9xxx_mbhc_config {
 	bool use_vddio_meas;
 	bool enable_anc_mic_detect;
 	enum hw_jack_type hw_jack_type;
-	int key_code[8];
 };
 
 struct wcd9xxx_cfilt_mode {
@@ -319,7 +295,6 @@ struct wcd9xxx_mbhc_cb {
 	bool (*insert_rem_status) (struct snd_soc_codec *);
 	void (*micbias_pulldown_ctrl) (struct wcd9xxx_mbhc *, bool);
 	int (*codec_rco_ctrl) (struct snd_soc_codec *, bool);
-	void (*hph_auto_pulldown_ctrl) (struct snd_soc_codec *, bool);
 	struct firmware_cal * (*get_hwdep_fw_cal) (struct snd_soc_codec *,
 				enum wcd_cal_type);
 };
@@ -344,7 +319,6 @@ struct wcd9xxx_mbhc {
 	u8 hphlocp_cnt; /* headphone left ocp retry */
 	u8 hphrocp_cnt; /* headphone right ocp retry */
 
-	bool poll_swch_on;
 	/* Work to perform MBHC Firmware Read */
 	struct delayed_work mbhc_firmware_dwork;
 	const struct firmware *mbhc_fw;
@@ -403,18 +377,10 @@ struct wcd9xxx_mbhc {
 	/* Holds codec specific interrupt mapping */
 	const struct wcd9xxx_mbhc_intr *intr_ids;
 
-	/* Indicates status of current source switch */
-	bool is_cs_enabled;
-
-	/* Holds type of Headset - Mono/Stereo */
-	enum mbhc_hph_type hph_type;
-
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debugfs_poke;
 	struct dentry *debugfs_mbhc;
 #endif
-
-	struct mutex mbhc_lock;
 };
 
 #define WCD9XXX_MBHC_CAL_SIZE(buttons, rload) ( \
@@ -472,7 +438,6 @@ struct wcd9xxx_mbhc {
 	    (cfg_ptr->_n_rload * \
 	     (sizeof(cfg_ptr->_rload[0]) + sizeof(cfg_ptr->_alpha[0]))))
 
-int wcd9xxx_mbhc_set_keycode(struct wcd9xxx_mbhc *mbhc);
 int wcd9xxx_mbhc_start(struct wcd9xxx_mbhc *mbhc,
 		       struct wcd9xxx_mbhc_config *mbhc_cfg);
 void wcd9xxx_mbhc_stop(struct wcd9xxx_mbhc *mbhc);
@@ -486,7 +451,7 @@ int wcd9xxx_mbhc_init(struct wcd9xxx_mbhc *mbhc, struct wcd9xxx_resmgr *resmgr,
 		      bool impedance_det_en);
 void wcd9xxx_mbhc_deinit(struct wcd9xxx_mbhc *mbhc);
 void *wcd9xxx_mbhc_cal_btn_det_mp(
-			    const struct wcd9xxx_mbhc_btn_detect_cfg *btn_det,
+			    struct wcd9xxx_mbhc_btn_detect_cfg *btn_det,
 			    const enum wcd9xxx_mbhc_btn_det_mem mem);
 int wcd9xxx_mbhc_get_impedance(struct wcd9xxx_mbhc *mbhc, uint32_t *zl,
 			       uint32_t *zr);

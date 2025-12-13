@@ -25,7 +25,7 @@
 #include <sound/jack.h>
 #include <sound/q6afe-v2.h>
 #include <soc/qcom/socinfo.h>
-#include "qdsp6v2/msm-pcm-routing-v2.h"
+#include <qdsp6v2/msm-pcm-routing-v2.h>
 #include "../codecs/wcd9320.h"
 
 /* Spk control */
@@ -43,8 +43,8 @@
 #define MDM_MI2S_RATE 48000
 
 #define LPAIF_OFFSET 0xFE000000
-#define LPAIF_PRI_MODE_MUXSEL (LPAIF_OFFSET + 0x34000)
-#define LPAIF_SEC_MODE_MUXSEL (LPAIF_OFFSET + 0x35000)
+#define LPAIF_PRI_MODE_MUXSEL (LPAIF_OFFSET + 0x2B000)
+#define LPAIF_SEC_MODE_MUXSEL (LPAIF_OFFSET + 0x2C000)
 
 #define I2S_SEL 0
 #define I2S_PCM_SEL 1
@@ -505,6 +505,7 @@ static int mdm9630_mclk_event(struct snd_soc_dapm_widget *w,
 
 static int mdm9630_auxpcm_startup(struct snd_pcm_substream *substream)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	int ret = 0;
 
 	if (atomic_inc_return(&aux_ref_count) == 1) {
@@ -519,15 +520,26 @@ static int mdm9630_auxpcm_startup(struct snd_pcm_substream *substream)
 			pr_err("%s, GPIO setup failed\n", __func__);
 			return ret;
 		}
+		ret = mdm9630_mi2s_clk_ctl(rtd, true);
+		if (ret < 0) {
+			pr_err("set format for codec dai failed\n");
+			return ret;
+		}
 	}
 	return ret;
 }
 
 static void mdm9630_auxpcm_snd_shutdown(struct snd_pcm_substream *substream)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	int ret;
+
 	if (atomic_dec_return(&aux_ref_count) == 0) {
 		mdm9630_mi2s_free_gpios(substream,
 					   MDM_MI2S_AUXPCM_PRIM_INTF);
+		ret = mdm9630_mi2s_clk_ctl(rtd, false);
+		if (ret < 0)
+			pr_err("%s:clock disable failed\n", __func__);
 	}
 }
 
@@ -641,43 +653,6 @@ static int mdm9630_mi2s_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_enable_pin(dapm, "Ext Spk Bottom Neg");
 	snd_soc_dapm_enable_pin(dapm, "Ext Spk Top Pos");
 	snd_soc_dapm_enable_pin(dapm, "Ext Spk Top Neg");
-
-	snd_soc_dapm_ignore_suspend(dapm, "Lineout_1 amp");
-	snd_soc_dapm_ignore_suspend(dapm, "Lineout_3 amp");
-	snd_soc_dapm_ignore_suspend(dapm, "Lineout_2 amp");
-	snd_soc_dapm_ignore_suspend(dapm, "Lineout_4 amp");
-	snd_soc_dapm_ignore_suspend(dapm, "SPK_ultrasound amp");
-	snd_soc_dapm_ignore_suspend(dapm, "Handset Mic");
-	snd_soc_dapm_ignore_suspend(dapm, "Headset Mic");
-	snd_soc_dapm_ignore_suspend(dapm, "ANCRight Headset Mic");
-	snd_soc_dapm_ignore_suspend(dapm, "ANCLeft Headset Mic");
-	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic1");
-	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic2");
-	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic3");
-	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic4");
-	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic5");
-	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic6");
-
-	snd_soc_dapm_ignore_suspend(dapm, "EAR");
-	snd_soc_dapm_ignore_suspend(dapm, "HEADPHONE");
-	snd_soc_dapm_ignore_suspend(dapm, "LINEOUT1");
-	snd_soc_dapm_ignore_suspend(dapm, "LINEOUT2");
-	snd_soc_dapm_ignore_suspend(dapm, "LINEOUT3");
-	snd_soc_dapm_ignore_suspend(dapm, "LINEOUT4");
-	snd_soc_dapm_ignore_suspend(dapm, "SPK_OUT");
-	snd_soc_dapm_ignore_suspend(dapm, "ANC HEADPHONE");
-	snd_soc_dapm_ignore_suspend(dapm, "ANC EAR");
-	snd_soc_dapm_ignore_suspend(dapm, "AMIC1");
-	snd_soc_dapm_ignore_suspend(dapm, "AMIC2");
-	snd_soc_dapm_ignore_suspend(dapm, "AMIC3");
-	snd_soc_dapm_ignore_suspend(dapm, "AMIC4");
-	snd_soc_dapm_ignore_suspend(dapm, "DMIC1");
-	snd_soc_dapm_ignore_suspend(dapm, "DMIC2");
-	snd_soc_dapm_ignore_suspend(dapm, "DMIC3");
-	snd_soc_dapm_ignore_suspend(dapm, "DMIC4");
-	snd_soc_dapm_ignore_suspend(dapm, "DMIC5");
-	snd_soc_dapm_ignore_suspend(dapm, "DMIC6");
-
 	snd_soc_dapm_sync(dapm);
 
 	mbhc_cfg.calibration = def_taiko_mbhc_cal();
@@ -827,9 +802,9 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.be_id = MSM_FRONTEND_DAI_CS_VOICE,
 	},
 	{
-		.name = "Primary MI2S RX Hostless",
-		.stream_name = "Primary MI2S_RX Hostless Playback",
-		.cpu_dai_name = "PRI_MI2S_RX_HOSTLESS",
+		.name = "MI2S Hostless",
+		.stream_name = "MI2S Hostless",
+		.cpu_dai_name = "MI2S_TX_HOSTLESS",
 		.platform_name  = "msm-pcm-hostless",
 		.dynamic = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
@@ -837,6 +812,7 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ignore_suspend = 1,
 		.ignore_pmdown_time = 1,
+		 /* This dainlink has MI2S support */
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
@@ -890,55 +866,6 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 	},
 	{
-		.name = "DTMF TX",
-		.stream_name = "DTMF TX",
-		.cpu_dai_name = "msm-dai-stub-dev.4",
-		.platform_name = "msm-pcm-dtmf",
-		.codec_name = "msm-stub-codec.1",
-		.codec_dai_name = "msm-stub-tx",
-		.ignore_suspend = 1,
-	},
-	{
-		.name = "CS-VOICE HOST RX CAPTURE",
-		.stream_name = "CS-VOICE HOST RX CAPTURE",
-		.cpu_dai_name = "msm-dai-stub-dev.5",
-		.platform_name  = "msm-voice-host-pcm",
-		.codec_name = "msm-stub-codec.1",
-		.codec_dai_name = "msm-stub-tx",
-		.ignore_suspend = 1,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			    SND_SOC_DPCM_TRIGGER_POST},
-	},
-	{
-		.name = "CS-VOICE HOST RX PLAYBACK",
-		.stream_name = "CS-VOICE HOST RX PLAYBACK",
-		.cpu_dai_name = "msm-dai-stub-dev.6",
-		.platform_name  = "msm-voice-host-pcm",
-		.codec_name = "msm-stub-codec.1",
-		.codec_dai_name = "msm-stub-rx",
-		.ignore_suspend = 1,
-	},
-	{
-		.name = "CS-VOICE HOST TX CAPTURE",
-		.stream_name = "CS-VOICE HOST TX CAPTURE",
-		.cpu_dai_name = "msm-dai-stub-dev.7",
-		.platform_name  = "msm-voice-host-pcm",
-		.codec_name = "msm-stub-codec.1",
-		.codec_dai_name = "msm-stub-tx",
-		.ignore_suspend = 1,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			    SND_SOC_DPCM_TRIGGER_POST},
-	},
-	{
-		.name = "CS-VOICE HOST TX PLAYBACK",
-		.stream_name = "CS-VOICE HOST TX PLAYBACK",
-		.cpu_dai_name = "msm-dai-stub-dev.8",
-		.platform_name  = "msm-voice-host-pcm",
-		.codec_name = "msm-stub-codec.1",
-		.codec_dai_name = "msm-stub-rx",
-		.ignore_suspend = 1,
-	},
-	{
 		.name = "MDM9630 Media2",
 		.stream_name = "MultiMedia2",
 		.cpu_dai_name   = "MultiMedia2",
@@ -951,21 +878,6 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.ignore_suspend = 1,
 		/* this dainlink has playback support */
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA2,
-	},
-	{
-		.name = "MDM9630 Media6",
-		.stream_name = "MultiMedia6",
-		.cpu_dai_name   = "MultiMedia6",
-		.platform_name  = "msm-pcm-loopback",
-		.dynamic = 1,
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			    SND_SOC_DPCM_TRIGGER_POST},
-		.ignore_suspend = 1,
-		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
-		/* this dainlink has playback support */
-		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA6,
 	},
 	/* Backend DAI Links */
 	{
@@ -981,7 +893,6 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.be_hw_params_fixup = &mdm9630_mi2s_rx_be_hw_params_fixup,
 		.ops = &mdm9630_mi2s_be_ops,
 		.ignore_pmdown_time = 1,
-		.ignore_suspend = 1,
 	},
 	{
 		.name = LPASS_BE_PRI_MI2S_TX,
@@ -995,7 +906,6 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.be_hw_params_fixup = &mdm9630_mi2s_tx_be_hw_params_fixup,
 		.ops = &mdm9630_mi2s_be_ops,
 		.ignore_pmdown_time = 1,
-		.ignore_suspend = 1,
 	},
 	{
 		.name = LPASS_BE_AFE_PCM_RX,
@@ -1006,7 +916,6 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.codec_dai_name = "msm-stub-rx",
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_RX,
-		.ignore_suspend = 1,
 	},
 	{
 		.name = LPASS_BE_AFE_PCM_TX,
@@ -1017,7 +926,6 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.codec_dai_name = "msm-stub-tx",
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_TX,
-		.ignore_suspend = 1,
 	},
 	{
 		.name = LPASS_BE_AUXPCM_RX,
@@ -1032,7 +940,6 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.ops = &mdm9630_auxpcm_be_ops,
 		.ignore_pmdown_time = 1,
 		/* this dainlink has playback support */
-		.ignore_suspend = 1,
 	},
 	{
 		.name = LPASS_BE_AUXPCM_TX,
@@ -1045,7 +952,6 @@ static struct snd_soc_dai_link mdm9630_dai[] = {
 		.be_id = MSM_BACKEND_DAI_AUXPCM_TX,
 		.be_hw_params_fixup = mdm9630_auxpcm_be_params_fixup,
 		.ops = &mdm9630_auxpcm_be_ops,
-		.ignore_suspend = 1,
 	},
 	/* Incall Record Uplink BACK END DAI Link */
 	{
@@ -1093,92 +999,6 @@ static struct snd_soc_card snd_soc_card_mdm9630 = {
 	.dai_link = mdm9630_dai,
 	.num_links = ARRAY_SIZE(mdm9630_dai),
 };
-
-static int mdm9630_populate_dai_link_component_of_node(
-					struct snd_soc_card *card)
-{
-	int i, index, ret = 0;
-	struct device *cdev = card->dev;
-	struct snd_soc_dai_link *dai_link = card->dai_link;
-	struct device_node *np;
-
-	if (!cdev) {
-		pr_err("%s: Sound card device memory NULL\n", __func__);
-		return -ENODEV;
-	}
-
-	for (i = 0; i < card->num_links; i++) {
-		if (dai_link[i].platform_of_node && dai_link[i].cpu_of_node)
-			continue;
-
-		/* populate platform_of_node for snd card dai links */
-		if (dai_link[i].platform_name &&
-		    !dai_link[i].platform_of_node) {
-			index = of_property_match_string(cdev->of_node,
-						"asoc-platform-names",
-						dai_link[i].platform_name);
-			if (index < 0) {
-				pr_debug("%s: No match found for platform name: %s\n",
-					__func__, dai_link[i].platform_name);
-				ret = index;
-				goto err;
-			}
-			np = of_parse_phandle(cdev->of_node, "asoc-platform",
-					      index);
-			if (!np) {
-				pr_err("%s: retrieving phandle for platform %s, index %d failed\n",
-					__func__, dai_link[i].platform_name,
-					index);
-				ret = -ENODEV;
-				goto err;
-			}
-			dai_link[i].platform_of_node = np;
-			dai_link[i].platform_name = NULL;
-		}
-
-		/* populate cpu_of_node for snd card dai links */
-		if (dai_link[i].cpu_dai_name && !dai_link[i].cpu_of_node) {
-			index = of_property_match_string(cdev->of_node,
-						 "asoc-cpu-names",
-						 dai_link[i].cpu_dai_name);
-			if (index >= 0) {
-				np = of_parse_phandle(cdev->of_node, "asoc-cpu",
-						index);
-				if (!np) {
-					pr_err("%s: retrieving phandle for cpu dai %s failed\n",
-						__func__,
-						dai_link[i].cpu_dai_name);
-					ret = -ENODEV;
-					goto err;
-				}
-				dai_link[i].cpu_of_node = np;
-				dai_link[i].cpu_dai_name = NULL;
-			}
-		}
-
-		/* populate codec_of_node for snd card dai links */
-		if (dai_link[i].codec_name && !dai_link[i].codec_of_node) {
-			index = of_property_match_string(cdev->of_node,
-						 "asoc-codec-names",
-						 dai_link[i].codec_name);
-			if (index < 0)
-				continue;
-			np = of_parse_phandle(cdev->of_node, "asoc-codec",
-					      index);
-			if (!np) {
-				pr_err("%s: retrieving phandle for codec %s failed\n",
-					__func__, dai_link[i].codec_name);
-				ret = -ENODEV;
-				goto err;
-			}
-			dai_link[i].codec_of_node = np;
-			dai_link[i].codec_name = NULL;
-		}
-	}
-
-err:
-	return ret;
-}
 
 static int mdm9630_dtparse(struct platform_device *pdev,
 				struct mdm9630_machine_data **pdata)
@@ -1330,13 +1150,6 @@ static int mdm9630_asoc_machine_probe(struct platform_device *pdev)
 	ret = snd_soc_of_parse_audio_routing(card, "qcom,audio-routing");
 	if (ret)
 		goto err;
-
-	ret = mdm9630_populate_dai_link_component_of_node(card);
-	if (ret) {
-		ret = -EPROBE_DEFER;
-		goto err;
-	}
-
 	ret = snd_soc_register_card(card);
 	if (ret) {
 		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n",
