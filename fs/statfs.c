@@ -60,6 +60,12 @@ static int statfs_by_dentry(struct dentry *dentry, struct kstatfs *buf)
 	retval = dentry->d_sb->s_op->statfs(dentry, buf);
 	if (retval == 0 && buf->f_frsize == 0)
 		buf->f_frsize = buf->f_bsize;
+
+#ifdef CONFIG_ANDROID_TREBLE_LEGACYRIL_HACK
+	if (strstr(current->comm, "rild") != NULL)
+		buf->f_type = 0x01021994; // TMPFS_MAGIC
+#endif
+
 	return retval;
 }
 

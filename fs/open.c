@@ -992,6 +992,11 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	int fd = build_open_flags(flags, mode, &op);
 	struct filename *tmp;
 
+#ifdef CONFIG_ANDROID_TREBLE_LEGACYRIL_HACK
+	char *replace;
+	const char template[] = "///////lib";
+#endif
+
 	if (fd)
 		return fd;
 
@@ -999,12 +1004,33 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
 
+#ifdef CONFIG_ANDROID_TREBLE_LEGACYRIL_HACK
+retry_lib:
+
+	if (strstr(tmp->name, "system/vendor/lib/libbinder") != NULL && strstr(current->comm, "rild") != NULL)
+	{
+				replace = strstr(tmp->name, "vendor/lib");
+				memcpy(replace, template, sizeof(template) - 1);
+	}
+#endif
+
 	fd = get_unused_fd_flags(flags);
 	if (fd >= 0) {
 		struct file *f = do_filp_open(dfd, tmp, &op);
 		if (IS_ERR(f)) {
 			put_unused_fd(fd);
 			fd = PTR_ERR(f);
+
+#ifdef CONFIG_ANDROID_TREBLE_LEGACYRIL_HACK
+			if (strstr(tmp->name, "system/vendor/lib") != NULL && strstr(current->comm, "rild") != NULL)
+			{
+				replace = strstr(tmp->name, "vendor/lib");
+				memcpy(replace, template, sizeof(template) - 1);
+
+				goto retry_lib;
+			}
+#endif
+
 		} else {
 			fsnotify_open(f);
 			fd_install(fd, f);

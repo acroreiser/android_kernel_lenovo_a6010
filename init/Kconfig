@@ -1389,6 +1389,14 @@ config ANDROID_TREBLE_SPOOF_BPF_KERNEL_BITNESS
 		bool "Report aarch64 kernel to bpfloader"
 		default n
 
+config ANDROID_TREBLE_LEGACYRIL_HACK
+		bool "HACK: TREBLE: workaround legacy RIL dependencies"
+		default n
+		help
+				This hack bypasses linker namespace isolation for rild.
+				Needed to fix up RIL on Treble-enabled system.
+				Use this only for Project Treble purposes.
+
 config ANDROID_KILL_BUGGY_CAMERA
 	bool "Kill BaconCamera after user leaving"
 	help
