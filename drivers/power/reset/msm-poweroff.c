@@ -301,6 +301,12 @@ static void msm_restart_prepare(const char *cmd)
 		}
 	}
 
+#ifdef CONFIG_MSM_FORCE_FASTBOOT
+	qpnp_pon_set_restart_reason(
+		PON_RESTART_REASON_BOOTLOADER);
+	__raw_writel(0x77665500, restart_reason);
+#endif
+
 	flush_cache_all();
 
 	/*outer_flush_all is not supported by 64bit kernel*/

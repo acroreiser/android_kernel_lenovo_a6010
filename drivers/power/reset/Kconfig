@@ -38,6 +38,11 @@ config MSM_PRESERVE_MEM
 	  persistent memory contents. Select this option to always perform
 	  a soft reset that preserves memory contents.
 
+config MSM_FORCE_FASTBOOT
+	bool "Always reboot to fastboot on restart"
+	default n
+	depends on POWER_RESET_MSM
+
 config POWER_RESET_QNAP
 	bool "QNAP power-off driver"
 	depends on OF_GPIO && POWER_RESET && PLAT_ORION
