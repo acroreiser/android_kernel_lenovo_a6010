@@ -733,6 +733,9 @@ static void walk_zones_in_node(struct seq_file *m, pg_data_t *pgdat,
 #define TEXTS_FOR_ZONES(xx) TEXT_FOR_DMA(xx) TEXT_FOR_DMA32(xx) xx "_normal", \
 					TEXT_FOR_HIGHMEM(xx) xx "_movable",
 
+#define TEXTS_FOR_ZONES_LMKD(xx) TEXT_FOR_DMA(xx) TEXT_FOR_DMA32(xx) xx "_normal", \
+					TEXT_FOR_HIGHMEM(xx) xx "",
+
 const char * const vmstat_text[] = {
 	/* Zoned VM counters */
 	"nr_free_pages",
@@ -803,8 +806,8 @@ const char * const vmstat_text[] = {
 	TEXTS_FOR_ZONES("pgrefill")
 	TEXTS_FOR_ZONES("pgsteal_kswapd")
 	TEXTS_FOR_ZONES("pgsteal_direct")
-	TEXTS_FOR_ZONES("pgscan_kswapd")
-	TEXTS_FOR_ZONES("pgscan_direct")
+	TEXTS_FOR_ZONES_LMKD("pgscan_kswapd")
+	TEXTS_FOR_ZONES_LMKD("pgscan_direct")
 	"pgscan_direct_throttle",
 
 #ifdef CONFIG_NUMA
@@ -1302,6 +1305,11 @@ static void *vmstat_next(struct seq_file *m, void *arg, loff_t *pos)
 	(*pos)++;
 	if (*pos >= ARRAY_SIZE(vmstat_text))
 		return NULL;
+
+	if (!strcmp(vmstat_text[*pos], "pgscan_direct") ||
+	    !strcmp(vmstat_text[*pos], "pgscan_kswapd"))
+		*((unsigned long *)m->private + *pos) = *((unsigned long *)m->private + (*pos - 1)) + *((unsigned long *)m->private + (*pos - 2));
+
 	return (unsigned long *)m->private + *pos;
 }
 
