@@ -952,29 +952,27 @@ SYSCALL_DEFINE2(process_mrelease, int, pidfd, unsigned int, flags)
 			}
 	}
 
-	mm = p->mm;
-	atomic_inc(&mm->mm_count);
-	if (task_will_free_mem(p))
-		reap = true;
-	else {
-		/* Error only if the work has not been done already */
-		if (!test_bit(MMF_OOM_REAPED, &mm->flags))
-			ret = -EINVAL;
+	if (mmget_not_zero(p->mm)) {
+		mm = p->mm;
+		if (task_will_free_mem(p))
+			reap = true;
+		else {
+			/* Error only if the work has not been done already */
+			if (!test_bit(MMF_OOM_REAPED, &mm->flags))
+				ret = -EINVAL;
+		}
 	}
 	task_unlock(p);
 
 	if (!reap)
 		goto drop_mm;
 
-	/*
-	 * Check MMF_OOM_SKIP again under mmap_read_lock protection to ensure
-	 * possible change in exit_mmap is seen
-	 */
-	if (!test_bit(MMF_OOM_REAPED, &mm->flags) && !__oom_reap_vmas(mm))
+	if (!__oom_reap_vmas(mm))
 		ret = -EAGAIN;
 
 drop_mm:
-	mmdrop(mm);
+	if (mm)
+		mmput(mm);
 put_task:
 	put_task_struct(task);
 put_pid:
