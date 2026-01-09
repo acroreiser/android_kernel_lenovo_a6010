@@ -922,7 +922,7 @@ SYSCALL_DEFINE2(process_mrelease, int, pidfd, unsigned int, flags)
 	struct task_struct *task;
 	struct task_struct *p;
 	unsigned int f_flags;
-	bool reap = false;
+	bool reap = true;
 	struct pid *pid;
 	long ret = 0;
 
@@ -952,15 +952,15 @@ SYSCALL_DEFINE2(process_mrelease, int, pidfd, unsigned int, flags)
 			}
 	}
 
-	if (mmget_not_zero(p->mm)) {
-		mm = p->mm;
-		if (task_will_free_mem(p))
-			reap = true;
-		else {
-			/* Error only if the work has not been done already */
-			if (!test_bit(MMF_OOM_REAPED, &mm->flags))
-				ret = -EINVAL;
-		}
+	mm = p->mm;
+	atomic_inc(&mm->mm_count);
+
+	/* If the work has been done already, just exit with success */
+	if (test_bit(MMF_OOM_REAPED, &mm->flags))
+		reap = false;
+	else if (!__task_will_free_mem(p)) {
+		reap = false;
+		ret = -EINVAL;
 	}
 	task_unlock(p);
 
@@ -971,8 +971,7 @@ SYSCALL_DEFINE2(process_mrelease, int, pidfd, unsigned int, flags)
 		ret = -EAGAIN;
 
 drop_mm:
-	if (mm)
-		mmput(mm);
+	mmdrop(mm);
 put_task:
 	put_task_struct(task);
 put_pid:
