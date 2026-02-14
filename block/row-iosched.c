@@ -338,10 +338,7 @@ static void row_add_request(struct request_queue *q,
 	rqueue->nr_req++;
 	rq->fifo_time = jiffies; /* for statistics*/
 
-	if (current->policy == SCHED_FIFO|SCHED_RESET_ON_FORK &&
-	    current->rt_priority == 1)
-		if (current->cred->uid.val > 10000 ||
-		    current->cred->uid.val == 1000)
+	if (unlikely(!strcmp(current->comm, "RenderThread")))
 			if (rq_data_dir(rq) == READ)
 				urgent = true;
 
