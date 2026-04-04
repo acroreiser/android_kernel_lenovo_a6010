@@ -68,6 +68,7 @@
 #endif
 	.endm
 
+	.pushsection .vfp11_veneer, "ax"
 
 @ VFP hardware support entry point.
 @

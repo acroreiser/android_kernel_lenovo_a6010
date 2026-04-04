@@ -726,7 +726,7 @@ static const struct file_operations vfp_bounce_fops = {
 };
 #endif
 
-void vfp_kmode_exception(void)
+void __section(".vfp11_veneer") vfp_kmode_exception(void)
 {
 	/*
 	 * If we reach this point, a floating point exception has been raised
