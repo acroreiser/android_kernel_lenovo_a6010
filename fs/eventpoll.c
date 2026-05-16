@@ -1684,6 +1684,87 @@ check_events:
 	return res;
 }
 
+static int ep_poll2(struct eventpoll *ep, struct epoll_event __user *events,
+		   int maxevents, struct timespec timeout, bool has_timeout)
+{
+	int res = 0, eavail, timed_out = 0;
+	unsigned long flags;
+	long slack = 0;
+	wait_queue_t wait;
+	ktime_t expires, *to = NULL;
+
+	if (has_timeout) {
+		struct timespec end_time, now;
+		ktime_get_ts(&now);
+		end_time = timespec_add_safe(now, timeout);
+		slack = select_estimate_accuracy(&end_time);
+		to = &expires;
+		*to = timespec_to_ktime(end_time);
+	} else if (!has_timeout) {
+		/*
+		 * Avoid the unnecessary trip to the wait queue loop, if the
+		 * caller specified a non blocking operation.
+		 */
+		timed_out = 1;
+		spin_lock_irqsave(&ep->lock, flags);
+		goto check_events;
+	}
+
+fetch_events:
+	spin_lock_irqsave(&ep->lock, flags);
+
+	if (!ep_events_available(ep)) {
+		/*
+		 * We don't have any available event to return to the caller.
+		 * We need to sleep here, and we will be wake up by
+		 * ep_poll_callback() when events will become available.
+		 */
+		init_waitqueue_entry(&wait, current);
+		__add_wait_queue_exclusive(&ep->wq, &wait);
+
+		for (;;) {
+			/*
+			 * We don't want to sleep if the ep_poll_callback() sends us
+			 * a wakeup in between. That's why we set the task state
+			 * to TASK_INTERRUPTIBLE before doing the checks.
+			 */
+			set_current_state(TASK_INTERRUPTIBLE);
+			if (ep_events_available(ep) || timed_out)
+				break;
+			if (signal_pending(current)) {
+				res = -EINTR;
+				break;
+			}
+
+			spin_unlock_irqrestore(&ep->lock, flags);
+			if (!freezable_schedule_hrtimeout_range(to, slack,
+								HRTIMER_MODE_ABS))
+				timed_out = 1;
+
+			spin_lock_irqsave(&ep->lock, flags);
+		}
+		__remove_wait_queue(&ep->wq, &wait);
+
+		set_current_state(TASK_RUNNING);
+	}
+check_events:
+	/* Is it worth to try to dig for events ? */
+	eavail = ep_events_available(ep);
+
+	spin_unlock_irqrestore(&ep->lock, flags);
+
+	/*
+	 * Try to transfer events to user space. In case we get 0 events and
+	 * there's still timeout left over, we go trying again in search of
+	 * more luck.
+	 */
+	if (!res && eavail &&
+	    !(res = ep_send_events(ep, events, maxevents)) && !timed_out)
+		goto fetch_events;
+
+	return res;
+}
+
 /**
  * ep_loop_check_proc - Callback function to be passed to the @ep_call_nested()
  *                      API, to verify that adding an epoll file inside another
@@ -2115,6 +2196,121 @@ COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd,
 	return err;
 }
 #endif
+
+struct __kernel_timespec {
+	long long       tv_sec;                 /* seconds */
+	long long               tv_nsec;                /* nanoseconds */
+};
+
+int get_timespec(struct timespec *ts,
+		   const struct __kernel_timespec __user *uts)
+{
+	struct __kernel_timespec kts;
+	int ret;
+
+	ret = copy_from_user(&kts, uts, sizeof(kts));
+	if (ret)
+		return -EFAULT;
+
+	ts->tv_sec = (long)kts.tv_sec;
+	ts->tv_nsec = (long)kts.tv_nsec;
+
+	return 0;
+}
+
+int epoll_wait_ts(int epfd, struct epoll_event __user * events,
+		int maxevents, struct timespec timeout, bool has_timeout)
+{
+	int error;
+	struct file *file;
+	struct eventpoll *ep;
+
+	/* The maximum number of event must be greater than zero */
+	if (maxevents <= 0 || maxevents > EP_MAX_EVENTS)
+		return -EINVAL;
+
+	/* Verify that the area passed by the user is writeable */
+	if (!access_ok(VERIFY_WRITE, events, maxevents * sizeof(struct epoll_event))) {
+		error = -EFAULT;
+		goto error_return;
+	}
+
+	/* Get the "struct file *" for the eventpoll file */
+	error = -EBADF;
+	file = fget(epfd);
+	if (!file)
+		goto error_return;
+
+	/*
+	 * We have to check that the file structure underneath the fd
+	 * the user passed to us _is_ an eventpoll file.
+	 */
+	error = -EINVAL;
+	if (!is_file_epoll(file))
+		goto error_fput;
+
+	/*
+	 * At this point it is safe to assume that the "private_data" contains
+	 * our own data structure.
+	 */
+	ep = file->private_data;
+
+	/* Time to fish for events ... */
+	error = ep_poll2(ep, events, maxevents, timeout, has_timeout);
+
+error_fput:
+	fput(file);
+error_return:
+
+	return error;
+}
+
+SYSCALL_DEFINE6(epoll_pwait2, int, epfd, struct epoll_event __user *, events,
+		int, maxevents, const struct __kernel_timespec __user *, timeout,
+		const sigset_t __user *, sigmask, size_t, sigsetsize)
+{
+	int error;
+	sigset_t ksigmask, sigsaved;
+
+	struct timespec ts;
+
+	if (timeout) {
+		if (get_timespec(&ts, timeout))
+			return -EFAULT;
+	}
+
+	/*
+	 * If the caller wants a certain signal mask to be set during the wait,
+	 * we apply it here.
+	 */
+	if (sigmask) {
+		if (sigsetsize != sizeof(sigset_t))
+			return -EINVAL;
+		if (copy_from_user(&ksigmask, sigmask, sizeof(ksigmask)))
+			return -EFAULT;
+		sigdelsetmask(&ksigmask, sigmask(SIGKILL) | sigmask(SIGSTOP));
+		sigprocmask(SIG_SETMASK, &ksigmask, &sigsaved);
+	}
+
+	error = epoll_wait_ts(epfd, events, maxevents, ts, (timeout ? true : false));
+
+	/*
+	 * If we changed the signal mask, we need to restore the original one.
+	 * In case we've got a signal while waiting, we do not restore the
+	 * signal mask yet, and we allow do_signal() to deliver the signal on
+	 * the way back to userspace, before the signal mask is restored.
+	 */
+	if (sigmask) {
+		if (error == -EINTR) {
+			memcpy(&current->saved_sigmask, &sigsaved,
+			       sizeof(sigsaved));
+			set_restore_sigmask();
+		} else
+			sigprocmask(SIG_SETMASK, &sigsaved, NULL);
+	}
+
+	return error;
+}
 
 static int __init eventpoll_init(void)
 {
