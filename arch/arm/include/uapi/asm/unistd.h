@@ -417,6 +417,8 @@
 #define __NR_membarrier			(__NR_SYSCALL_BASE+389)
 #define __NR_pidfd_send_signal                 (__NR_SYSCALL_BASE+424)
 #define __NR_pidfd_open			(__NR_SYSCALL_BASE+434)
+#define __NR_close_range				(__NR_SYSCALL_BASE+436)
+
 /*
  * The following SWIs are ARM private.
  */

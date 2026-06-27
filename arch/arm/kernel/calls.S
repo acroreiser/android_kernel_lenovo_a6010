@@ -444,6 +444,8 @@
 		CALL(sys_ni_syscall)
 		CALL(sys_ni_syscall)
 		CALL(sys_pidfd_open)
+/* 435 */	CALL(sys_ni_syscall)
+		CALL(sys_close_range)
 #ifndef syscalls_counted
 .equ syscalls_padding, ((NR_syscalls + 3) & ~3) - NR_syscalls
 #define syscalls_counted
