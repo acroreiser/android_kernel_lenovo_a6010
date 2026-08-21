@@ -968,7 +968,7 @@ static int xfrm_policy_match(const struct xfrm_policy *pol,
 	bool match;
 
 	if (pol->family != family ||
-	    pol->if_id != fl->flowi_xfrm.if_id ||
+	    (pol->if_id && pol->if_id != fl->flowi_xfrm.if_id) ||
 	    (fl->flowi_mark & pol->mark.m) != pol->mark.v ||
 	    pol->type != type)
 		return ret;

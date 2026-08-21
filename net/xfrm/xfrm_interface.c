@@ -65,13 +65,13 @@ struct pcpu_tstats {
 	struct u64_stats_sync	syncp;
 };
 
-static struct xfrm_if *xfrmi_lookup(struct net *net, struct xfrm_state *x)
+struct xfrm_if *xfrmi_lookup(struct net *net, struct xfrm_state *x)
 {
 	struct xfrmi_net *xfrmn = net_generic(net, xfrmi_net_id);
 	struct xfrm_if *xi;
 
 	for_each_xfrmi_rcu(xfrmn->xfrmi[0], xi) {
-		if (x->if_id == xi->p.if_id &&
+		if ((x->if_id == xi->p.if_id || !x->if_id) &&
 		    (xi->dev->flags & IFF_UP))
 			return xi;
 	}
@@ -92,9 +92,9 @@ static struct xfrm_if *xfrmi_decode_session(struct sk_buff *skb)
 	ifindex = skb->dev->ifindex;
 
 	for_each_xfrmi_rcu(xfrmn->xfrmi[0], xi) {
-		if (ifindex == xi->dev->ifindex &&
-			(xi->dev->flags & IFF_UP))
-				return xi;
+		if ((ifindex == xi->dev->ifindex || (xi->phydev && ifindex == xi->phydev->ifindex)) &&
+		    (xi->dev->flags & IFF_UP))
+			return xi;
 	}
 
 	return NULL;
@@ -253,10 +253,57 @@ xfrmi_xmit2(struct sk_buff *skb, struct net_device *dev, struct flowi *fl)
 	int err = -1;
 	int mtu;
 
-	if (!dst)
-		goto tx_err_link_failure;
+	skb_reset_network_header(skb);
+
+	memset(fl, 0, sizeof(*fl));
+	if (skb->protocol == htons(ETH_P_IPV6)) {
+		struct ipv6hdr *iph = ipv6_hdr(skb);
+		struct flowi6 *fl6 = &fl->u.ip6;
+		fl6->daddr = iph->daddr;
+		fl6->saddr = iph->saddr;
+		fl6->flowi6_proto = iph->nexthdr;
+		fl->flowi_proto = iph->nexthdr;
+	} else if (skb->protocol == htons(ETH_P_IP)) {
+		struct iphdr *iph = ip_hdr(skb);
+		struct flowi4 *fl4 = &fl->u.ip4;
+		fl4->daddr = iph->daddr;
+		fl4->saddr = iph->saddr;
+		fl4->flowi4_proto = iph->protocol;
+		fl->flowi_proto = iph->protocol;
+	}
 
 	fl->flowi_xfrm.if_id = xi->p.if_id;
+
+	if (!dst) {
+		struct net *net = dev_net(dev);
+
+		if (skb->protocol == htons(ETH_P_IPV6)) {
+			struct ipv6hdr *iph = ipv6_hdr(skb);
+			struct flowi6 fl_route;
+			memset(&fl_route, 0, sizeof(fl_route));
+			fl_route.daddr = iph->daddr;
+			fl_route.saddr = iph->saddr;
+			fl_route.flowi6_proto = iph->nexthdr;
+			dst = ip6_route_output(net, NULL, &fl_route);
+		} else {
+			struct iphdr *iph = ip_hdr(skb);
+			struct flowi4 fl_route;
+			memset(&fl_route, 0, sizeof(fl_route));
+			fl_route.daddr = iph->daddr;
+			fl_route.saddr = iph->saddr;
+			fl_route.flowi4_proto = iph->protocol;
+			struct rtable *rt = ip_route_output_key(net, &fl_route);
+			if (!IS_ERR(rt))
+				dst = &rt->dst;
+		}
+
+		if (!dst || IS_ERR(dst)) {
+			stats->tx_carrier_errors++;
+			goto tx_err_link_failure;
+		}
+
+		skb_dst_set(skb, dst);
+	}
 
 	dst_hold(dst);
 	dst = xfrm_lookup(xi->net, dst, fl, NULL, 0);
@@ -268,9 +315,6 @@ xfrmi_xmit2(struct sk_buff *skb, struct net_device *dev, struct flowi *fl)
 
 	x = dst->xfrm;
 	if (!x)
-		goto tx_err_link_failure;
-
-	if (x->if_id != xi->p.if_id)
 		goto tx_err_link_failure;
 
 	tdev = dst->dev;

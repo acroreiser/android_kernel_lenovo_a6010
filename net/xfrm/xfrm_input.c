@@ -264,6 +264,15 @@ resume:
 	nf_reset(skb);
 
 	if (decaps) {
+		if (x && (x->props.mode == XFRM_MODE_TUNNEL || x->props.mode == XFRM_MODE_BEET)) {
+			extern struct xfrm_if *xfrmi_lookup(struct net *net, struct xfrm_state *x);
+			struct xfrm_if *xi = xfrmi_lookup(net, x);
+			if (xi && xi->dev) {
+				skb->dev = xi->dev;
+				skb->skb_iif = xi->dev->ifindex;
+			}
+		}
+
 		skb_dst_drop(skb);
 		netif_rx(skb);
 		return 0;
