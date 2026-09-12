@@ -995,6 +995,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 #ifdef CONFIG_ANDROID_TREBLE_LEGACYRIL_HACK
 	char *replace;
 	const char template[] = "///////lib";
+	const char template2[] = "system/lib";
 #endif
 
 	if (fd)
@@ -1007,10 +1008,14 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 #ifdef CONFIG_ANDROID_TREBLE_LEGACYRIL_HACK
 retry_lib:
 
-	if (strstr(tmp->name, "system/vendor/lib/libbinder") != NULL && strstr(current->comm, "rild") != NULL)
+	if (strstr(current->comm, "rild") != NULL)
 	{
-				replace = strstr(tmp->name, "vendor/lib");
-				memcpy(replace, template, sizeof(template) - 1);
+		replace = strstr(tmp->name, "vendor/lib");
+
+		if (strstr(tmp->name, "system/vendor/lib/libbinder") != NULL)
+			memcpy(replace, template, sizeof(template) - 1);
+		else if (strstr(tmp->name, "vendor/lib/libbinder") != NULL)
+			memcpy(replace, template2, sizeof(template2) - 1);
 	}
 #endif
 
@@ -1022,10 +1027,14 @@ retry_lib:
 			fd = PTR_ERR(f);
 
 #ifdef CONFIG_ANDROID_TREBLE_LEGACYRIL_HACK
-			if (strstr(tmp->name, "system/vendor/lib") != NULL && strstr(current->comm, "rild") != NULL)
+			if (strstr(tmp->name, "vendor/lib") != NULL && strstr(current->comm, "rild") != NULL)
 			{
 				replace = strstr(tmp->name, "vendor/lib");
-				memcpy(replace, template, sizeof(template) - 1);
+
+				if (strstr(tmp->name, "system/vendor/lib") != NULL)
+					memcpy(replace, template, sizeof(template) - 1);
+				else if (strstr(tmp->name, "vendor/lib") != NULL)
+					memcpy(replace, template2, sizeof(template2) - 1);
 
 				goto retry_lib;
 			}
