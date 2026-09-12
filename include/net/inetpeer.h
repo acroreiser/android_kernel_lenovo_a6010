@@ -83,7 +83,7 @@ static inline struct inet_peer_base *inetpeer_base_ptr(unsigned long val)
 
 static inline bool inetpeer_ptr_is_peer(unsigned long val)
 {
-	return !(val & INETPEER_BASE_BIT);
+	return val && !(val & INETPEER_BASE_BIT);
 }
 
 static inline void __inetpeer_ptr_set_peer(unsigned long *val, struct inet_peer *peer)
